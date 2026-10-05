@@ -10,7 +10,21 @@ import kotlin.math.min
  * a transient bar taller than the stable one never makes the keyboard jump.
  */
 object NavInsets {
+    /** Floor for gesture navigation (mode 2): the system's keyboard-switch button (white globe)
+     *  lives in the nav strip and is taller than the gesture pill — on a Pixel 6 @356dpi the
+     *  pill inset is 53px but the globe reaches ~19px above the strip. Keys need the floor. */
+    const val MIN_GESTURE_RESERVE = 88
+
     fun bottomPadding(current: Int, stable: Int): Int = max(0, min(current, stable))
+
+    /**
+     * Final reserve given the reported insets and the navigation mode
+     * (2 = gesture navigation, per Settings.Secure.NAVIGATION_MODE).
+     */
+    fun bottomPadding(current: Int, stable: Int, navigationMode: Int): Int {
+        val base = bottomPadding(current, stable)
+        return if (navigationMode == 2) max(base, MIN_GESTURE_RESERVE) else base
+    }
 
     /** Total view height: drawn content + the reserved strip (never negative, never twice). */
     fun totalHeight(contentPx: Int, navPaddingPx: Int): Int = max(0, contentPx) + max(0, navPaddingPx)

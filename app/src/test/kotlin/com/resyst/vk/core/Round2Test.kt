@@ -31,6 +31,23 @@ class Round2Test {
         assertEquals(500, NavInsets.totalHeight(500, -10))
     }
 
+    // ── N5: gesture nav globe button floats above the strip ─────────────
+    @Test fun gestureModeFloorsTheReserve() { // N5a
+        // Pixel 6 @356dpi: pill inset 53, but the globe button reaches ~19px above it.
+        assertEquals(NavInsets.MIN_GESTURE_RESERVE, NavInsets.bottomPadding(53, 53, navigationMode = 2))
+        assertEquals(88, NavInsets.bottomPadding(53, 53, navigationMode = 2))
+    }
+
+    @Test fun tallInsetsStillWinOverTheFloor() { // N5b
+        assertEquals(126, NavInsets.bottomPadding(126, 126, navigationMode = 2))
+    }
+
+    @Test fun nonGestureModesKeepThePureRule() { // N5c
+        assertEquals(126, NavInsets.bottomPadding(126, 126, navigationMode = 0))
+        assertEquals(53, NavInsets.bottomPadding(53, 53, navigationMode = 1))
+        assertEquals(53, NavInsets.bottomPadding(53, 53)) // legacy 2-arg overload = raw rule
+    }
+
     @Test fun totalHeightCountsTheInsetExactlyOnce() { // N5
         assertEquals(829 + 126, NavInsets.totalHeight(829, 126))
         assertEquals(829, NavInsets.totalHeight(829, 0))

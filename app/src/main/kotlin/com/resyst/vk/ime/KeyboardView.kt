@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.os.Build
+import android.provider.Settings
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -196,10 +197,15 @@ class KeyboardView(context: Context) : View(context) {
             @Suppress("DEPRECATION")
             root.systemWindowInsetBottom to root.stableInsetBottom
         }
-        val pad = NavInsets.bottomPadding(current, stable)
+        // Gesture navigation draws the system keyboard-switch button (globe) inside the nav
+        // strip, taller than the pill itself — reserve a floor so keys stay clear of it.
+        val navMode = if (Build.VERSION.SDK_INT >= 29) {
+            Settings.Secure.getInt(context.contentResolver, "navigation_mode", 0)
+        } else 0
+        val pad = NavInsets.bottomPadding(current, stable, navMode)
         val d = if (Build.VERSION.SDK_INT >= 30) dispatched.getInsets(WindowInsets.Type.navigationBars()).bottom
         else @Suppress("DEPRECATION") dispatched.systemWindowInsetBottom
-        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d → padding=$pad")
+        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode → padding=$pad")
         return pad
     }
 
