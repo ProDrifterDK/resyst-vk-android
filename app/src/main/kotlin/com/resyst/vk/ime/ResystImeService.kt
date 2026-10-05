@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
+import com.resyst.vk.core.Bar
 import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
@@ -55,7 +56,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private val fieldKind get() = policy.kind
     private val noSuggestField get() = !policy.suggestions
     /** Learns finished words; the gate is re-checked on every edit (X1–X3). */
-    private val learner = Learner { PersonalStore.words?.takeIf { policy.personalWords(s) } }
+    private val learner = Learner { personalWords() }
+
+    /** The learned model, or null whenever this field / these settings may not use it. */
+    private fun personalWords() = PersonalStore.words?.takeIf { policy.personalWords(s) }
     private lateinit var haptics: HapticPlayer
     private lateinit var subtypes: SubtypeSync
 
@@ -200,7 +204,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         engine.doubleSpacePeriod = st.doubleSpace
         val lang = st.lang
         engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
-            Corrector { word, sentenceStart -> lexicon?.get(lang)?.correction(word, sentenceStart) }
+            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
         v.setProfile(store.activeProfile.icon, store.activeProfile.name)
@@ -367,10 +371,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (wasLayer != engine.layer) rebuildLayout()
         val st = s
         if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(emptyList()); return }
-        val before = ic.getTextBeforeCursor(48, 0) ?: ""
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
-        val sugg = lexicon?.get(st.lang)?.suggest(currentWord, 3) ?: emptyList()
+        val sugg = Bar.words(before, after, before.length >= WINDOW, st.lang, lexicon?.get(st.lang), personalWords(), engine.shift)
         v.setSuggestions(sugg)
     }
 
