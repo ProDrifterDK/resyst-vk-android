@@ -130,6 +130,9 @@ class SettingsActivity : Activity() {
             choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
         }
         toggle("Sugerencias", "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
+        if (s.suggest) {
+            toggle("El espacio aplica la corrección", "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
+        }
         toggle("Mayúscula automática", "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
         toggle("Doble espacio = punto", null, s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
         toggle("Vista previa de tecla", "Burbuja sobre la tecla al pulsar", s.popups) { v -> commit { it.copy(popups = v) } }

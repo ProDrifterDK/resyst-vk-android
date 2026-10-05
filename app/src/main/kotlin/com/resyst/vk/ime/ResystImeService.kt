@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
+import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
 import com.resyst.vk.core.HapticEvent
@@ -199,6 +200,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val st = s
         engine.autoCapEnabled = st.autoCap
         engine.doubleSpacePeriod = st.doubleSpace
+        val lang = st.lang
+        engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
+            Corrector { word, sentenceStart -> lexicon?.get(lang)?.correction(word, sentenceStart) }
+        } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
         v.setProfile(store.activeProfile.icon, store.activeProfile.name)
         sound?.configure(st.sound, st.soundPack)
@@ -237,8 +242,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onKeyCommit(key: Key) {
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(64, 0) ?: ""
+        val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
         val layerBefore = engine.layer
-        run(engine.press(key, before, SystemClock.uptimeMillis()), ic)
+        val outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
+        // delete + commit (correction, undo, double-space) must land as one edit
+        if (outs.size > 1) ic.beginBatchEdit()
+        run(outs, ic)
+        if (outs.size > 1) ic.endBatchEdit()
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
     }
