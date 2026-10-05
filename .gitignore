@@ -1,14 +1,16 @@
-.gradle/
-.kotlin/
-build/
+# Local-only working notes (not part of the public repo)
 app/build/
-local.properties
+build/
+captures/
+.DS_Store
+.gradle/
 .idea/
 *.iml
-.DS_Store
-captures/
-*.keystore
 *.jks
-# Local-only working notes (not part of the public repo)
-reports/
+*.keystore
+keystore/
+.kotlin/
+local.properties
 __pycache__/
+reports/
+resyst-vk-release.jks

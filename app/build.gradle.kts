@@ -11,8 +11,22 @@ android {
         applicationId = "com.resyst.vk"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            // keystore/ is gitignored; CI or a fresh clone provides it out of band.
+            val ksFile = rootProject.file("keystore/resyst-vk-release.jks")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                val passFile = rootProject.file("keystore/store.pass")
+                storePassword = passFile.readText().trim()
+                keyAlias = "resyst-vk"
+                keyPassword = passFile.readText().trim()
+            }
+        }
     }
 
     buildTypes {
@@ -22,6 +36,8 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
