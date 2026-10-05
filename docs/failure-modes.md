@@ -65,3 +65,40 @@ rendering, touch) is covered by the E2E script `scripts/e2e.sh`.
 - Y1 Samples clip, or contain NaN.
 - Y2 A buffer is empty or has an unexpected duration.
 - Y3 The WAV header sizes are wrong (SoundPool rejects the file).
+
+## Round 2 — field feedback (Pixel 6)
+
+### Navigation bar inset (`Insets`)
+- N1 The keyboard ignores the navigation bar: the bottom row sits under the gesture pill /
+  the 3-button bar (r1 bug: the inset never reached the view, so it added 0 px).
+- N2 A hidden navigation bar (immersive, nav bar visibility off) still reserves space.
+- N3 A transient bar larger than the stable bar (e.g. a taskbar flash) makes the keyboard jump.
+- N4 Garbage inputs (negative values) produce negative padding / a shrinking view.
+- N5 The total height forgets the inset, or counts it twice.
+
+### Hide the special-characters row (`KbSettings.hideTopRow`)
+- H1 A fresh install hides the row (it must be visible by default).
+- H2 Hiding still lays out 5 rows, or removes a letter row instead of the top row.
+- H3 Un-hiding forgets which content the row had (accents vs. digits).
+- H4 r1 storage with `topRow = NONE` is lost or crashes instead of becoming "hidden".
+- H5 The flag doesn't survive save → load, or leaks between profiles.
+- H6 Symbol / numpad layers change when the row is hidden.
+
+### Haptics (`Haptics`)
+- K1 The in-app toggle is on but nothing vibrates (r1 bug: the view had haptics disabled, so
+  every `performHapticFeedback` was suppressed before reaching the vibrator).
+- K2 The toggle is off but something still vibrates.
+- K3 Every event uses the same pulse (long-press / cursor ticks indistinguishable).
+- K4 The pulse is routed through the system "touch feedback" setting, so the in-app switch
+  isn't the switch.
+
+### Languages = IME subtypes (`Subtypes`)
+- U1 The system picker lists only one language (r1 bug: subtypes were declared but never
+  explicitly enabled, so Android only showed the one matching the system locale).
+- U2 A `Lang` exists in the app without a subtype in `method.xml` (or vice versa).
+- U3 Subtype labels are missing / not "Español (Resyst)", "English (Resyst)".
+- U4 Locale tags with region or script (`es_CL`, `es-419`, `en_US`) don't map to a `Lang`;
+  unknown languages map to a wrong `Lang` instead of none.
+- U5 A user's explicit subtype choice in system settings is overwritten on every start.
+- U6 The in-app language is set to a subtype the user disabled → the switch silently fails.
+- U7 System picker → app and app → system feed back into each other (ping-pong loop).

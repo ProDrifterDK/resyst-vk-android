@@ -49,7 +49,8 @@ class PaletteProfilesTest {
         assertEquals(listOf("lab", "paper", "arcade", "slate"), st.profiles.map { it.settings.theme })
         assertEquals("noche", st.active)
         val juego = st.byId("juego")!!.settings
-        assertEquals(TopRow.NONE, juego.topRow)
+        assertEquals(TopRow.NONE, juego.effectiveTopRow) // r2: hidden via hideTopRow
+        assertTrue(juego.hideTopRow)
         assertEquals(false, juego.suggest)
         assertTrue(juego.heightScale < 1f)
         val esc = st.byId("escritura")!!.settings

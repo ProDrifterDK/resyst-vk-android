@@ -28,7 +28,15 @@ data class KbSettings(
     val topRow: TopRow = TopRow.ACCENTS,
     val autoCap: Boolean = true,
     val doubleSpace: Boolean = true,
-)
+    /** Hide the special-characters row above the letters. Off = row visible (default). */
+    val hideTopRow: Boolean = false,
+) {
+    /** The row actually laid out: [topRow] unless hidden. */
+    val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
+
+    /** Letters-layer row count; keyboard height is anchored to it. */
+    val baseRowCount: Int get() = if (effectiveTopRow == TopRow.NONE) 4 else 5
+}
 
 data class Profile(val id: String, val name: String, val icon: String, val settings: KbSettings)
 
@@ -63,7 +71,7 @@ object ProfileCodec {
                 Profile("noche", "Noche", "☾", base),
                 Profile("dia", "Día", "☀", base.copy(theme = "paper")),
                 Profile("juego", "Juego", "◆", base.copy(
-                    theme = "arcade", topRow = TopRow.NONE, suggest = false, sound = false,
+                    theme = "arcade", hideTopRow = true, suggest = false, sound = false,
                     cap = KeyCap.FLAT, heightScale = 0.9f, density = Density.TIGHT, popups = false,
                     autoCap = false, doubleSpace = false,
                 )),
@@ -105,6 +113,7 @@ object ProfileCodec {
             m[k + "topRow"] = s.topRow.name
             m[k + "autoCap"] = s.autoCap.toString()
             m[k + "doubleSpace"] = s.doubleSpace.toString()
+            m[k + "hideTopRow"] = s.hideTopRow.toString()
         }
         return m
     }
@@ -129,6 +138,11 @@ object ProfileCodec {
                 accentRaw == null -> d.accent
                 else -> ColorMath.parseHex(accentRaw)
             }
+            // r1 stored "no top row" as topRow = NONE; r2 keeps the row content + a hide flag.
+            val rawTop = enumOr(str("topRow"), d.topRow)
+            val legacyNone = rawTop == TopRow.NONE
+            val topRow = if (legacyNone) d.topRow.takeIf { it != TopRow.NONE } ?: TopRow.ACCENTS else rawTop
+            val hideTopRow = legacyNone || bool("hideTopRow", d.hideTopRow)
             val s = KbSettings(
                 theme = theme,
                 accent = accent,
@@ -146,9 +160,10 @@ object ProfileCodec {
                 longPressMs = int("longPressMs", d.longPressMs, 150, 900),
                 suggest = bool("suggest", d.suggest),
                 lang = enumOr(str("lang"), d.lang),
-                topRow = enumOr(str("topRow"), d.topRow),
+                topRow = topRow,
                 autoCap = bool("autoCap", d.autoCap),
                 doubleSpace = bool("doubleSpace", d.doubleSpace),
+                hideTopRow = hideTopRow,
             )
             Profile(
                 id = id,
