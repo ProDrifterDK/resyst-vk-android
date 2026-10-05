@@ -43,7 +43,8 @@ class E2EHostActivity : Activity() {
                 "number" -> InputType.TYPE_CLASS_NUMBER
                 "multiline" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 "search" -> InputType.TYPE_CLASS_TEXT
-                else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                    InputType.TYPE_TEXT_FLAG_AUTO_CORRECT // explicit: without it the framework infers NO_SUGGESTIONS (0x4000) and the IME disables autocorrect
             }
             imeOptions = if (kind == "search") EditorInfo.IME_ACTION_SEARCH else EditorInfo.IME_ACTION_DONE
             setOnEditorActionListener { _, actionId, _ ->
