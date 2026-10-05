@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only: a bare text field host for the adb E2E script (scripts/e2e.sh). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.resyst.vk.debug.E2EHostActivity"
+            android:exported="true"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+    </application>
+</manifest>
