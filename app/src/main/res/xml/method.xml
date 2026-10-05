@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.resyst.vk.settings.SettingsActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+
+    <subtype
+        android:imeSubtypeLocale="es"
+        android:languageTag="es"
+        android:imeSubtypeMode="keyboard"
+        android:label="@string/subtype_es" />
+    <subtype
+        android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US"
+        android:imeSubtypeMode="keyboard"
+        android:label="@string/subtype_en" />
+</input-method>

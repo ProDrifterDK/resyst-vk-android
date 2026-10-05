@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="resyst_bg">#08080F</color>
+    <color name="resyst_key">#15151F</color>
+    <color name="resyst_amber">#C9A84C</color>
+    <color name="resyst_text">#E9E4D6</color>
+</resources>

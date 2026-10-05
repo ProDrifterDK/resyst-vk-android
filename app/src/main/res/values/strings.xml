@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Resyst VK</string>
+    <string name="ime_name">Resyst VK ✦</string>
+    <string name="subtype_es">Español (Resyst)</string>
+    <string name="subtype_en">English (Resyst)</string>
+</resources>

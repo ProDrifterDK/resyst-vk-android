@@ -1,0 +1,13 @@
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+*.keystore
+*.jks
+# Local-only working notes (not part of the public repo)
+reports/

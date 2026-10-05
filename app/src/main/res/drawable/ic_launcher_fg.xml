@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resyst ✦ mark: four-point star, amber on Midnight. 108dp adaptive canvas, safe zone 66dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#C9A84C"
+        android:pathData="M54,30 C55.6,46 62,52.4 78,54 C62,55.6 55.6,62 54,78 C52.4,62 46,55.6 30,54 C46,52.4 52.4,46 54,30 Z" />
+</vector>
