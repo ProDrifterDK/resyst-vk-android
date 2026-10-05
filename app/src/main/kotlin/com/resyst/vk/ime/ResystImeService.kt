@@ -35,6 +35,7 @@ import com.resyst.vk.core.ProfileStore
 import com.resyst.vk.core.SoundKind
 import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
+import com.resyst.vk.core.ValueMemory
 import com.resyst.vk.settings.SettingsActivity
 import com.resyst.vk.settings.SettingsRepo
 
@@ -60,6 +61,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     /** The learned model, or null whenever this field / these settings may not use it. */
     private fun personalWords() = PersonalStore.words?.takeIf { policy.personalWords(s) }
+    private fun personalValues() = PersonalStore.values?.takeIf { policy.personalValues(s) }
+    /** Remembers this field's final value once (action key, then field exit). */
+    private var valueSession = ValueMemory.Session(null, FieldKind.TEXT)
+    /** The bar currently offers whole field values (a pick replaces the typed chunk). */
+    private var barShowsValues = false
     private lateinit var haptics: HapticPlayer
     private lateinit var subtypes: SubtypeSync
 
@@ -157,6 +163,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val flags = info.inputType and InputType.TYPE_MASK_FLAGS
         policy = FieldPolicy.of(info.inputType, info.imeOptions)
         learner.reset()
+        if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val rawAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
         // Multi-line text fields get a newline on Enter unless they ask for a real action.
@@ -183,6 +190,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        rememberValue()
         super.onFinishInputView(finishingInput)
         view?.reset()
         currentWord = ""
@@ -252,6 +260,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
+        if (outs.any { it is Out.Action || it == Out.EnterKey }) rememberValue()
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
     }
@@ -276,6 +285,14 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSuggestion(word: String) {
         val ic = currentInputConnection ?: return
+        if (barShowsValues) {
+            val outs = ValueMemory.pick(ic.getTextBeforeCursor(ValueMemory.MAX_LEN, 0) ?: "", word)
+            ic.beginBatchEdit()
+            run(outs, ic)
+            ic.endBatchEdit()
+            feedback(null)
+            return
+        }
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val outs = engine.pickSuggestion(word, currentWord)
         ic.beginBatchEdit()
@@ -312,6 +329,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private fun learn(before: CharSequence, outs: List<Out>, kind: Learner.Edit) {
         val b = before.toString()
         if (learner.afterEdit(s.lang, b, outs, windowFull = b.length >= WINDOW, kind = kind)) PersonalStore.changed()
+    }
+
+    /** The field's whole text into the value memory (email fields, gate open — F1/X1). */
+    private fun rememberValue() {
+        if (personalValues() == null) return
+        val ic = currentInputConnection ?: return
+        val n = ValueMemory.MAX_LEN + 1
+        val text = "${ic.getTextBeforeCursor(n, 0) ?: ""}${ic.getTextAfterCursor(n, 0) ?: ""}"
+        if (valueSession.commit(text)) PersonalStore.changed()
     }
 
     // ── effects ─────────────────────────────────────────────────────────
@@ -370,6 +396,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         v.setShift(engine.shift)
         if (wasLayer != engine.layer) rebuildLayout()
         val st = s
+        val values = personalValues()
+        barShowsValues = values != null
+        if (values != null) {
+            currentWord = ""
+            val before = ic.getTextBeforeCursor(ValueMemory.MAX_LEN, 0) ?: ""
+            val after = ic.getTextAfterCursor(1, 0) ?: ""
+            v.setSuggestions(ValueMemory.bar(before, after, values, fieldKind))
+            return
+        }
         if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(emptyList()); return }
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = ic.getTextAfterCursor(1, 0) ?: ""
