@@ -11,3 +11,4 @@ captures/
 *.jks
 # Local-only working notes (not part of the public repo)
 reports/
+__pycache__/
