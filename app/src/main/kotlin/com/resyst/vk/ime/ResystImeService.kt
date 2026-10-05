@@ -27,7 +27,6 @@ import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
 import com.resyst.vk.core.SoundKind
 import com.resyst.vk.core.Suggest
-import com.resyst.vk.core.TopRow
 import com.resyst.vk.settings.SettingsActivity
 import com.resyst.vk.settings.SettingsRepo
 
@@ -151,10 +150,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val v = view ?: return
         val st = s
         val showSwitch = runCatching { shouldOfferSwitchingToNextInputMethod() }.getOrDefault(false)
-        val spec = LayoutSpec(st.lang, st.topRow, showSwitch, fieldKind)
+        val spec = LayoutSpec(st.lang, st.effectiveTopRow, showSwitch, fieldKind)
         val rows = KeyboardLayouts.rows(engine.layer, spec)
         // Height is anchored to the letters layer so switching layers never jumps.
-        val base = if (engine.layer == Layer.NUMPAD) 4 else if (st.topRow == TopRow.NONE) 4 else 5
+        val base = if (engine.layer == Layer.NUMPAD) 4 else st.baseRowCount
         v.setKeyboard(rows, base, engine.layer)
         v.setShift(engine.shift)
     }

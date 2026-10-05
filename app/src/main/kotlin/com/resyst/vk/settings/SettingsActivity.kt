@@ -118,7 +118,10 @@ class SettingsActivity : Activity() {
 
         section("Escritura")
         choice("Idioma", listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
-        choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números", TopRow.NONE to "Ninguna"), s.topRow) { v -> commit { it.copy(topRow = v) } }
+        toggle("Ocultar fila de caracteres especiales", "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
+        if (!s.hideTopRow) {
+            choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
+        }
         toggle("Sugerencias", "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
         toggle("Mayúscula automática", "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
         toggle("Doble espacio = punto", null, s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
@@ -255,8 +258,8 @@ class SettingsActivity : Activity() {
         kv.setStyle(s, Palette.of(s.theme, s.accent))
         kv.setProfile(store.byId(editing)?.icon ?: "✦", store.byId(editing)?.name ?: "")
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
-        val spec = LayoutSpec(s.lang, s.topRow, false)
-        kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), if (s.topRow == TopRow.NONE) 4 else 5, Layer.LETTERS)
+        val spec = LayoutSpec(s.lang, s.effectiveTopRow, false)
+        kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)
         kv.setShift(ShiftState.OFF)
         kv.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         kv.contentDescription = "Vista previa del teclado"
