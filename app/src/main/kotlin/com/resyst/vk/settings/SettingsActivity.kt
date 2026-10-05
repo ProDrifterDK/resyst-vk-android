@@ -1,6 +1,7 @@
 package com.resyst.vk.settings
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Rect
 import android.graphics.Typeface
@@ -45,6 +46,7 @@ import com.resyst.vk.core.TopRow
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.HapticPlayer
 import com.resyst.vk.ime.KeyboardView
+import com.resyst.vk.ime.PersonalStore
 import com.resyst.vk.ime.ResystImeService
 import com.resyst.vk.ime.SubtypeSync
 import kotlin.math.roundToInt
@@ -71,6 +73,7 @@ class SettingsActivity : Activity() {
         repo = SettingsRepo(this)
         store = repo.load()
         editing = store.active
+        PersonalStore.init(this)
         scroll = ScrollView(this).apply { isFillViewport = true }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -174,7 +177,9 @@ class SettingsActivity : Activity() {
         toggle("Sugerencias", "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
         if (s.suggest) {
             toggle("El espacio aplica la corrección", "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
+            toggle("Sugerencias personales", "Aprende tus palabras y correos frecuentes · solo en este teléfono", s.personal) { v -> commit { it.copy(personal = v) } }
         }
+        forgetRow()
         toggle("Mayúscula automática", "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
         toggle("Doble espacio = punto", null, s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
         toggle("Vista previa de tecla", "Burbuja sobre la tecla al pulsar", s.popups) { v -> commit { it.copy(popups = v) } }
@@ -197,6 +202,42 @@ class SettingsActivity : Activity() {
         section("Probar")
         tryField()
         footer()
+    }
+
+    /** Wipes the learned words + remembered values (shared by all profiles), after a confirm. */
+    private fun forgetRow() {
+        val w = PersonalStore.words
+        val v = PersonalStore.values
+        val summary = if (w == null || v == null) "Cargando…" else {
+            val words = com.resyst.vk.core.Lang.values().sumOf { w.vocabCount(it) }
+            val emails = v.suggest(com.resyst.vk.core.FieldKind.EMAIL, "", Int.MAX_VALUE).size
+            "$words palabras · $emails correos aprendidos · nada sale del teléfono"
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            minimumHeight = px(52f)
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            contentDescription = "Borrar lo aprendido. $summary"
+            setOnClickListener { confirmForget() }
+        }
+        row.addView(label("Borrar lo aprendido", 15f, t.bad, 600))
+        row.addView(label(summary, 12f, t.muted))
+        root.addView(row, lp())
+    }
+
+    private fun confirmForget() {
+        AlertDialog.Builder(this)
+            .setTitle("¿Borrar lo aprendido?")
+            .setMessage("Se olvidan las palabras y los correos que el teclado aprendió de ti, en todos los perfiles. No se puede deshacer.")
+            .setPositiveButton("Borrar") { _, _ ->
+                PersonalStore.clear(this)
+                val y = scroll.scrollY
+                render()
+                scroll.post { scroll.scrollTo(0, y) }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     /** Picking a level plays one key click at that level, so the choice is felt, not guessed. */
