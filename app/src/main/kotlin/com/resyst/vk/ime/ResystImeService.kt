@@ -254,7 +254,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     private fun pulse(event: HapticEvent) {
-        Haptics.pulseFor(event, s.haptics)?.let(haptics::play)
+        val st = s
+        Haptics.pulseFor(event, st.haptics)?.let { haptics.play(it, st.hapticStrength) }
     }
 
     override fun onSuggestion(word: String) {

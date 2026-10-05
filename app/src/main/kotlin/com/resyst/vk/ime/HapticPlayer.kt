@@ -7,14 +7,17 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
+import com.resyst.vk.core.HapticMechanism
 import com.resyst.vk.core.HapticPulse
 import com.resyst.vk.core.HapticRoute
+import com.resyst.vk.core.HapticStrength
 import com.resyst.vk.core.Haptics
 
 /**
  * Drives the vibrator directly (VIBRATE permission) instead of View.performHapticFeedback,
  * which the system can suppress before it reaches the motor. Callers decide *whether* to
- * pulse via [Haptics.pulseFor]; this class only decides *how*.
+ * pulse via [Haptics.pulseFor]; this class only decides *how* ([Haptics.spec] × the motor's
+ * capabilities, [Haptics.mechanism]).
  */
 class HapticPlayer(private val context: Context) {
 
@@ -27,11 +30,20 @@ class HapticPlayer(private val context: Context) {
 
     val available: Boolean get() = vibrator?.hasVibrator() == true
 
-    fun play(pulse: HapticPulse) {
+    /** Resolved once: capabilities don't change at runtime. */
+    val mechanism: HapticMechanism by lazy {
+        val v = vibrator
+        val primitives = v != null && Build.VERSION.SDK_INT >= 30 && v.areAllPrimitivesSupported(
+            VibrationEffect.Composition.PRIMITIVE_CLICK, VibrationEffect.Composition.PRIMITIVE_TICK,
+        )
+        Haptics.mechanism(primitives, v?.hasAmplitudeControl() == true)
+    }
+
+    fun play(pulse: HapticPulse, strength: HapticStrength) {
         val v = vibrator ?: return
         if (!v.hasVibrator()) return
-        val effect = effectFor(pulse)
         runCatching {
+            val effect = effectFor(pulse, strength)
             if (Build.VERSION.SDK_INT >= 33) {
                 val usage = when (Haptics.route(systemTouchFeedbackOn())) {
                     HapticRoute.TOUCH -> VibrationAttributes.USAGE_TOUCH
@@ -44,21 +56,19 @@ class HapticPlayer(private val context: Context) {
         }
     }
 
-    private fun effectFor(pulse: HapticPulse): VibrationEffect = if (Build.VERSION.SDK_INT >= 29) {
-        VibrationEffect.createPredefined(
-            when (pulse) {
-                HapticPulse.CLICK -> VibrationEffect.EFFECT_CLICK
-                HapticPulse.HEAVY_CLICK -> VibrationEffect.EFFECT_HEAVY_CLICK
-                HapticPulse.TICK -> VibrationEffect.EFFECT_TICK
-            },
-        )
-    } else {
-        val (ms, amp) = when (pulse) {
-            HapticPulse.CLICK -> 14L to 150
-            HapticPulse.HEAVY_CLICK -> 28L to 255
-            HapticPulse.TICK -> 6L to 90
+    private fun effectFor(pulse: HapticPulse, strength: HapticStrength): VibrationEffect {
+        val spec = Haptics.spec(pulse, strength)
+        return when (mechanism) {
+            HapticMechanism.PRIMITIVE -> if (Build.VERSION.SDK_INT >= 30) {
+                val primitive = if (pulse == HapticPulse.TICK) VibrationEffect.Composition.PRIMITIVE_TICK
+                else VibrationEffect.Composition.PRIMITIVE_CLICK
+                VibrationEffect.startComposition().addPrimitive(primitive, spec.scale).compose()
+            } else {
+                VibrationEffect.createOneShot(spec.durationMs, spec.amplitude)
+            }
+            HapticMechanism.AMPLITUDE -> VibrationEffect.createOneShot(spec.durationMs, spec.amplitude)
+            HapticMechanism.DURATION -> VibrationEffect.createOneShot(spec.durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
         }
-        VibrationEffect.createOneShot(ms, amp)
     }
 
     private fun systemTouchFeedbackOn(): Boolean =

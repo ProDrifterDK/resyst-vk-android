@@ -21,6 +21,7 @@ data class KbSettings(
     val soundPack: SoundPack = SoundPack.CLICK,
     val volume: Float = 0.7f,
     val haptics: Boolean = true,
+    val hapticStrength: HapticStrength = HapticStrength.MEDIUM,
     val popups: Boolean = true,
     val longPressMs: Int = 350,
     val suggest: Boolean = true,
@@ -106,6 +107,7 @@ object ProfileCodec {
             m[k + "soundPack"] = s.soundPack.name
             m[k + "volume"] = s.volume.toString()
             m[k + "haptics"] = s.haptics.toString()
+            m[k + "hapticStrength"] = s.hapticStrength.name
             m[k + "popups"] = s.popups.toString()
             m[k + "longPressMs"] = s.longPressMs.toString()
             m[k + "suggest"] = s.suggest.toString()
@@ -156,6 +158,7 @@ object ProfileCodec {
                 soundPack = enumOr(str("soundPack"), d.soundPack),
                 volume = float("volume", d.volume, 0f, 1f),
                 haptics = bool("haptics", d.haptics),
+                hapticStrength = enumOr(str("hapticStrength"), d.hapticStrength),
                 popups = bool("popups", d.popups),
                 longPressMs = int("longPressMs", d.longPressMs, 150, 900),
                 suggest = bool("suggest", d.suggest),

@@ -21,6 +21,9 @@ import android.widget.SeekBar
 import android.widget.TextView
 import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.Density
+import com.resyst.vk.core.HapticEvent
+import com.resyst.vk.core.HapticStrength
+import com.resyst.vk.core.Haptics
 import com.resyst.vk.core.KbSettings
 import com.resyst.vk.core.KeyCap
 import com.resyst.vk.core.KeyFont
@@ -36,6 +39,7 @@ import com.resyst.vk.core.SoundPack
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.TopRow
 import com.resyst.vk.ime.Fonts
+import com.resyst.vk.ime.HapticPlayer
 import com.resyst.vk.ime.KeyboardView
 import com.resyst.vk.ime.ResystImeService
 import com.resyst.vk.ime.SubtypeSync
@@ -53,6 +57,7 @@ class SettingsActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var scroll: ScrollView
     private var preview: KeyboardView? = null
+    private var haptics: HapticPlayer? = null
 
     private val dp get() = resources.displayMetrics.density
     private fun px(v: Float) = (v * dp).roundToInt()
@@ -132,6 +137,12 @@ class SettingsActivity : Activity() {
 
         section("Respuesta")
         toggle("Vibración", null, s.haptics) { v -> commit { it.copy(haptics = v) } }
+        if (s.haptics) {
+            choice("Intensidad", listOf(HapticStrength.LOW to "Suave", HapticStrength.MEDIUM to "Media", HapticStrength.HIGH to "Fuerte"), s.hapticStrength) { v ->
+                commit { it.copy(hapticStrength = v) }
+                previewHaptic(v)
+            }
+        }
         toggle("Sonido de tecla", "Sintetizado en el dispositivo, sin archivos", s.sound) { v -> commit { it.copy(sound = v) } }
         if (s.sound) {
             choice("Pack", listOf(SoundPack.CLICK to "Click", SoundPack.THOCK to "Thock", SoundPack.TYPE to "Máquina", SoundPack.BUBBLE to "Burbuja"), s.soundPack) { v -> commit { it.copy(soundPack = v) } }
@@ -141,6 +152,12 @@ class SettingsActivity : Activity() {
         section("Probar")
         tryField()
         footer()
+    }
+
+    /** Picking a level plays one key click at that level, so the choice is felt, not guessed. */
+    private fun previewHaptic(strength: HapticStrength) {
+        val player = haptics ?: HapticPlayer(this).also { haptics = it }
+        Haptics.pulseFor(HapticEvent.KEY, enabled = true)?.let { player.play(it, strength) }
     }
 
     private fun typeface(w: Int) = Fonts.get(this, KeyFont.BRAND, w)

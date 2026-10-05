@@ -102,3 +102,38 @@ rendering, touch) is covered by the E2E script `scripts/e2e.sh`.
 - U5 A user's explicit subtype choice in system settings is overwritten on every start.
 - U6 The in-app language is set to a subtype the user disabled → the switch silently fails.
 - U7 System picker → app and app → system feed back into each other (ping-pong loop).
+
+## Round 3 — field feedback (Pixel 6)
+
+### Vibration strength (`HapticStrength`, `Haptics.spec`)
+- K5 A strength level produces an out-of-range amplitude (0 = silent, > 255 = rejected by
+  the platform) or a non-positive duration.
+- K6 Two levels feel the same: amplitude doesn't strictly grow LOW < MEDIUM < HIGH for every
+  pulse (e.g. HEAVY clamps at 255 on both MEDIUM and HIGH).
+- K7 On a motor without amplitude control the levels collapse into one: duration must also
+  grow with the level so the fallback still has a knob.
+- K8 Strength erases the pulse identity: at a given level HEAVY ≤ CLICK or CLICK ≤ TICK.
+- K9 A fresh install / r2 storage without the key / garbage value doesn't land on MEDIUM, or
+  the level doesn't survive save → load.
+- K10 The wrong playback mechanism is picked (primitives used where unsupported → silence;
+  amplitude one-shot where the motor ignores amplitude → all levels identical).
+
+### Autocorrect + space applies the correction (`Suggest.correction`, `KeyboardEngine`)
+- A1 Obvious typos aren't corrected (`casaa`, `qie`, `tambein`, `grcias`, `manana`).
+- A2 A word that is in the lexicon gets "corrected" (`casa`, `cosa`, `esta` → `está`).
+  Exception, by design: an accent-dropped spelling the subtitle lexicon also contains
+  (`tambien`) is fixed only when the accented form is ≥ 10× more frequent.
+- A3 Case is lost (`Casaa` at a sentence start → `casa`), or a capitalized word in
+  mid-sentence (a proper noun the user typed on purpose), an ALL-CAPS word (acronym) or mixed
+  case (`iPhone`) is corrected.
+- A4 Single characters, digits, words glued to digits / `@` / `/` are corrected.
+- A5 A far word is "corrected" into an unrelated one (distance too large for its length).
+- A6 Ties pick the rarer word, or ignore keyboard adjacency (`cssa` → `cosa` instead of `casa`).
+- A7 Space-commit off still changes the text; on, it doesn't replace the typed word.
+- A8 After a manual suggestion pick, the next space applies a second correction.
+- A9 Correction breaks double-space: `casaa␣␣` must end as `casa. `.
+- A10 The user can't undo: backspace right after a correction must restore the typed word
+  (and that word must not be re-corrected afterwards).
+- A11 Cursor in the middle of a word (letters after the cursor) triggers a correction.
+- A12 The suggestion bar doesn't show the correction first, so space applies something the
+  user never saw.
