@@ -2,8 +2,10 @@ package com.resyst.vk.settings
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
@@ -11,6 +13,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -74,7 +78,40 @@ class SettingsActivity : Activity() {
         }
         scroll.addView(root)
         setContentView(scroll)
+        fitSystemBars()
         render()
+    }
+
+    /**
+     * targetSdk 35+ forces edge-to-edge: the window draws under the status bar, the navigation
+     * bar and the keyboard (adjustResize no longer shrinks it). Pad the activity root by those
+     * insets; clipToPadding keeps scrolled content out of the status bar. API 30–34 opt in to
+     * the same model so every version behaves alike; API 26–29 keep the legacy fitted window.
+     */
+    private fun fitSystemBars() {
+        if (Build.VERSION.SDK_INT < 30) return
+        window.setDecorFitsSystemWindows(false)
+        scroll.clipToPadding = true
+        scroll.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsets.Type.ime())
+            val bottom = maxOf(bars.bottom, ime.bottom)
+            val imeGrew = ime.bottom > 0 && bottom > v.paddingBottom
+            v.setPadding(bars.left, bars.top, bars.right, bottom)
+            if (imeGrew) v.post { revealFocused() }
+            WindowInsets.CONSUMED
+        }
+    }
+
+    /** The keyboard no longer resizes the window: scroll the focused field above it ourselves. */
+    private fun revealFocused() {
+        val f = currentFocus ?: return
+        val r = Rect()
+        f.getDrawingRect(r)
+        scroll.offsetDescendantRectToMyCoords(f, r)
+        val visibleBottom = scroll.height - scroll.paddingBottom - px(12f)
+        val need = r.bottom - scroll.scrollY - visibleBottom
+        if (need > 0) scroll.smoothScrollBy(0, need)
     }
 
     override fun onResume() {
@@ -104,7 +141,12 @@ class SettingsActivity : Activity() {
         val p = pal
         window.statusBarColor = p.theme.bg
         window.navigationBarColor = p.theme.bg
-        scroll.setBackgroundColor(p.theme.bg)
+        scroll.setBackgroundColor(p.theme.bg) // also paints behind the transparent system bars
+        if (Build.VERSION.SDK_INT >= 30) {
+            // light themes (Papiro) need dark status/nav icons
+            val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (p.theme.dark) 0 else light, light)
+        }
         root.removeAllViews()
 
         header()
