@@ -16,6 +16,7 @@ import android.view.inputmethod.InputMethodSubtype
 import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
+import com.resyst.vk.core.FieldPolicy
 import com.resyst.vk.core.HapticEvent
 import com.resyst.vk.core.Haptics
 import com.resyst.vk.core.ImeAction
@@ -26,6 +27,7 @@ import com.resyst.vk.core.KeyboardEngine
 import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
+import com.resyst.vk.core.Learner
 import com.resyst.vk.core.Out
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
@@ -49,8 +51,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private var sound: KeySoundPlayer? = null
     private var lexicon: Lexicon? = null
     private var currentWord = ""
-    private var fieldKind = FieldKind.TEXT
-    private var noSuggestField = false
+    private var policy = FieldPolicy(FieldKind.TEXT, suggestions = false, incognito = false)
+    private val fieldKind get() = policy.kind
+    private val noSuggestField get() = !policy.suggestions
+    /** Learns finished words; the gate is re-checked on every edit (X1–X3). */
+    private val learner = Learner { PersonalStore.words?.takeIf { policy.personalWords(s) } }
     private lateinit var haptics: HapticPlayer
     private lateinit var subtypes: SubtypeSync
 
@@ -61,6 +66,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         repo.prefs.registerOnSharedPreferenceChangeListener(this)
         sound = KeySoundPlayer(this)
         lexicon = Lexicon(this)
+        PersonalStore.init(this)
         haptics = HapticPlayer(this)
         subtypes = SubtypeSync(this)
         subtypes.enableAllOnce()
@@ -68,6 +74,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onDestroy() {
         repo.prefs.unregisterOnSharedPreferenceChangeListener(this)
+        PersonalStore.flush()
         sound?.release()
         sound = null
         super.onDestroy()
@@ -143,20 +150,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
-        val variation = info.inputType and InputType.TYPE_MASK_VARIATION
         val flags = info.inputType and InputType.TYPE_MASK_FLAGS
-        fieldKind = when {
-            cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_DATETIME -> FieldKind.NUMBER
-            cls == InputType.TYPE_CLASS_PHONE -> FieldKind.PHONE
-            variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
-                variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> FieldKind.EMAIL
-            variation == InputType.TYPE_TEXT_VARIATION_URI -> FieldKind.URL
-            variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-                variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
-                variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> FieldKind.PASSWORD
-            else -> FieldKind.TEXT
-        }
-        noSuggestField = fieldKind != FieldKind.TEXT || flags and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0
+        policy = FieldPolicy.of(info.inputType, info.imeOptions)
+        learner.reset()
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val rawAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
         // Multi-line text fields get a newline on Enter unless they ask for a real action.
@@ -186,6 +182,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         super.onFinishInputView(finishingInput)
         view?.reset()
         currentWord = ""
+        learner.reset()
+        PersonalStore.flush()
         view?.setSuggestions(emptyList())
     }
 
@@ -241,7 +239,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onKeyCommit(key: Key) {
         val ic = currentInputConnection ?: return
-        val before = ic.getTextBeforeCursor(64, 0) ?: ""
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
         val layerBefore = engine.layer
         val outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
@@ -249,13 +247,17 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
+        learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
     }
 
     override fun onVariant(text: String) {
         val ic = currentInputConnection ?: return
-        run(engine.variant(text), ic)
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        val outs = engine.variant(text)
+        run(outs, ic)
+        learn(before, outs, Learner.Edit.KEY)
         view?.setShift(engine.shift)
     }
 
@@ -270,9 +272,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSuggestion(word: String) {
         val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        val outs = engine.pickSuggestion(word, currentWord)
         ic.beginBatchEdit()
-        run(engine.pickSuggestion(word, currentWord), ic)
+        run(outs, ic)
         ic.endBatchEdit()
+        learn(before, outs, Learner.Edit.PICK)
         feedback(null)
     }
 
@@ -297,6 +302,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onOpenSettings() {
         val i = Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(i)
+    }
+
+    /** Feeds the edit just applied to the personal model (gated inside [learner]). */
+    private fun learn(before: CharSequence, outs: List<Out>, kind: Learner.Edit) {
+        val b = before.toString()
+        if (learner.afterEdit(s.lang, b, outs, windowFull = b.length >= WINDOW, kind = kind)) PersonalStore.changed()
     }
 
     // ── effects ─────────────────────────────────────────────────────────
@@ -365,6 +376,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     private companion object {
         const val TAG = "ResystVK"
+        /** Chars read before the cursor; a full read may start mid-word (see Tokens). */
+        const val WINDOW = 64
     }
 
     private fun ImeAction.toEditorInfo(): Int = when (this) {

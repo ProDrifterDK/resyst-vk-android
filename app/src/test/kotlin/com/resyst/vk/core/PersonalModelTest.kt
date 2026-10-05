@@ -13,15 +13,12 @@ class PersonalModelTest {
     /** Feeds [text] word by word the way the IME does: every finished word is one event. */
     private fun PersonalModel.type(text: String, lang: Lang = es) {
         var acc = ""
-        for (ch in text) {
+        for (ch in if (text.last().isWhitespace()) text else "$text ") {
             val before = acc
             acc += ch
-            if (before.isNotEmpty() && Tokens.isWordChar(before.last()) && !Tokens.isWordChar(ch)) {
+            if (ch.isWhitespace() && before.isNotEmpty() && !before.last().isWhitespace()) {
                 Tokens.finished(acc, windowFull = false)?.let { learn(lang, it.prev, it.word, it.sentenceStart) }
             }
-        }
-        if (acc.isNotEmpty() && Tokens.isWordChar(acc.last())) {
-            Tokens.finished("$acc ", windowFull = false)?.let { learn(lang, it.prev, it.word, it.sentenceStart) }
         }
     }
 
@@ -53,10 +50,13 @@ class PersonalModelTest {
     @Test fun finishedWordAndItsContext() { // M1 + M7
         val f = Tokens.finished("Hola, ¿cómo ", false)!!
         assertEquals("cómo", f.word); assertEquals("hola", f.prev); assertFalse(f.sentenceStart)
-        val g = Tokens.finished("Gracias. Hola,", false)!!
-        assertEquals("Hola", g.word); assertNull(g.prev); assertTrue(g.sentenceStart)
-        val h = Tokens.finished("estás?", false)!!
-        assertEquals("estás", h.word); assertEquals(null, Tokens.finished("hola", false)) // unfinished
+        val g = Tokens.finished("Gracias. Hola, ", false)!!
+        assertEquals("Hola", g.word); assertNull(g.prev); assertTrue(g.sentenceStart); assertEquals(9, g.at)
+        val h = Tokens.finished("estás?\n", false)!!
+        assertEquals("estás", h.word)
+        assertNull(Tokens.finished("hola", false)) // unfinished
+        assertNull(Tokens.finished("hola,", false)) // punctuation alone doesn't finish (could be "www.")
+        assertNull(Tokens.finished("visita www.", false))
     }
 
     @Test fun truncatedWindowNeverYieldsFragments() { // M8

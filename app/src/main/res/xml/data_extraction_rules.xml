@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+: learned words / remembered emails are excluded from cloud backup AND device transfer. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="personal/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="personal/" />
+    </device-transfer>
+</data-extraction-rules>

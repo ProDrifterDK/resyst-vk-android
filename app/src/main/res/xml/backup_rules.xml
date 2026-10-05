@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API ≤ 30: what the user typed (learned words, remembered emails) never leaves the device. -->
+<full-backup-content>
+    <exclude domain="file" path="personal/" />
+</full-backup-content>

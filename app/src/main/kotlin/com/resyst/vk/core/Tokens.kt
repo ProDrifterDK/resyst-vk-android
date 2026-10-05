@@ -12,8 +12,8 @@ package com.resyst.vk.core
 object Tokens {
     data class Context(val prev: String?, val sentenceStart: Boolean)
 
-    /** [word] as typed; [prev] already a [key]. */
-    data class Finished(val word: String, val prev: String?, val sentenceStart: Boolean)
+    /** [word] as typed, starting at [at] in the text; [prev] already a [key]. */
+    data class Finished(val word: String, val prev: String?, val sentenceStart: Boolean, val at: Int)
 
     const val MIN_LEN = 2
     const val MAX_LEN = 24
@@ -50,11 +50,12 @@ object Tokens {
     }
 
     /**
-     * The word that the last separator of [text] finished, or null when the text ends inside a
-     * word or the finished chunk isn't a plain word.
+     * The word that the whitespace ending [text] finished, or null when the text doesn't end
+     * in whitespace or the finished chunk isn't a plain word. Only whitespace finishes a word:
+     * `www.` / `user@` are prefixes of something longer, never words yet (M5).
      */
     fun finished(text: CharSequence, windowFull: Boolean): Finished? {
-        if (text.isEmpty() || isWordChar(text[text.length - 1])) return null
+        if (text.isEmpty() || !text[text.length - 1].isWhitespace()) return null
         var i = text.length
         while (i > 0) {
             val c = text[i - 1]
@@ -64,9 +65,10 @@ object Tokens {
         val end = i
         while (i > 0 && !text[i - 1].isWhitespace()) i--
         if (i == 0 && windowFull) return null
-        val chunk = text.subSequence(i, end).toString().trimStart { it in OPENERS }
+        val raw = text.subSequence(i, end).toString()
+        val chunk = raw.trimStart { it in OPENERS }
         if (!learnable(chunk)) return null
         val ctx = context(text.subSequence(0, i), windowFull)
-        return Finished(chunk, ctx.prev, ctx.sentenceStart)
+        return Finished(chunk, ctx.prev, ctx.sentenceStart, i + raw.length - chunk.length)
     }
 }

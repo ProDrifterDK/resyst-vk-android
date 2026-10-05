@@ -27,6 +27,8 @@ data class KbSettings(
     val suggest: Boolean = true,
     /** Space replaces a typo with the confident correction (needs [suggest]); ⌫ undoes it. */
     val spaceCorrects: Boolean = true,
+    /** Learn from what the user types (on-device only) and suggest it (needs [suggest]). */
+    val personal: Boolean = true,
     val lang: Lang = Lang.ES,
     val topRow: TopRow = TopRow.ACCENTS,
     val autoCap: Boolean = true,
@@ -114,6 +116,7 @@ object ProfileCodec {
             m[k + "longPressMs"] = s.longPressMs.toString()
             m[k + "suggest"] = s.suggest.toString()
             m[k + "spaceCorrects"] = s.spaceCorrects.toString()
+            m[k + "personal"] = s.personal.toString()
             m[k + "lang"] = s.lang.name
             m[k + "topRow"] = s.topRow.name
             m[k + "autoCap"] = s.autoCap.toString()
@@ -166,6 +169,7 @@ object ProfileCodec {
                 longPressMs = int("longPressMs", d.longPressMs, 150, 900),
                 suggest = bool("suggest", d.suggest),
                 spaceCorrects = bool("spaceCorrects", d.spaceCorrects),
+                personal = bool("personal", d.personal),
                 lang = enumOr(str("lang"), d.lang),
                 topRow = topRow,
                 autoCap = bool("autoCap", d.autoCap),
