@@ -137,3 +137,52 @@ rendering, touch) is covered by the E2E script `scripts/e2e.sh`.
 - A11 Cursor in the middle of a word (letters after the cursor) triggers a correction.
 - A12 The suggestion bar doesn't show the correction first, so space applies something the
   user never saw.
+
+## Round 4 — next-word prediction + personal learning (Pixel 6)
+
+### Personal n-gram memory (`PersonalModel`, `Predictor`)
+- M1 A learned pair isn't predicted after its first word; a comma between them (`hola, `)
+  breaks the link, or a sentence terminator (`. ! ? …` / newline) does NOT break it.
+- M2 Ranking ignores counts (a one-off outranks a habit) or ties ignore recency.
+- M3 Unbounded growth: continuations per word, sentence starters, remembered previous words
+  or known words exceed their caps; eviction drops the entry just learned instead of the
+  weakest/oldest one; counts grow forever (no decay) so old habits can never be displaced.
+- M4 Keys aren't folded: `Hola`, `hola,` and `HOLA` become different words; the shown form
+  loses the user's own case (a proper noun typed mid-sentence) or keeps an auto-capital that
+  only came from the sentence start.
+- M5 Junk is learned: 1-char tokens, numbers, mixed alphanumerics (`abc123`), words glued to
+  `@` `.` `/` digits (pieces of emails/URLs), over-long tokens.
+- M6 The chain breaks: after learning a→b→c, next(a) isn't b or next(b) isn't c.
+- M7 Sentence starters: the user's usual opener isn't first at a sentence start; words from the
+  middle of a sentence leak into the starters.
+- M8 A truncated read window (the text before the cursor starts mid-word) learns or predicts
+  from a fragment.
+- M9 Persistence: save → load loses entries, counts, recency or a language; corrupt / foreign
+  JSON crashes instead of yielding an empty model; languages leak into each other.
+- M10 Backspace undoing a space-correction leaves the corrected word learned.
+
+### Suggestion bar merge
+- B1 Cursor right after a committed word (or at a sentence start) shows nothing / generic
+  words instead of the user's learned continuations.
+- B2 While a word is being typed the confident correction is no longer first (A12 regression),
+  or personal prefix matches don't outrank static completions.
+- B3 The same word appears twice (personal `cómo` + lexicon `cómo`).
+- B4 Case: a prediction at a sentence start isn't capitalized (shift AUTO), caps lock isn't
+  honored, or the typed prefix's case isn't mirrored.
+- B5 A word the user types habitually (not in the lexicon) is "corrected" away by space.
+- B6 The cursor inside a word (letters after it) still shows predictions.
+
+### Field-value memory (`ValueMemory`)
+- F1 Partial or invalid values are remembered (no `@`, whitespace, absurd length).
+- F2 Prefix match is case-sensitive, or the value equal to what is already typed is offered.
+- F3 Picking a value commits only a suffix, appends a space, or duplicates the typed part.
+- F4 More than the cap per kind is kept, or eviction drops a frequent value instead of the
+  weakest/oldest; kinds mix (email values offered in a text field).
+- F5 Corrupt storage crashes instead of yielding an empty memory.
+
+### Privacy gate (`PersonalGate`, settings)
+- X1 Password / visible-password / web-password / numeric-PIN fields learn or show personal data.
+- X2 A field flagged IME_FLAG_NO_PERSONALIZED_LEARNING (incognito) learns or shows personal data.
+- X3 "Sugerencias personales" off (or "Sugerencias" off) still learns or suggests — words or values.
+- X4 "Borrar lo aprendido" leaves either store (words or values) behind.
+- X5 The toggle isn't ON on a fresh install / r3 storage, doesn't round-trip, or leaks between profiles.
