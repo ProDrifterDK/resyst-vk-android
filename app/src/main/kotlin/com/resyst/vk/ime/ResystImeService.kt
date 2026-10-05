@@ -74,6 +74,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onCreateInputView(): View {
         val v = KeyboardView(this)
         v.listener = this
+        v.reserveNavBar = true
         view = v
         applySettings()
         return v

@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -29,6 +30,7 @@ import com.resyst.vk.core.KeyStyle
 import com.resyst.vk.core.KeyType
 import com.resyst.vk.core.KbSettings
 import com.resyst.vk.core.Layer
+import com.resyst.vk.core.NavInsets
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.PopupGeometry
 import com.resyst.vk.core.ShiftState
@@ -73,7 +75,6 @@ class KeyboardView(context: Context) : View(context) {
     private var suggestions: List<String> = emptyList()
     private var profileIcon = "☾"
     private var profileName = "Noche"
-    private var navInset = 0
 
     // ── geometry ─────────────────────────────────────────────────────────
     private val dp = resources.displayMetrics.density
@@ -164,18 +165,49 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val h = (stripH + keysHeight() + 4 * dp).toInt() + navInset
-        setMeasuredDimension(w, h)
+        val content = (stripH + keysHeight() + 4 * dp).toInt()
+        setMeasuredDimension(w, NavInsets.totalHeight(content, paddingBottom))
     }
 
+    /**
+     * Only the IME's own input view reserves the navigation bar; the settings preview lives
+     * inside an activity and must not.
+     */
+    var reserveNavBar = false
+        set(v) { field = v; if (v) requestApplyInsets() else applyNavPadding(0) }
+
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-        val bottom = if (Build.VERSION.SDK_INT >= 30) {
-            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-        } else {
-            @Suppress("DEPRECATION") insets.systemWindowInsetBottom
-        }
-        if (bottom != navInset) { navInset = bottom; requestLayout() }
+        // The dispatched insets may already be consumed by the IME's frame on the way down;
+        // the root insets are the window's truth (the r1 bug: this always read 0).
+        if (reserveNavBar) applyNavPadding(navPaddingFrom(rootWindowInsets ?: insets, insets))
         return insets
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (reserveNavBar) rootWindowInsets?.let { applyNavPadding(navPaddingFrom(it, it)) }
+    }
+
+    private fun navPaddingFrom(root: WindowInsets, dispatched: WindowInsets): Int {
+        val (current, stable) = if (Build.VERSION.SDK_INT >= 30) {
+            root.getInsets(WindowInsets.Type.navigationBars()).bottom to
+                root.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars()).bottom
+        } else {
+            @Suppress("DEPRECATION")
+            root.systemWindowInsetBottom to root.stableInsetBottom
+        }
+        val pad = NavInsets.bottomPadding(current, stable)
+        val d = if (Build.VERSION.SDK_INT >= 30) dispatched.getInsets(WindowInsets.Type.navigationBars()).bottom
+        else @Suppress("DEPRECATION") dispatched.systemWindowInsetBottom
+        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d → padding=$pad")
+        return pad
+    }
+
+    private fun applyNavPadding(px: Int) {
+        if (px != paddingBottom) {
+            setPadding(0, 0, 0, px)
+            requestLayout()
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -748,6 +780,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     companion object {
+        const val TAG = "ResystVK"
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L
     }
