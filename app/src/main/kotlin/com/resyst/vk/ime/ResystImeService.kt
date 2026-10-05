@@ -6,14 +6,17 @@ import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
-import android.view.HapticFeedbackConstants
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputMethodSubtype
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
+import com.resyst.vk.core.HapticEvent
+import com.resyst.vk.core.Haptics
 import com.resyst.vk.core.ImeAction
 import com.resyst.vk.core.Key
 import com.resyst.vk.core.KeyStyle
@@ -26,6 +29,7 @@ import com.resyst.vk.core.Out
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
 import com.resyst.vk.core.SoundKind
+import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
 import com.resyst.vk.settings.SettingsActivity
 import com.resyst.vk.settings.SettingsRepo
@@ -46,6 +50,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private var currentWord = ""
     private var fieldKind = FieldKind.TEXT
     private var noSuggestField = false
+    private lateinit var haptics: HapticPlayer
+    private lateinit var subtypes: SubtypeSync
 
     override fun onCreate() {
         super.onCreate()
@@ -54,6 +60,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         repo.prefs.registerOnSharedPreferenceChangeListener(this)
         sound = KeySoundPlayer(this)
         lexicon = Lexicon(this)
+        haptics = HapticPlayer(this)
+        subtypes = SubtypeSync(this)
+        subtypes.enableAllOnce()
     }
 
     override fun onDestroy() {
@@ -65,10 +74,59 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSharedPreferenceChanged(p: SharedPreferences?, key: String?) {
         store = repo.load()
+        syncSubtype(systemSubtype = null)
         applySettings()
     }
 
     private val s get() = store.activeProfile.settings
+
+    // ── languages ⇄ IME subtypes ────────────────────────────────────────
+    override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
+        super.onCurrentInputMethodSubtypeChanged(newSubtype)
+        syncSubtype(systemSubtype = newSubtype)
+    }
+
+    /**
+     * Three-way merge between the active profile's language and the system subtype
+     * (see [Subtypes.reconcile]). [systemSubtype] comes from the change callback; null means
+     * "ask the system".
+     */
+    private fun syncSubtype(systemSubtype: InputMethodSubtype?) {
+        if (!subtypes.isCurrentIme()) return // only the current IME owns the system's subtype
+        val app = s.lang
+        val system = subtypes.langOf(systemSubtype) ?: subtypes.systemLang()
+        val last = subtypes.lastSynced
+        when (val d = Subtypes.reconcile(app, system, last)) {
+            Subtypes.Sync.NONE -> subtypes.lastSynced = app
+            Subtypes.Sync.PULL_FROM_SYSTEM -> {
+                val lang = system ?: return
+                Log.i(TAG, "subtype: pull $lang (app=$app last=$last)")
+                subtypes.lastSynced = lang
+                store = store.update(store.active) { it.copy(lang = lang) }
+                repo.save(store) // listener → sync sees agreement → NONE
+                applySettings()
+            }
+            Subtypes.Sync.PUSH_TO_SYSTEM -> {
+                val target = subtypes.subtypeFor(app)
+                val id = subtypes.info?.id
+                if (target == null || id == null || !subtypes.isEnabled(app)) {
+                    // U6: the user disabled this language in system settings; keep the app's
+                    // layout, never fight the system (no lastSynced update, no loop).
+                    Log.w(TAG, "subtype: $app is not enabled in system settings; not pushing ($d)")
+                    return
+                }
+                Log.i(TAG, "subtype: push $app (system=$system last=$last)")
+                subtypes.lastSynced = app // set first: our own callback must see agreement
+                if (Build.VERSION.SDK_INT >= 28) {
+                    runCatching { switchInputMethod(id, target) }.onFailure { Log.w(TAG, "push failed", it) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val token = window?.window?.attributes?.token ?: return
+                    runCatching { getSystemService(InputMethodManager::class.java)?.setInputMethodAndSubtype(token, id, target) }
+                }
+            }
+        }
+    }
 
     override fun onCreateInputView(): View {
         val v = KeyboardView(this)
@@ -117,6 +175,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
         engine.start(FieldInfo(fieldKind, multiLine, action, autoCap))
         view?.setEnter(enterLabel(action, multiLine), enterDesc(action, multiLine))
+        subtypes.enableAllOnce()
+        syncSubtype(systemSubtype = null)
         applySettings()
         refreshContext()
     }
@@ -190,7 +250,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onLongPressOpened() {
-        if (s.haptics) view?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+        pulse(HapticEvent.LONG_PRESS)
+    }
+
+    private fun pulse(event: HapticEvent) {
+        Haptics.pulseFor(event, s.haptics)?.let(haptics::play)
     }
 
     override fun onSuggestion(word: String) {
@@ -205,7 +269,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (currentInputConnection == null) return
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(kotlin.math.abs(steps)) { sendDownUpKeyEvents(code) }
-        if (s.haptics) view?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        pulse(HapticEvent.CURSOR_TICK)
     }
 
     override fun onSpaceLongPress() {
@@ -256,8 +320,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     private fun feedback(key: Key?) {
         val st = s
-        val v = view ?: return
-        if (st.haptics) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+        pulse(HapticEvent.KEY)
         if (st.sound) {
             val kind = when {
                 key == null -> SoundKind.KEY
@@ -287,6 +350,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
         val sugg = lexicon?.get(st.lang)?.suggest(currentWord, 3) ?: emptyList()
         v.setSuggestions(sugg)
+    }
+
+    private companion object {
+        const val TAG = "ResystVK"
     }
 
     private fun ImeAction.toEditorInfo(): Int = when (this) {

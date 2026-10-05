@@ -38,6 +38,7 @@ import com.resyst.vk.core.TopRow
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.KeyboardView
 import com.resyst.vk.ime.ResystImeService
+import com.resyst.vk.ime.SubtypeSync
 import kotlin.math.roundToInt
 
 /**
@@ -118,6 +119,7 @@ class SettingsActivity : Activity() {
 
         section("Escritura")
         choice("Idioma", listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
+        link("Idiomas en el selector de Android…") { SubtypeSync(this).openSubtypeSettings() }
         toggle("Ocultar fila de caracteres especiales", "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
         if (!s.hideTopRow) {
             choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
@@ -379,6 +381,15 @@ class SettingsActivity : Activity() {
             })
         }
         root.addView(bar, lp(bottom = 4f).apply { height = px(44f) })
+    }
+
+    private fun link(text: String, onClick: () -> Unit) {
+        root.addView(label(text, 13f, pal.accent, 600).apply {
+            minHeight = px(44f)
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            setOnClickListener { onClick() }
+        }, lp())
     }
 
     private fun pill(text: String, onClick: () -> Unit) = label(text, 14f, pal.accentInk, 650).apply {
