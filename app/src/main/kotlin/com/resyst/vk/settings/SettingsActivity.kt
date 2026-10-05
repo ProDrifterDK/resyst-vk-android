@@ -43,6 +43,7 @@ import com.resyst.vk.core.ShiftState
 import com.resyst.vk.core.SoundPack
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.TopRow
+import com.resyst.vk.core.UpdateDecision
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.HapticPlayer
 import com.resyst.vk.ime.KeyboardView
@@ -120,12 +121,28 @@ class SettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         store = repo.load()
+        Updater.onChange = {
+            val y = scroll.scrollY
+            render()
+            scroll.post { scroll.scrollTo(0, y) }
+            maybeAutoInstall()
+        }
+        Updater.resume(this)
         render()
+        maybeAutoInstall()
+    }
+
+    override fun onPause() {
+        Updater.onChange = null
+        super.onPause()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) render() // IME picker closed → refresh the setup status
+        if (hasFocus) {
+            render() // IME picker closed → refresh the setup status
+            maybeAutoInstall() // the download finished while a dialog/notification shade had focus
+        }
     }
 
     private val pal get() = Palette.of(store.byId(editing)?.settings?.theme, store.byId(editing)?.settings?.accent)
@@ -201,7 +218,111 @@ class SettingsActivity : Activity() {
 
         section("Probar")
         tryField()
+
+        section("Actualización")
+        updateSection()
         footer()
+    }
+
+    // ── updates (the app's only network use, and only from these buttons) ──
+
+    private fun updateSection() {
+        val inst = Updater.installed(this)
+        root.addView(label("Versión instalada: ${inst.versionName}", 14f, t.textMod, 550).apply { tag = "update-installed" }, lp(top = 4f))
+        root.addView(label(PROMISE, 12f, t.muted), lp(top = 2f, bottom = 10f))
+        when (val st = Updater.state) {
+            Updater.State.Idle -> checkButton("Buscar actualizaciones")
+            Updater.State.Checking -> status("Buscando actualizaciones…")
+            is Updater.State.Checked -> when (val d = st.decision) {
+                is UpdateDecision.UpToDate -> {
+                    status("✓ Ya tienes la última versión (${d.latest}).", t.ok)
+                    checkButton("Buscar de nuevo", quiet = true)
+                }
+                is UpdateDecision.Available -> {
+                    val r = d.release
+                    status("Nueva versión disponible: ${r.version}", pal.accent)
+                    val facts = listOfNotNull(r.size, r.date?.take(10), r.minAndroid?.let { "Android $it o superior" })
+                    if (facts.isNotEmpty()) status(facts.joinToString(" · "), t.muted, 12f)
+                    root.addView(pill("Descargar e instalar ${r.version}") { confirmDownload(r) }.apply { tag = "update-download" }, lp(top = 8f))
+                    link("Ahora no") { Updater.dismiss() }
+                }
+                is UpdateDecision.Incompatible -> {
+                    status("La versión ${d.release.version} requiere Android ${d.release.minAndroid ?: "API ${d.minSdk}"} o superior; este teléfono no puede instalarla.", t.bad)
+                    checkButton("Buscar de nuevo", quiet = true)
+                }
+                UpdateDecision.NotPublished -> {
+                    status("Todavía no hay una versión publicada.")
+                    checkButton("Buscar de nuevo", quiet = true)
+                }
+                is UpdateDecision.Error -> {
+                    status("No se pudo leer la información de la versión publicada.", t.bad)
+                    checkButton("Reintentar", quiet = true)
+                }
+            }
+            is Updater.State.Downloading -> {
+                status("Descargando ${st.release.version}… El progreso aparece en las notificaciones.")
+                link("Cancelar la descarga") { Updater.cancel(this) }
+            }
+            is Updater.State.Verifying -> status("Comprobando la huella SHA-256…")
+            is Updater.State.Ready -> {
+                status("✓ ${st.release.version} descargada y verificada (SHA-256 coincide).", t.ok)
+                root.addView(pill("Instalar ${st.release.version}") { install(st) }.apply { tag = "update-install" }, lp(top = 8f))
+            }
+            is Updater.State.Failed -> {
+                status(st.message, t.bad)
+                checkButton("Reintentar", quiet = true)
+            }
+        }
+    }
+
+    private fun status(text: String, color: Int = t.text, size: Float = 14f) {
+        root.addView(label(text, size, color, 500).apply { tag = "update-status" }, lp(top = 4f))
+    }
+
+    private fun checkButton(text: String, quiet: Boolean = false) {
+        if (quiet) link(text) { Updater.check(this) }
+        else root.addView(pill(text) { Updater.check(this) }.apply { tag = "update-check" }, lp(top = 4f))
+    }
+
+    private fun confirmDownload(r: com.resyst.vk.core.Release) {
+        AlertDialog.Builder(this)
+            .setTitle("¿Descargar Resyst VK ${r.version}?")
+            .setMessage(
+                "Se descarga desde kv.resyst.cl" + (r.size?.let { " ($it)" } ?: "") + ". " +
+                    "Antes de instalar se comprueba que el archivo coincide con la huella SHA-256 publicada, " +
+                    "y Android verifica que está firmado por Resyst. Tus ajustes y lo aprendido se conservan.",
+            )
+            .setPositiveButton("Descargar") { _, _ -> autoInstall = true; Updater.download(this, r) }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    /** After "Descargar", open the installer by itself once the file is verified (screen visible). */
+    private var autoInstall = false
+
+    private fun maybeAutoInstall() {
+        val st = Updater.state
+        if (autoInstall && st is Updater.State.Ready && hasWindowFocus()) {
+            autoInstall = false
+            install(st)
+        }
+    }
+
+    private fun install(st: Updater.State.Ready) {
+        if (!Updater.canInstall(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Permite instalar la actualización")
+                .setMessage("Android pide que autorices a Resyst VK a instalar apps. Activa «Permitir de esta fuente», vuelve aquí y toca «Instalar».")
+                .setPositiveButton("Abrir ajustes") { _, _ -> startActivity(Updater.unknownSourcesSettings(this)) }
+                .setNegativeButton("Cancelar", null)
+                .show()
+            return
+        }
+        try {
+            startActivity(Updater.installIntent(this, st.file))
+        } catch (e: android.content.ActivityNotFoundException) {
+            AlertDialog.Builder(this).setMessage("No se encontró el instalador de Android.").setPositiveButton("OK", null).show()
+        }
     }
 
     /** Wipes the learned words + remembered values (shared by all profiles), after a confirm. */
@@ -299,7 +420,7 @@ class SettingsActivity : Activity() {
             getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
         }, lp(top = 8f))
         if (!selected) {
-            card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Resyst VK no tiene permiso de Internet; nada sale del teléfono.", 12f, t.muted, 400), lp(top = 10f))
+            card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. $PROMISE", 12f, t.muted, 400), lp(top = 10f))
         }
         root.addView(card, lp(bottom = 20f))
     }
@@ -531,5 +652,9 @@ class SettingsActivity : Activity() {
         root.addView(reset, lp(top = 18f))
         root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (MIT)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 8f))
         root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
+    }
+
+    private companion object {
+        const val PROMISE = "No se conecta a internet por sí solo. Descarga actualizaciones solo cuando tú se lo pides."
     }
 }

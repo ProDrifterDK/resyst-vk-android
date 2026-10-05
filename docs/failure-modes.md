@@ -186,3 +186,40 @@ rendering, touch) is covered by the E2E script `scripts/e2e.sh`.
 - X3 "Sugerencias personales" off (or "Sugerencias" off) still learns or suggests — words or values.
 - X4 "Borrar lo aprendido" leaves either store (words or values) behind.
 - X5 The toggle isn't ON on a fresh install / r3 storage, doesn't round-trip, or leaks between profiles.
+
+## Round 5 — self-update (`UpdateChecker`)
+
+The app's only network use: on an explicit tap, fetch `https://kv.resyst.cl/release.json`, decide,
+and (on a second explicit tap) download the APK and hand it to Android's installer.
+
+### Manifest parsing
+- U1 Invalid JSON, a non-object root (array, string, `null`) or an empty body crashes instead of
+  yielding an error decision.
+- U2 A required field (`versionCode` or `version`, `sha256`, `url`) missing or of the wrong type
+  (string versionCode, numeric sha) is treated as "update available" or crashes.
+- U3 `available: false` (or missing) still offers an update.
+- U4 A `sha256` that isn't 64 hex chars is accepted (verification would become meaningless);
+  uppercase hex is rejected or compared case-sensitively.
+- U5 The download URL escapes the release origin: `http:`, another host, a lookalike host
+  (`kv.resyst.cl.evil.com`, `evil.com/kv.resyst.cl`), userinfo (`kv.resyst.cl@evil.com`),
+  protocol-relative `//evil.com/x.apk`, `javascript:`/`file:`/`content:`, or a non-`.apk` path.
+  A relative `/download/x.apk` must resolve against `https://kv.resyst.cl`.
+- U6 An oversized `size`/`sizeBytes` or negative numbers are accepted.
+
+### Version comparison
+- V1 Equal or LOWER `versionCode` is offered as an update (downgrade path).
+- V2 Without `versionCode`, the version-name fallback compares as strings (`0.10.0` < `0.9.0`),
+  treats `0.2` ≠ `0.2.0`, or lets a pre-release (`0.3.0-alpha`) outrank its release (`0.3.0`).
+- V3 The local `-debug` name suffix makes a debug build look older/newer than its release.
+
+### Decision
+- D1 A device below the manifest's `minSdk` (or `minAndroid` when `minSdk` is absent) is offered
+  an update it cannot install; it must get "incompatible", not "available".
+- D2 Any error path (bad manifest, HTTP failure) surfaces as "up to date" — the user would wrongly
+  believe they're current.
+
+### Download verification
+- H1 The downloaded bytes are handed to the installer without matching the manifest SHA-256, or a
+  size mismatch / empty file passes.
+- H2 Verification hashes a different file than the one the installer receives (TOCTOU): the
+  verified copy must be the one served to the installer.
