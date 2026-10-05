@@ -13,7 +13,7 @@ import android.widget.TextView
 
 /**
  * Debug-only host for the E2E script: one focused EditText whose input type comes from
- * the "kind" extra (text | email | number | multiline | search). Editor actions are logged
+ * the "kind" extra (text | email | password | number | multiline | search). Editor actions are logged
  * under the tag "ResystE2E" so the script can assert them.
  */
 class E2EHostActivity : Activity() {
@@ -40,6 +40,7 @@ class E2EHostActivity : Activity() {
             textSize = 20f
             inputType = when (kind) {
                 "email" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                "password" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
                 "number" -> InputType.TYPE_CLASS_NUMBER
                 "multiline" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 "search" -> InputType.TYPE_CLASS_TEXT
