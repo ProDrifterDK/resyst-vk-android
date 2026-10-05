@@ -47,5 +47,8 @@ kotlin {
 }
 
 dependencies {
+    // ExploreByTouchHelper (TalkBack virtual keys). The only runtime dependency.
+    implementation("androidx.customview:customview:1.1.0")
+    implementation("androidx.core:core:1.13.1")
     testImplementation("junit:junit:4.13.2")
 }
