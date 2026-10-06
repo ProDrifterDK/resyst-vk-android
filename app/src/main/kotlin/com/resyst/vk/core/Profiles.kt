@@ -45,7 +45,8 @@ data class KbSettings(
 
 data class Profile(val id: String, val name: String, val icon: String, val settings: KbSettings)
 
-data class ProfileStore(val profiles: List<Profile>, val active: String) {
+/** [clip] is device-wide (not per profile), stored next to the profiles. */
+data class ProfileStore(val profiles: List<Profile>, val active: String, val clip: ClipSettings = ClipSettings()) {
     val activeProfile: Profile get() = byId(active) ?: profiles.first()
 
     fun byId(id: String): Profile? = profiles.firstOrNull { it.id == id }
@@ -94,6 +95,8 @@ object ProfileCodec {
         m["v"] = "1"
         m["active"] = st.active
         m["order"] = st.profiles.joinToString(",") { it.id }
+        m["clip.history"] = st.clip.history.toString()
+        m["clip.purge"] = st.clip.purgeHour.toString()
         for (p in st.profiles) {
             val k = "p.${p.id}."
             val s = p.settings
@@ -184,7 +187,10 @@ object ProfileCodec {
             )
         }
         val active = (raw["active"] as? String)?.takeIf { a -> profiles.any { it.id == a } } ?: profiles.first().id
-        return ProfileStore(profiles, active)
+        fun flag(key: String, d: Boolean) = when (raw[key]?.toString()) { "true" -> true; "false" -> false; else -> d }
+        val dc = ClipSettings()
+        val clip = ClipSettings(history = flag("clip.history", dc.history), purgeHour = flag("clip.purge", dc.purgeHour))
+        return ProfileStore(profiles, active, clip)
     }
 
     private inline fun <reified E : Enum<E>> enumOr(v: String?, d: E): E =

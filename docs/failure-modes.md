@@ -223,3 +223,49 @@ and (on a second explicit tap) download the APK and hand it to Android's install
   size mismatch / empty file passes.
 - H2 Verification hashes a different file than the one the installer receives (TOCTOU): the
   verified copy must be the one served to the installer.
+
+## Round 6 — clipboard: paste chip + history (`ClipboardHistory`, `ClipOffer`, `ClipGate`)
+
+### History store
+- C1 An empty or whitespace-only clip is stored.
+- C2 A clip over 100 KB (UTF-8) is stored (memory / disk blow-up); exactly 100 KB must be kept.
+- C3 Re-reading the same clip (same system timestamp — the IME reads the clipboard at every field
+  focus) bumps its count or reorders the list.
+- C4 Copying the same text again duplicates it instead of collapsing it (count + 1, moved to the
+  top, pin kept).
+- C5 More than 25 entries are kept, or eviction drops the newest / a pinned entry instead of the
+  oldest unpinned one.
+- C6 Pinning has no ceiling, so every slot could be pinned and new copies would be dropped.
+- C7 "Purgar tras 1 hora" removes pinned or fresh entries, or keeps stale unpinned ones; with the
+  option off nothing is ever purged by age.
+- C8 Persistence: a round trip loses text with quotes / newlines / emoji, counts, pins or order;
+  corrupt or foreign JSON crashes instead of yielding an empty history; a tampered file sneaks in
+  oversized entries, duplicates or more than the caps.
+- C9 Deleting / pinning by a stale id touches another entry.
+- C10 The panel order is not pinned-first, newest-first within each group.
+
+### Paste offer (chip)
+- O1 A secret field (password, visible / web password, numeric PIN) gets a paste chip.
+- O2 An empty clipboard or blank text yields a chip.
+- O3 A stale clip (older than 5 min) is offered, or the clip just pasted from the chip is offered
+  again.
+- O4 An image clip is offered to a field that declares no image support; an image-accepting field
+  (`image/*`, `image/png`) doesn't get "Pegar imagen"; MIME wildcard matching is wrong (`image/*`
+  vs `text/*`, case).
+- O5 An image MIME type without a content URI is offered as an image.
+- O6 A sensitive clip (`ClipDescription.EXTRA_IS_SENSITIVE`, password managers) shows its text in
+  the chip label.
+- O7 Newlines or very long text break the chip label (whitespace must collapse, length is capped).
+
+### Capture / read gate
+- W1 A copy made while a secret field is focused is captured.
+- W2 A copy made while an incognito field (IME_FLAG_NO_PERSONALIZED_LEARNING) is focused is captured.
+- W3 Anything is captured with "Historial del portapapeles" off.
+- W4 A sensitive clip is captured.
+- W5 The history panel opens (history read) in a secret field.
+- W6 The clipboard code opens a network connection (the pull-only promise of r5).
+
+### Settings
+- Q1 A fresh install / r5 storage doesn't land on history ON, purge OFF.
+- Q2 Corrupt values crash or are kept; values don't round-trip; the setting leaks per profile (it is
+  device-wide, like the learned data).

@@ -9,7 +9,13 @@ package com.resyst.vk.core
  * (IME_FLAG_NO_PERSONALIZED_LEARNING) and the profile has both "Sugerencias" and "Sugerencias
  * personales" on. [suggestions] gates the static lexicon (the old `noSuggestField`).
  */
-data class FieldPolicy(val kind: FieldKind, val suggestions: Boolean, val incognito: Boolean) {
+data class FieldPolicy(
+    val kind: FieldKind,
+    val suggestions: Boolean,
+    val incognito: Boolean,
+    /** Password variations and numeric PINs: no clipboard chip, capture or history, ever (r6). */
+    val secret: Boolean = kind == FieldKind.PASSWORD,
+) {
 
     fun personalWords(s: KbSettings): Boolean = suggestions && !incognito && s.suggest && s.personal
 
@@ -32,6 +38,7 @@ data class FieldPolicy(val kind: FieldKind, val suggestions: Boolean, val incogn
         const val VARIATION_VISIBLE_PASSWORD = 0x90
         const val VARIATION_WEB_EMAIL = 0xd0
         const val VARIATION_WEB_PASSWORD = 0xe0
+        const val NUMBER_VARIATION_PASSWORD = 0x10
         const val FLAG_NO_SUGGESTIONS = 0x80000
         const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
 
@@ -48,7 +55,11 @@ data class FieldPolicy(val kind: FieldKind, val suggestions: Boolean, val incogn
                 else -> FieldKind.TEXT
             }
             val suggestions = kind == FieldKind.TEXT && inputType and FLAG_NO_SUGGESTIONS == 0
-            return FieldPolicy(kind, suggestions, imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING != 0)
+            // TYPE_NUMBER_VARIATION_PASSWORD shares its value with the text URI variation: only
+            // meaningful together with the number class.
+            val pin = cls == CLASS_NUMBER && variation == NUMBER_VARIATION_PASSWORD
+            return FieldPolicy(kind, suggestions, imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
+                secret = kind == FieldKind.PASSWORD || pin)
         }
     }
 }
