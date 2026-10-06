@@ -44,6 +44,9 @@ import com.resyst.vk.core.SoundPack
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.TopRow
 import com.resyst.vk.core.UpdateDecision
+import com.resyst.vk.core.ClipSettings
+import com.resyst.vk.core.ClipboardHistory
+import com.resyst.vk.ime.ClipStore
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.HapticPlayer
 import com.resyst.vk.ime.KeyboardView
@@ -75,6 +78,7 @@ class SettingsActivity : Activity() {
         store = repo.load()
         editing = store.active
         PersonalStore.init(this)
+        ClipStore.init(this)
         scroll = ScrollView(this).apply { isFillViewport = true }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -128,11 +132,19 @@ class SettingsActivity : Activity() {
             maybeAutoInstall()
         }
         Updater.resume(this)
+        ClipStore.listeners += clipListener
         render()
         maybeAutoInstall()
     }
 
+    private val clipListener: () -> Unit = {
+        val y = scroll.scrollY
+        render()
+        scroll.post { scroll.scrollTo(0, y) }
+    }
+
     override fun onPause() {
+        ClipStore.listeners -= clipListener
         Updater.onChange = null
         super.onPause()
     }
@@ -201,6 +213,9 @@ class SettingsActivity : Activity() {
         toggle("Doble espacio = punto", null, s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
         toggle("Vista previa de tecla", "Burbuja sobre la tecla al pulsar", s.popups) { v -> commit { it.copy(popups = v) } }
         slider("Pulsación larga", 150, 900, s.longPressMs, { "$it ms" }, step = 25) { v -> commit { it.copy(longPressMs = v) } }
+
+        section("Portapapeles")
+        clipboardSection()
 
         section("Respuesta")
         toggle("Vibración", null, s.haptics) { v -> commit { it.copy(haptics = v) } }
@@ -357,6 +372,54 @@ class SettingsActivity : Activity() {
                 render()
                 scroll.post { scroll.scrollTo(0, y) }
             }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    // ── clipboard (device-wide, not per profile) ────────────────────────
+    private fun commitClip(f: (ClipSettings) -> ClipSettings) {
+        store = store.copy(clip = f(store.clip))
+        repo.save(store)
+        val y = scroll.scrollY
+        render()
+        scroll.post { scroll.scrollTo(0, y) }
+    }
+
+    private fun clipboardSection() {
+        val c = store.clip
+        toggle("Historial del portapapeles", "Guarda lo que copias (hasta ${ClipboardHistory.MAX_ITEMS}) · nunca en campos de contraseña · solo en este teléfono", c.history) { v ->
+            commitClip { it.copy(history = v) }
+        }
+        if (c.history) {
+            toggle("Purgar tras 1 hora", "Borra solo lo no fijado que copiaste hace más de una hora", c.purgeHour) { v ->
+                commitClip { it.copy(purgeHour = v) }
+            }
+        }
+        val h = ClipStore.history
+        val summary = when {
+            h == null -> "Cargando…"
+            h.isEmpty() -> "Vacío · nada sale del teléfono"
+            else -> "${h.size} elementos" + (if (h.pinCount > 0) " · ${h.pinCount} fijados" else "") + " · nada sale del teléfono"
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            minimumHeight = px(52f)
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            contentDescription = "Borrar historial del portapapeles. $summary"
+            setOnClickListener { confirmClearClipboard() }
+        }
+        row.addView(label("Borrar historial del portapapeles", 15f, t.bad, 600))
+        row.addView(label(summary, 12f, t.muted).apply { tag = "clip-summary" })
+        root.addView(row, lp())
+        root.addView(label("En el teclado: toca el portapapeles junto a ⚙ para ver el historial; «Pegar» aparece al copiar algo. Android solo avisa al teclado de lo que copias mientras está activo.", 12f, t.muted), lp(top = 2f, bottom = 4f))
+    }
+
+    private fun confirmClearClipboard() {
+        AlertDialog.Builder(this)
+            .setTitle("¿Borrar el historial del portapapeles?")
+            .setMessage("Se borra todo lo guardado, también lo fijado. Lo que esté ahora en el portapapeles de Android no cambia. No se puede deshacer.")
+            .setPositiveButton("Borrar") { _, _ -> ClipStore.clear(this) }
             .setNegativeButton("Cancelar", null)
             .show()
     }

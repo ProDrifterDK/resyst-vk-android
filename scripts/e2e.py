@@ -98,7 +98,9 @@ def tap(node, hold_ms=None):
 def type_word(word, km=None):
     km = km or keys(dump())
     for ch in word:
-        k = km.get(ch) or km.get(ch.upper())
+        k = km.get(ch)
+        if k is None:  # not `or`: a leaf Element is falsy (no children)
+            k = km.get(ch.upper())
         if k is None:
             raise RuntimeError(f'key {ch!r} not found; have {sorted(km)[:60]}')
         tap(k)

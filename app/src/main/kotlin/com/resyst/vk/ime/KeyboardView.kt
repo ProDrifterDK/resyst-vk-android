@@ -60,6 +60,12 @@ class KeyboardView(context: Context) : View(context) {
         fun onSpaceLongPress()
         fun onProfileTap()
         fun onOpenSettings()
+        /** The "Pegar" chip: paste the current clipboard offer. */
+        fun onPasteOffer()
+        /** The clipboard button (or a long-press on the paste chip): open the history. */
+        fun onClipboardButton()
+        /** A panel action the service must perform (paste, pin, delete, clear, close). */
+        fun onClipboardPanel(act: ClipboardPanel.Act, id: Long)
     }
 
     var listener: Listener? = null
@@ -76,6 +82,14 @@ class KeyboardView(context: Context) : View(context) {
     private var suggestions: List<String> = emptyList()
     private var profileIcon = "☾"
     private var profileName = "Noche"
+    private var pasteLabel: String? = null
+    private var pasteImage = false
+    private var clipButton = false
+
+    /** The clipboard history panel, drawn over the strip + keys while open. */
+    val clipPanel = ClipboardPanel(resources.displayMetrics.density)
+    var clipboardOpen = false
+        private set
 
     // ── geometry ─────────────────────────────────────────────────────────
     private val dp = resources.displayMetrics.density
@@ -85,7 +99,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PROFILE, SUGGESTION, SETTINGS }
+    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -157,6 +171,48 @@ class KeyboardView(context: Context) : View(context) {
 
     fun reset() { cancelPointers(); invalidate() }
 
+    /** The leading "Pegar" chip: [label] = what it pastes (already masked), null = no chip. */
+    fun setPasteOffer(label: String?, image: Boolean) {
+        if (label == pasteLabel && image == pasteImage) return
+        pasteLabel = label; pasteImage = image
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
+
+    /** The clipboard (history) button in the strip; hidden in secret fields / history off. */
+    fun setClipButton(show: Boolean) {
+        if (show == clipButton) return
+        clipButton = show
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
+
+    fun showClipboard(items: List<com.resyst.vk.core.ClipboardHistory.Entry>, now: Long) {
+        cancelPointers()
+        if (!clipboardOpen) clipPanel.reset()
+        clipboardOpen = true
+        layoutPanel()
+        clipPanel.setItems(items, now)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun updateClipboard(items: List<com.resyst.vk.core.ClipboardHistory.Entry>, now: Long) {
+        if (!clipboardOpen) return
+        clipPanel.setItems(items, now)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun hideClipboard() {
+        if (!clipboardOpen) return
+        cancelPointers()
+        clipboardOpen = false
+        clipPanel.reset()
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    private fun layoutPanel() {
+        val h = if (height > 0) (height - paddingBottom).toFloat() else stripH + keysHeight() + 4 * dp
+        clipPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
+    }
+
     // ── measure / layout ─────────────────────────────────────────────────
     private fun keysHeight(): Float {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -218,6 +274,7 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         layoutKeys()
+        if (clipboardOpen) layoutPanel()
     }
 
     private fun layoutKeys() {
@@ -251,16 +308,34 @@ class KeyboardView(context: Context) : View(context) {
         val h = stripH
         text.textSize = 15 * dp
         text.typeface = typeface(600)
-        val chipLabel = if (suggestions.isEmpty()) "✦  $profileIcon $profileName" else "✦ $profileIcon"
+        val compact = suggestions.isNotEmpty() || pasteLabel != null
+        val chipLabel = if (!compact) "✦  $profileIcon $profileName" else "✦ $profileIcon"
         val chipW = text.measureText(chipLabel) + 24 * dp
         stripItems += StripItem(StripKind.PROFILE, chipLabel, RectF(6 * dp, 6 * dp, 6 * dp + chipW, h - 6 * dp))
         val gearW = 44 * dp
         stripItems += StripItem(StripKind.SETTINGS, "⚙", RectF(width - gearW, 0f, width.toFloat(), h))
-        if (suggestions.isNotEmpty()) {
-            val l = 6 * dp + chipW + 4 * dp
-            val r = width - gearW
-            val cw = (r - l) / suggestions.size
-            suggestions.forEachIndexed { i, s ->
+        var r = width - gearW
+        if (clipButton) {
+            val cw = 42 * dp
+            stripItems += StripItem(StripKind.CLIP, "", RectF(r - cw, 0f, r, h))
+            r -= cw
+        }
+        var l = 6 * dp + chipW + 4 * dp
+        val paste = pasteLabel
+        if (paste != null) {
+            text.textSize = 14 * dp
+            text.typeface = typeface(600)
+            val label = if (pasteImage) "Pegar imagen" else paste
+            val room = r - l
+            val want = text.measureText(label) + 44 * dp
+            val w = if (suggestions.isEmpty()) min(want, room) else min(want, room * 0.55f)
+            stripItems += StripItem(StripKind.PASTE, label, RectF(l, 6 * dp, l + w, h - 6 * dp))
+            l += w + 4 * dp
+        }
+        if (suggestions.isNotEmpty() && r - l > 40 * dp) {
+            val shown = if (paste != null) suggestions.take(2) else suggestions
+            val cw = (r - l) / shown.size
+            shown.forEachIndexed { i, s ->
                 stripItems += StripItem(StripKind.SUGGESTION, s, RectF(l + i * cw, 0f, l + (i + 1) * cw, h))
             }
         }
@@ -301,6 +376,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun down(id: Int, x: Float, y: Float) {
+        if (clipboardOpen) { panelDown(id, x, y); return }
         // Fast-typing roll-over: a new finger commits any char key still held without a popup.
         for (p in ptrs.values.toList()) {
             val b = p.box ?: continue
@@ -316,6 +392,8 @@ class KeyboardView(context: Context) : View(context) {
             ptrs[id] = p
             if (strip.kind == StripKind.PROFILE) {
                 handler.postAtTime({ p.longFired = true; listener?.onOpenSettings() }, p, SystemClock.uptimeMillis() + 500)
+            } else if (strip.kind == StripKind.PASTE) {
+                handler.postAtTime({ p.longFired = true; listener?.onLongPressOpened(); listener?.onClipboardButton() }, p, SystemClock.uptimeMillis() + 500)
             }
             invalidate()
             return
@@ -372,6 +450,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun move(id: Int, x: Float, y: Float) {
+        if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
         val b = p.box ?: return
         val popup = p.popup
@@ -405,6 +484,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun up(id: Int, x: Float, y: Float) {
+        if (id == panelPtr) { panelUp(x, y); return }
         val p = ptrs.remove(id) ?: return
         handler.removeCallbacksAndMessages(p)
         val strip = p.strip
@@ -430,10 +510,73 @@ class KeyboardView(context: Context) : View(context) {
             StripKind.PROFILE -> listener?.onProfileTap()
             StripKind.SETTINGS -> listener?.onOpenSettings()
             StripKind.SUGGESTION -> listener?.onSuggestion(s.text)
+            StripKind.PASTE -> listener?.onPasteOffer()
+            StripKind.CLIP -> listener?.onClipboardButton()
         }
     }
 
+    // ── clipboard panel touch: one finger; tap = act, hold a row = preview, drag = scroll ──
+    private val panelToken = Any()
+    private var panelPtr = -1
+    private var panelHit: ClipboardPanel.Hit? = null
+    private var panelDownY = 0f
+    private var panelLastY = 0f
+    private var panelScrolling = false
+    private var panelLong = false
+
+    private fun panelDown(id: Int, x: Float, y: Float) {
+        if (panelPtr != -1) return
+        panelPtr = id
+        val hit = clipPanel.hitAt(x, y)
+        panelHit = hit
+        panelDownY = y; panelLastY = y
+        panelScrolling = false; panelLong = false
+        if (hit?.act == ClipboardPanel.Act.ROW) {
+            handler.postAtTime({
+                if (panelPtr == id && !panelScrolling) {
+                    panelLong = true
+                    clipPanel.showDetail(hit.id)
+                    listener?.onLongPressOpened()
+                    invalidate(); a11y.invalidateRoot()
+                }
+            }, panelToken, SystemClock.uptimeMillis() + 450)
+        }
+        invalidate()
+    }
+
+    private fun panelMove(y: Float) {
+        if (!panelScrolling && !panelLong && abs(y - panelDownY) > 10 * dp) {
+            panelScrolling = true
+            panelHit = null
+            handler.removeCallbacksAndMessages(panelToken)
+        }
+        if (panelScrolling && clipPanel.scrollBy(panelLastY - y)) { invalidate(); a11y.invalidateRoot() }
+        panelLastY = y
+    }
+
+    private fun panelUp(x: Float, y: Float) {
+        handler.removeCallbacksAndMessages(panelToken)
+        panelPtr = -1
+        val h = panelHit
+        panelHit = null
+        if (!panelScrolling && !panelLong && h != null && clipPanel.hitAt(x, y) === h) panelAct(h)
+        invalidate()
+    }
+
+    private fun panelAct(h: ClipboardPanel.Hit) {
+        when (h.act) {
+            ClipboardPanel.Act.CLEAR_ASK -> clipPanel.askClear(true)
+            ClipboardPanel.Act.CLEAR_NO -> clipPanel.askClear(false)
+            ClipboardPanel.Act.BACK -> clipPanel.back()
+            else -> listener?.onClipboardPanel(h.act, h.id)
+        }
+        invalidate(); a11y.invalidateRoot()
+    }
+
     private fun cancelPointers() {
+        handler.removeCallbacksAndMessages(panelToken)
+        panelPtr = -1
+        panelHit = null
         for (p in ptrs.values) {
             handler.removeCallbacksAndMessages(p)
             val k = p.box?.key
@@ -452,6 +595,10 @@ class KeyboardView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val t = palette.theme
         canvas.drawColor(t.bg)
+        if (clipboardOpen) {
+            clipPanel.draw(canvas, palette, radius(), ::typeface, if (panelScrolling || panelLong) null else panelHit)
+            return
+        }
         drawStrip(canvas)
         val pressed = HashSet<Box>()
         for (p in ptrs.values) p.box?.let { if (!p.cursorMode) pressed += it }
@@ -483,6 +630,33 @@ class KeyboardView(context: Context) : View(context) {
                     text.textSize = 14 * dp
                     text.typeface = typeface(600)
                     drawCentered(c, s.text, r.centerX(), r.centerY())
+                }
+                StripKind.PASTE -> {
+                    val pressed = s in pressedStrip
+                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
+                    stroke.color = palette.accentGlow
+                    stroke.strokeWidth = 1 * dp
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
+                    clipPanel.drawClipIcon(c, r.left + 17 * dp, r.centerY(), 13 * dp, palette.accent)
+                    text.color = palette.accent
+                    text.textSize = 14 * dp
+                    text.typeface = typeface(600)
+                    val avail = r.width() - 38 * dp
+                    val label = ellipsize(s.text, avail)
+                    text.textAlign = Paint.Align.LEFT
+                    val fm = text.fontMetrics
+                    c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
+                    text.textAlign = Paint.Align.CENTER
+                }
+                StripKind.CLIP -> {
+                    val pressed = s in pressedStrip
+                    if (pressed) {
+                        fill.color = t.keyHi
+                        tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
+                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                    }
+                    clipPanel.drawClipIcon(c, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted)
                 }
                 StripKind.SETTINGS -> {
                     text.color = if (s in pressedStrip) palette.accent else t.muted
@@ -700,6 +874,7 @@ class KeyboardView(context: Context) : View(context) {
             val x = event.x
             val y = event.y
             if (x >= 0 && x < width && y >= 0 && y < height) {
+                if (clipboardOpen) { clipPanel.hitAt(x, y)?.let { panelAct(it) }; return true }
                 stripAt(x, y)?.let { stripTap(it); return true }
                 boxAt(x, y)?.let { activate(it); return true }
             }
@@ -738,14 +913,20 @@ class KeyboardView(context: Context) : View(context) {
 
     private inner class KeyA11y : ExploreByTouchHelper(this) {
         private val stripBase = 10_000
+        private val panelBase = 20_000
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
+            if (clipboardOpen) {
+                val h = clipPanel.hitAt(x, y) ?: return INVALID_ID
+                return panelBase + clipPanel.hits.indexOf(h)
+            }
             stripAt(x, y)?.let { return stripBase + stripItems.indexOf(it) }
             val b = boxAt(x, y) ?: return INVALID_ID
             return boxes.indexOf(b)
         }
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
+            if (clipboardOpen) { for (i in clipPanel.hits.indices) ids += panelBase + i; return }
             for (i in stripItems.indices) ids += stripBase + i
             for (i in boxes.indices) ids += i
         }
@@ -753,12 +934,19 @@ class KeyboardView(context: Context) : View(context) {
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
             val r = RectF()
             val desc: String
-            if (id >= stripBase) {
+            if (id >= panelBase) {
+                val h = clipPanel.hits.getOrNull(id - panelBase)
+                desc = h?.desc ?: ""
+                h?.let { r.set(it.rect) }
+                if (h?.act == ClipboardPanel.Act.ROW) node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK)
+            } else if (id >= stripBase) {
                 val s = stripItems.getOrNull(id - stripBase)
                 desc = when (s?.kind) {
                     StripKind.PROFILE -> "Perfil $profileName. Toca para cambiar de perfil"
                     StripKind.SETTINGS -> "Ajustes de Resyst VK"
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
+                    StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
+                    StripKind.CLIP -> "Historial del portapapeles"
                     null -> ""
                 }
                 s?.let { r.set(it.rect) }
@@ -774,6 +962,16 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id >= panelBase) {
+                val h = clipPanel.hits.getOrNull(id - panelBase) ?: return false
+                return when {
+                    action == AccessibilityNodeInfo.ACTION_CLICK -> { panelAct(h); true }
+                    action == AccessibilityNodeInfo.ACTION_LONG_CLICK && h.act == ClipboardPanel.Act.ROW -> {
+                        clipPanel.showDetail(h.id); invalidate(); invalidateRoot(); true
+                    }
+                    else -> false
+                }
+            }
             if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
             if (id >= stripBase) {
                 stripItems.getOrNull(id - stripBase)?.let { stripTap(it); return true }

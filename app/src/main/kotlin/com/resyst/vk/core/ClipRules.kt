@@ -47,6 +47,8 @@ object ClipRules {
         }
         val t = clip.text ?: return null
         if (t.isBlank() || !ClipboardHistory.fits(t)) return null
+        // number / phone fields: only clips that carry a digit ("hola" can't go there)
+        if ((policy.kind == FieldKind.NUMBER || policy.kind == FieldKind.PHONE) && t.none { it.isDigit() }) return null
         return ClipOffer.Text(t, label(t, clip.sensitive), clip.stamp)
     }
 
@@ -56,6 +58,17 @@ object ClipRules {
 
     /** May the history panel open (the history be read) in this field? */
     fun mayShowHistory(policy: FieldPolicy, s: ClipSettings): Boolean = s.history && !policy.secret
+
+    /** "ahora", "hace 5 min", "hace 2 h", "hace 3 d" — the panel's age label. */
+    fun ago(now: Long, at: Long): String {
+        val s = ((now - at) / 1000).coerceAtLeast(0)
+        return when {
+            s < 60 -> "ahora"
+            s < 3600 -> "hace ${s / 60} min"
+            s < 86_400 -> "hace ${s / 3600} h"
+            else -> "hace ${s / 86_400} d"
+        }
+    }
 
     /** `type/subtype` against a pattern with `*` wildcards, case-insensitive. */
     fun mimeMatches(pattern: String, mime: String): Boolean {

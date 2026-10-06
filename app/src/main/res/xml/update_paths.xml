@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FileProvider roots: only the SHA-256-verified update copy, handed to Android's installer. -->
+<!-- FileProvider roots: the SHA-256-verified update copy (handed to Android's installer) and the
+     single clipboard image being pasted via commitContent (cache/clip, overwritten each paste). -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <cache-path name="clip" path="clip/" />
 </paths>

@@ -54,6 +54,12 @@ class ClipboardHistory {
         return Capture.ADDED
     }
 
+    /**
+     * A clip the gate refused (copied in a secret / incognito field, history off): remember its
+     * stamp so a later re-read in an ordinary field doesn't capture it after all (W1–W3).
+     */
+    fun ignore(stamp: Long) { if (stamp != 0L) lastStamp = stamp }
+
     /** Panel order: pinned first, then newest first within each group (C10). */
     fun items(): List<Entry> = list.filter { it.pinned } + list.filter { !it.pinned }
 

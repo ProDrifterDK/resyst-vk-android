@@ -204,11 +204,23 @@ class ClipboardTest {
         assertNull("dismissed / pasted", ClipRules.offer(clip(stamp = t0), textField, emptyList(), now, consumedStamp = t0))
         assertNotNull("a newer copy shows again", ClipRules.offer(clip(stamp = t0 + 1), textField, emptyList(), now, consumedStamp = t0))
         assertNotNull("unknown stamp: offer", ClipRules.offer(clip(stamp = 0), textField, emptyList(), now, 0))
-        assertNotNull("other fields work too: url, email, number, phone", listOf(
-            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
-            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
-            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE,
-        ).all { ClipRules.offer(clip(), FieldPolicy.of(it, 0), emptyList(), now, 0) != null }.takeIf { it })
+        for (t in listOf(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS))
+            assertNotNull("url / email fields get the chip", ClipRules.offer(clip(), FieldPolicy.of(t, 0), emptyList(), now, 0))
+        // number / phone fields: only a clip with a digit
+        for (t in listOf(InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE)) {
+            val p = FieldPolicy.of(t, 0)
+            assertNull(ClipRules.offer(clip(text = "hola mundo"), p, emptyList(), now, 0))
+            assertNotNull(ClipRules.offer(clip(text = "+56 9 1234 5678"), p, emptyList(), now, 0))
+        }
+    }
+
+    @Test fun ageLabels() {
+        assertEquals("ahora", ClipRules.ago(t0 + 59_000, t0))
+        assertEquals("hace 5 min", ClipRules.ago(t0 + 5 * 60_000, t0))
+        assertEquals("hace 2 h", ClipRules.ago(t0 + 2 * 3_600_000, t0))
+        assertEquals("hace 3 d", ClipRules.ago(t0 + 3 * 86_400_000L, t0))
+        assertEquals("ahora", ClipRules.ago(t0, t0 + 5000)) // clock went back
     }
 
     @Test fun imagesOnlyWhereTheFieldTakesThem() { // O4
@@ -254,6 +266,15 @@ class ClipboardTest {
         for (p in secrets) assertFalse(ClipRules.mayCapture(p, on, sensitive = false))
         assertTrue(ClipRules.mayCapture(textField, on, sensitive = false))
         assertTrue("no field active (another app copied)", ClipRules.mayCapture(null, on, sensitive = false))
+        // a refused clip stays refused when it is re-read later in an ordinary field
+        val h = h()
+        h.ignore(42)
+        assertEquals(ClipboardHistory.Capture.UNCHANGED, h.capture("copied in a password field", t0, 42))
+        assertTrue(h.isEmpty())
+        assertEquals(ClipboardHistory.Capture.ADDED, h.capture("next real copy", t0, 43))
+        // and it survives a restart
+        val back = ClipboardHistory.fromJson(ClipboardHistory().apply { ignore(77) }.toJson())
+        assertEquals(ClipboardHistory.Capture.UNCHANGED, back.capture("x", t0, 77))
     }
 
     @Test fun incognitoFieldsAreNotCaptured() { // W2

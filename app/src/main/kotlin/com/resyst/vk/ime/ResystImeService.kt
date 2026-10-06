@@ -1,7 +1,11 @@
 package com.resyst.vk.ime
 
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.SystemClock
@@ -13,7 +17,16 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import com.resyst.vk.core.Bar
+import com.resyst.vk.core.ClipOffer
+import com.resyst.vk.core.ClipRules
+import com.resyst.vk.core.ClipSnapshot
+import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
@@ -69,6 +82,20 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private lateinit var haptics: HapticPlayer
     private lateinit var subtypes: SubtypeSync
 
+    // ── clipboard (r6) ──────────────────────────────────────────────────
+    private var clipboard: ClipboardManager? = null
+    /** The chip currently shown, null = none. */
+    private var offer: ClipOffer? = null
+    /** Stamp of the clip pasted / dismissed from the chip: it doesn't come back. */
+    private var consumedStamp = 0L
+    /** Stamp of a clip copied while a secret field was focused: its chip label is masked. */
+    private var secretStamp = 0L
+    /** The user typed in this field: the chip steps aside until the next field. */
+    private var typedSinceStart = false
+    private val clipIo = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener { onClipChanged() }
+    private val clipStoreListener: () -> Unit = { view?.updateClipboard(historyItems(), System.currentTimeMillis()) }
+
     override fun onCreate() {
         super.onCreate()
         repo = SettingsRepo(this)
@@ -80,10 +107,20 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         haptics = HapticPlayer(this)
         subtypes = SubtypeSync(this)
         subtypes.enableAllOnce()
+        // cold start: the first field may open before the history is read from disk
+        ClipStore.init(this) { if (isInputViewShown) { captureClip(fromListener = false); refreshClip() } }
+        ClipStore.listeners += clipStoreListener
+        // The default IME may read the clipboard and is told about every new primary clip while
+        // its process lives (ClipboardService.isDefaultIme), with no "pasted" toast.
+        clipboard = getSystemService(ClipboardManager::class.java)
+        clipboard?.addPrimaryClipChangedListener(clipListener)
     }
 
     override fun onDestroy() {
         repo.prefs.unregisterOnSharedPreferenceChangeListener(this)
+        clipboard?.removePrimaryClipChangedListener(clipListener)
+        ClipStore.listeners -= clipStoreListener
+        ClipStore.flush()
         PersonalStore.flush()
         sound?.release()
         sound = null
@@ -94,6 +131,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         store = repo.load()
         syncSubtype(systemSubtype = null)
         applySettings()
+        if (!ClipRules.mayShowHistory(policy, clipS)) view?.hideClipboard()
+        refreshClip()
     }
 
     private val s get() = store.activeProfile.settings
@@ -163,6 +202,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val flags = info.inputType and InputType.TYPE_MASK_FLAGS
         policy = FieldPolicy.of(info.inputType, info.imeOptions)
         learner.reset()
+        view?.hideClipboard()
+        if (!restarting) typedSinceStart = false
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val rawAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
@@ -187,10 +228,14 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         syncSubtype(systemSubtype = null)
         applySettings()
         refreshContext()
+        captureClip(fromListener = false) // a copy made while this process wasn't running
+        refreshClip()
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         rememberValue()
+        view?.hideClipboard()
+        ClipStore.flush()
         super.onFinishInputView(finishingInput)
         view?.reset()
         currentWord = ""
@@ -255,6 +300,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
         val layerBefore = engine.layer
         val outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
+        if (key.type == KeyType.CHAR && offer != null) { typedSinceStart = true; refreshClip() }
         // delete + commit (correction, undo, double-space) must land as one edit
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
@@ -318,6 +364,188 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         store = next
         repo.save(next) // listener reloads + re-applies
         applySettings()
+    }
+
+    // ── clipboard ───────────────────────────────────────────────────────
+    private val clipS get() = store.clip
+
+    private fun historyItems(): List<ClipboardHistory.Entry> = ClipStore.history?.items() ?: emptyList()
+
+    private fun onClipChanged() {
+        captureClip(fromListener = true)
+        refreshClip()
+    }
+
+    /**
+     * Records the primary clip into the history when the gate allows (W1–W4). A copy refused by
+     * the gate is remembered by its stamp, so a later re-read never captures it. In a secret
+     * field only the clip's description (its stamp) is read, never its content.
+     */
+    private fun captureClip(fromListener: Boolean) {
+        val cm = clipboard ?: return
+        val h = ClipStore.history
+        if (h == null) { // not loaded yet: only note a secret copy, the load callback re-runs this
+            if (fromListener && isInputViewShown && policy.secret) secretStamp = runCatching { cm.primaryClipDescription?.timestamp }.getOrNull() ?: 0L
+            return
+        }
+        val now = System.currentTimeMillis()
+        val p = if (fromListener && !isInputViewShown) null else policy
+        val desc = runCatching { cm.primaryClipDescription }.getOrNull() ?: return
+        val stamp = desc.timestamp
+        val sensitive = isSensitive(desc)
+        if (fromListener && p?.secret == true) secretStamp = stamp
+        var changed = clipS.purgeHour && h.purge(now, ClipboardHistory.PURGE_MS)
+        if (!ClipRules.mayCapture(p, clipS, sensitive)) {
+            // focus-time re-read in a closed field: leave the clip for an ordinary field later
+            if (fromListener || sensitive || !clipS.history) h.ignore(stamp)
+            if (changed) ClipStore.changed()
+            return
+        }
+        val text = clipText(runCatching { cm.primaryClip }.getOrNull())
+        if (text != null) {
+            val r = h.capture(text, now, stamp)
+            if (r == ClipboardHistory.Capture.ADDED || r == ClipboardHistory.Capture.BUMPED) changed = true
+            if (r == ClipboardHistory.Capture.TOO_LARGE) h.ignore(stamp)
+            Log.i(TAG, "clipboard: capture ${text.length} chars → $r")
+        } else h.ignore(stamp)
+        if (changed) ClipStore.changed()
+    }
+
+    /** The clip's first text item, or null (no text, or larger than any limit we keep). */
+    private fun clipText(clip: ClipData?): String? {
+        val item = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return null
+        val cs = item.text ?: return null
+        if (cs.length > ClipboardHistory.MAX_BYTES) return null
+        return cs.toString()
+    }
+
+    private fun isSensitive(desc: ClipDescription): Boolean =
+        desc.extras?.getBoolean(EXTRA_IS_SENSITIVE, false) == true
+
+    /** The chip and the history button for the current field (never read in a secret field). */
+    private fun refreshClip() {
+        val v = view ?: return
+        v.setClipButton(ClipRules.mayShowHistory(policy, clipS))
+        val info = currentInputEditorInfo
+        val o = if (policy.secret || typedSinceStart || info == null) null else {
+            val snap = snapshot()?.let { if (it.stamp != 0L && it.stamp == secretStamp) it.copy(sensitive = true) else it }
+            ClipRules.offer(snap, policy, EditorInfoCompat.getContentMimeTypes(info).toList(), System.currentTimeMillis(), consumedStamp)
+        }
+        offer = o
+        when (o) {
+            is ClipOffer.Text -> v.setPasteOffer(o.label, image = false)
+            is ClipOffer.Image -> v.setPasteOffer("Pegar imagen", image = true)
+            null -> v.setPasteOffer(null, image = false)
+        }
+    }
+
+    private fun snapshot(): ClipSnapshot? {
+        val cm = clipboard ?: return null
+        val clip = runCatching { cm.primaryClip }.getOrNull() ?: return null
+        val desc = clip.description
+        val mimes = (0 until desc.mimeTypeCount).map { desc.getMimeType(it) }
+        val uri = clip.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+        val cs = clip.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
+        val text = cs?.takeIf { it.length <= ClipboardHistory.MAX_BYTES }?.toString()
+            ?: cs?.let { "" } // too large: present but not offered
+        return ClipSnapshot(text?.ifEmpty { null }, mimes, uri != null, desc.timestamp, isSensitive(desc))
+    }
+
+    override fun onPasteOffer() {
+        val ic = currentInputConnection ?: return
+        when (val o = offer) {
+            is ClipOffer.Text -> {
+                ic.commitText(o.text, 1)
+                consumedStamp = o.stamp
+                feedback(null)
+            }
+            is ClipOffer.Image -> {
+                consumedStamp = o.stamp
+                feedback(null)
+                pasteImage(o)
+            }
+            null -> return
+        }
+        learner.reset()
+        refreshClip()
+    }
+
+    /**
+     * Rich paste via commitContent. The image is copied into our own cache first and offered
+     * through our FileProvider with a read grant: a URI owned by the copying app can't always be
+     * re-granted by the IME. Capped at [IMAGE_MAX_BYTES]; the field may still refuse it.
+     */
+    private fun pasteImage(o: ClipOffer.Image) {
+        val info = currentInputEditorInfo ?: return
+        val src: Uri = runCatching { clipboard?.primaryClip?.getItemAt(0)?.uri }.getOrNull() ?: return
+        val token = currentInputConnection
+        clipIo.execute {
+            val file = runCatching { copyImage(src, o.mime) }.onFailure { Log.w(TAG, "clipboard: image copy failed", it) }.getOrNull()
+            android.os.Handler(mainLooper).post {
+                val ic = currentInputConnection
+                if (ic == null || ic !== token) return@post // the field changed meanwhile
+                val uri = file?.let { FileProvider.getUriForFile(this, "$packageName.updates", it) } ?: src
+                val content = InputContentInfoCompat(uri, ClipDescription("Resyst VK", arrayOf(o.mime)), null)
+                val ok = runCatching {
+                    InputConnectionCompat.commitContent(ic, info, content, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
+                }.getOrDefault(false)
+                Log.i(TAG, "clipboard: commitContent ${o.mime} → $ok")
+                if (!ok) Toast.makeText(this, "El campo no acepta imágenes", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun copyImage(src: Uri, mime: String): java.io.File? {
+        val dir = java.io.File(cacheDir, CLIP_DIR).apply { mkdirs() }
+        dir.listFiles()?.filter { it.name.startsWith("paste.") }?.forEach { it.delete() } // only the last paste is kept
+        val ext = mime.substringAfter('/').filter { it.isLetterOrDigit() }.take(5).ifEmpty { "img" }
+        val f = java.io.File(dir, "paste.$ext")
+        contentResolver.openInputStream(src)?.use { input ->
+            f.outputStream().use { out ->
+                val buf = ByteArray(16 * 1024)
+                var total = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    total += n
+                    if (total > IMAGE_MAX_BYTES) { f.delete(); return null }
+                    out.write(buf, 0, n)
+                }
+            }
+        } ?: return null
+        return f
+    }
+
+    override fun onClipboardButton() {
+        if (!ClipRules.mayShowHistory(policy, clipS)) return // W5
+        val h = ClipStore.history
+        val now = System.currentTimeMillis()
+        if (h != null && clipS.purgeHour && h.purge(now, ClipboardHistory.PURGE_MS)) ClipStore.changed()
+        view?.showClipboard(historyItems(), now)
+    }
+
+    override fun onClipboardPanel(act: com.resyst.vk.ime.ClipboardPanel.Act, id: Long) {
+        val v = view ?: return
+        val h = ClipStore.history
+        when (act) {
+            ClipboardPanel.Act.CLOSE -> v.hideClipboard()
+            ClipboardPanel.Act.ROW, ClipboardPanel.Act.PASTE -> {
+                if (!ClipRules.mayShowHistory(policy, clipS)) { v.hideClipboard(); return }
+                val e = h?.get(id) ?: return
+                v.hideClipboard()
+                currentInputConnection?.commitText(e.text, 1)
+                learner.reset()
+                feedback(null)
+            }
+            ClipboardPanel.Act.PIN -> {
+                val e = h?.get(id) ?: return
+                if (h.setPinned(id, !e.pinned)) ClipStore.changed()
+                else Toast.makeText(this, "Puedes fijar hasta ${ClipboardHistory.MAX_PINS}", Toast.LENGTH_SHORT).show()
+            }
+            ClipboardPanel.Act.DELETE -> if (h?.delete(id) == true) ClipStore.changed()
+            ClipboardPanel.Act.CLEAR_YES -> ClipStore.clear(this)
+            else -> Unit
+        }
     }
 
     override fun onOpenSettings() {
@@ -417,6 +645,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         const val TAG = "ResystVK"
         /** Chars read before the cursor; a full read may start mid-word (see Tokens). */
         const val WINDOW = 64
+        /** ClipDescription.EXTRA_IS_SENSITIVE (API 33); password managers set it on older APIs too. */
+        const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+        const val CLIP_DIR = "clip"
+        const val IMAGE_MAX_BYTES = 10L * 1024 * 1024
     }
 
     private fun ImeAction.toEditorInfo(): Int = when (this) {
