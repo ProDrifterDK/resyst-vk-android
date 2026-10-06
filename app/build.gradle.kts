@@ -12,8 +12,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // -Pvk.versionCode=N / -Pvk.versionName=X: local test builds only (updater E2E), never published.
-        versionCode = (findProperty("vk.versionCode") as String?)?.toInt() ?: 2
-        versionName = (findProperty("vk.versionName") as String?) ?: "0.2.0"
+        versionCode = (findProperty("vk.versionCode") as String?)?.toInt() ?: 4
+        versionName = (findProperty("vk.versionName") as String?) ?: "0.4.0-alpha"
     }
 
     signingConfigs {
