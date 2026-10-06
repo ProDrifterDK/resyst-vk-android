@@ -547,7 +547,7 @@ class SettingsActivity : Activity() {
         kv.setStyle(s, Palette.of(s.theme, s.accent))
         kv.setProfile(store.byId(editing)?.icon ?: "✦", store.byId(editing)?.name ?: "")
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
-        val spec = LayoutSpec(s.lang, s.effectiveTopRow, false)
+        val spec = LayoutSpec(s.lang, s.effectiveTopRow)
         kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)
         kv.setShift(ShiftState.OFF)
         kv.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
