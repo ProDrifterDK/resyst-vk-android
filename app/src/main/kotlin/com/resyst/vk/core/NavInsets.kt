@@ -21,9 +21,16 @@ object NavInsets {
      * Final reserve given the reported insets and the navigation mode
      * (2 = gesture navigation, per Settings.Secure.NAVIGATION_MODE).
      */
-    fun bottomPadding(current: Int, stable: Int, navigationMode: Int): Int {
+    fun bottomPadding(current: Int, stable: Int, navigationMode: Int): Int =
+        bottomPadding(current, stable, navigationMode, systemGlobeHidden = false)
+
+    /**
+     * r7: once the keyboard hid the IME navigation bar (see [ImeSwitcher.systemGlobeHidden]) the
+     * globe is gone, so the floor is no longer needed — only the gesture pill's own inset.
+     */
+    fun bottomPadding(current: Int, stable: Int, navigationMode: Int, systemGlobeHidden: Boolean): Int {
         val base = bottomPadding(current, stable)
-        return if (navigationMode == 2) max(base, MIN_GESTURE_RESERVE) else base
+        return if (navigationMode == 2 && !systemGlobeHidden) max(base, MIN_GESTURE_RESERVE) else base
     }
 
     /** Total view height: drawn content + the reserved strip (never negative, never twice). */

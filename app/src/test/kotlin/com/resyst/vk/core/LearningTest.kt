@@ -49,7 +49,7 @@ class LearningTest {
         assertEquals("ho", Edits.apply("hol", listOf(Out.Backspace)))
         assertEquals("", Edits.apply("a", listOf(Out.DeleteBefore(9))))
         assertEquals("x😀", Edits.apply("x😀😀", listOf(Out.Backspace)))
-        assertEquals("ok", Edits.apply("ok", listOf(Out.Action(ImeAction.SEND), Out.SwitchIme)))
+        assertEquals("ok", Edits.apply("ok", listOf(Out.Action(ImeAction.SEND), Out.EnterKey)))
     }
 
     @Test fun spaceFinishesAWordOnceCommasKeepTheLink() { // M1

@@ -265,7 +265,41 @@ and (on a second explicit tap) download the APK and hand it to Android's install
 - W5 The history panel opens (history read) in a secret field.
 - W6 The clipboard code opens a network connection (the pull-only promise of r5).
 
-### Settings
+### Settings (clipboard)
 - Q1 A fresh install / r5 storage doesn't land on history ON, purge OFF.
 - Q2 Corrupt values crash or are kept; values don't round-trip; the setting leaks per profile (it is
   device-wide, like the learned data).
+
+## Round 7 — settings IA + the keyboard-switch globe (Pixel 6)
+
+### Settings information architecture (`SettingsIA`)
+- I1 A stored setting (any per-profile `ProfileCodec` key, or a device-wide `clip.*` key) has no
+  control on any page → it became unreachable in the reorganization.
+- I2 A page lists a control id that is neither a stored setting nor a known action (a typo renders
+  a blank row or crashes the screen).
+- I3 A control appears on two category pages (scattered again); an essential (home) control is
+  missing from its own category page, so the full page is incomplete.
+- I4 A dependent control (Intensidad, Pack, Volumen, Fila superior, El espacio corrige, Sugerencias
+  personales, Purgar tras 1 hora) lives on another page than the switch that reveals it, or is
+  listed before it.
+- I5 Home grows back into the flat list: more than 8 essentials, or a long-tail setting (leyendas
+  secundarias, vista previa de tecla, mayúscula automática, doble espacio) is promoted to home.
+- I6 Any control deeper than 2 taps from home (nested pages).
+- I7 A device-wide setting or data action (portapapeles, borrar lo aprendido, actualizaciones,
+  restablecer) is shown on a per-profile page — the user would think it is per profile — or a
+  per-profile setting on a device-wide page.
+- I8 Duplicated page ids / titles, or an empty page.
+- I9 A destructive action (Borrar lo aprendido, Borrar historial, Restablecer perfiles) sits on home
+  or among the essentials.
+
+### The keyboard-switch globe (`ImeSwitcher`)
+- G1 The keyboard draws its own 🌐 key in any layer (redundant with long-press space — the
+  mistapped key Alan reported).
+- G2 The IME treats the system globe as hidden on a version that can't hide it (API < 35: the IME
+  navigation bar has no hideable caption bar) and drops the bottom floor → keys under the globe.
+- G3 The system globe is gone but the 88 px floor is still reserved (dead strip), or the floor is
+  dropped while the globe is still drawn (caption bar still visible).
+- G4 Non-gesture navigation (3-button, 2-button) changes: it must keep the pure inset rule.
+- G5 Nothing tells the user how to switch keyboards once the system globe is hidden, or that hint
+  shows with only one keyboard enabled (nothing to switch to).
+- G6 TalkBack users lose the way to switch: the space key exposes no long-click action.

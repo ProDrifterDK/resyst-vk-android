@@ -12,7 +12,7 @@ object Edits {
                 t.length >= 2 && Character.isSurrogatePair(t[t.length - 2], t[t.length - 1]) -> t.dropLast(2)
                 else -> t.dropLast(1)
             }
-            is Out.Action, Out.EnterKey, Out.SwitchIme -> t
+            is Out.Action, Out.EnterKey -> t
         }
         return t
     }

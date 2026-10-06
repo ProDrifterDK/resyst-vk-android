@@ -91,9 +91,10 @@ object KeyboardLayouts {
             letterRow && spec.field == FieldKind.URL -> ch("/", l)
             else -> ch(",", l)
         }
-        val switchKey = if (spec.showSwitchKey) listOf(Key(KeyType.SWITCH_IME, "🌐", style = KeyStyle.MOD)) else emptyList()
-        val fixed = layerKey.width + switchKey.sumOf { it.width.toDouble() }.toFloat() + left.width + 1f + 1.5f
+        // r7: no 🌐 key — long-press on space opens the keyboard picker (the key was redundant
+        // and sat where thumbs land).
+        val fixed = layerKey.width + left.width + 1f + 1.5f
         val spaceLabel = if (l == Lang.ES) "español" else "english"
-        return listOf(layerKey) + switchKey + left + space(ROW_UNITS - fixed, spaceLabel) + ch(".", l) + enter(1.5f)
+        return listOf(layerKey) + left + space(ROW_UNITS - fixed, spaceLabel) + ch(".", l) + enter(1.5f)
     }
 }

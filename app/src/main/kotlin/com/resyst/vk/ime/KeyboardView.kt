@@ -25,6 +25,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.ImeSwitcher
 import com.resyst.vk.core.Key
 import com.resyst.vk.core.KeyCap
 import com.resyst.vk.core.KeyStyle
@@ -85,6 +86,16 @@ class KeyboardView(context: Context) : View(context) {
     private var pasteLabel: String? = null
     private var pasteImage = false
     private var clipButton = false
+
+    /** The system globe is hidden in this window (IME nav bar caption hidden, r7). */
+    private var systemGlobeHidden = false
+    /** There is another keyboard / subtype to switch to (set by the service). */
+    private var switchAvailable = false
+    private val spaceHint get() = ImeSwitcher.spaceHint(systemGlobeHidden, switchAvailable)
+
+    fun setSwitchAvailable(v: Boolean) {
+        if (v != switchAvailable) { switchAvailable = v; invalidate(); a11y.invalidateRoot() }
+    }
 
     /** The clipboard history panel, drawn over the strip + keys while open. */
     val clipPanel = ClipboardPanel(resources.displayMetrics.density)
@@ -258,10 +269,18 @@ class KeyboardView(context: Context) : View(context) {
         val navMode = if (Build.VERSION.SDK_INT >= 29) {
             Settings.Secure.getInt(context.contentResolver, "navigation_mode", 0)
         } else 0
-        val pad = NavInsets.bottomPadding(current, stable, navMode)
+        // r7: the service asks the system to hide the IME navigation bar (captionBar); when that
+        // worked, the globe is gone and the floor above can go too.
+        val (capH, capVisible) = if (Build.VERSION.SDK_INT >= 30) {
+            root.getInsetsIgnoringVisibility(WindowInsets.Type.captionBar()).bottom to
+                root.isVisible(WindowInsets.Type.captionBar())
+        } else 0 to false
+        val hidden = ImeSwitcher.systemGlobeHidden(Build.VERSION.SDK_INT, capH, capVisible)
+        if (hidden != systemGlobeHidden) { systemGlobeHidden = hidden; invalidate(); a11y.invalidateRoot() }
+        val pad = NavInsets.bottomPadding(current, stable, navMode, hidden)
         val d = if (Build.VERSION.SDK_INT >= 30) dispatched.getInsets(WindowInsets.Type.navigationBars()).bottom
         else @Suppress("DEPRECATION") dispatched.systemWindowInsetBottom
-        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode → padding=$pad")
+        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode caption=$capH visible=$capVisible globeHidden=$hidden → padding=$pad")
         return pad
     }
 
@@ -787,6 +806,11 @@ class KeyboardView(context: Context) : View(context) {
                 text.textSize = 12 * dp
                 text.typeface = typeface(500)
                 drawCentered(c, "✦  " + k.label, cx, cy)
+                if (spaceHint) {
+                    // the system globe is gone: a small globe says "hold me to switch keyboards"
+                    val sz = min(rowH * 0.26f, 12 * dp)
+                    KeyIcons.draw(c, Icon.GLOBE, tmp.right - 5 * dp - sz / 2, tmp.top + 5 * dp + sz / 2, sz, t.muted, stroke, fill)
+                }
             }
             KeyType.SHIFT -> {
                 text.color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) palette.accent else ink
@@ -901,13 +925,12 @@ class KeyboardView(context: Context) : View(context) {
         }
         KeyType.BACKSPACE -> "Borrar"
         KeyType.ENTER -> enterDesc
-        KeyType.SPACE -> "Espacio"
+        KeyType.SPACE -> if (spaceHint) "Espacio. Mantén pulsado para cambiar de teclado" else "Espacio"
         KeyType.LAYER -> when (k.target) {
             Layer.SYMBOLS -> "Símbolos"
             Layer.SYMBOLS2 -> "Más símbolos"
             else -> "Letras"
         }
-        KeyType.SWITCH_IME -> "Cambiar teclado"
         KeyType.SPACER -> ""
     }
 
@@ -954,6 +977,9 @@ class KeyboardView(context: Context) : View(context) {
                 val b = boxes.getOrNull(id)
                 desc = b?.let { describe(it.key) } ?: ""
                 b?.let { r.set(it.rect) }
+                // G6: long-press space = keyboard picker, also for TalkBack users
+                if (b?.key?.type == KeyType.SPACE) node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+                    AccessibilityNodeInfo.ACTION_LONG_CLICK, "Cambiar de teclado"))
             }
             node.contentDescription = desc
             node.className = "android.widget.Button"
@@ -971,6 +997,10 @@ class KeyboardView(context: Context) : View(context) {
                     }
                     else -> false
                 }
+            }
+            if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK && id < stripBase &&
+                boxes.getOrNull(id)?.key?.type == KeyType.SPACE) {
+                listener?.onSpaceLongPress(); return true
             }
             if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
             if (id >= stripBase) {

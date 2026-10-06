@@ -11,7 +11,7 @@ enum class FieldKind { TEXT, EMAIL, URL, NUMBER, PHONE, PASSWORD }
 
 enum class Layer { LETTERS, SYMBOLS, SYMBOLS2, NUMPAD }
 
-enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, LAYER, SWITCH_IME, SPACER }
+enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, LAYER, SPACER }
 
 enum class KeyStyle { NORMAL, MOD, ACCENT, ACTION, NUM }
 
@@ -36,7 +36,6 @@ data class Key(
 data class LayoutSpec(
     val lang: Lang = Lang.ES,
     val topRow: TopRow = TopRow.ACCENTS,
-    val showSwitchKey: Boolean = false,
     val field: FieldKind = FieldKind.TEXT,
 )
 
@@ -56,5 +55,4 @@ sealed class Out {
     data class Action(val action: ImeAction) : Out()
     data object Backspace : Out()
     data object EnterKey : Out()
-    data object SwitchIme : Out()
 }

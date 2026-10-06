@@ -10,15 +10,12 @@ class LayoutAndVariantsTest {
     private fun spec(
         lang: Lang = Lang.ES,
         top: TopRow = TopRow.ACCENTS,
-        switch: Boolean = false,
         field: FieldKind = FieldKind.TEXT,
-    ) = LayoutSpec(lang, top, switch, field)
+    ) = LayoutSpec(lang, top, field)
 
     private val allSpecs = Lang.values().flatMap { l ->
         TopRow.values().flatMap { t ->
-            listOf(true, false).flatMap { s ->
-                FieldKind.values().map { f -> spec(l, t, s, f) }
-            }
+            FieldKind.values().map { f -> spec(l, t, f) }
         }
     }
 
@@ -76,13 +73,11 @@ class LayoutAndVariantsTest {
         }
     }
 
-    // L7
-    @Test fun switchKeyFollowsTheSystemFlag() {
+    // L7 (r7: the 🌐 key is gone for good — long-press space switches; see ImeSwitcherTest G1)
+    @Test fun bottomRowKeepsLayerCommaSpaceDotEnter() {
         for (layer in listOf(Layer.LETTERS, Layer.SYMBOLS, Layer.SYMBOLS2)) {
-            val withKey = KeyboardLayouts.rows(layer, spec(switch = true)).flatten()
-            val without = KeyboardLayouts.rows(layer, spec(switch = false)).flatten()
-            assertTrue(withKey.any { it.type == KeyType.SWITCH_IME })
-            assertFalse(without.any { it.type == KeyType.SWITCH_IME })
+            val types = KeyboardLayouts.rows(layer, spec()).last().map { it.type }
+            assertEquals(listOf(KeyType.LAYER, KeyType.CHAR, KeyType.SPACE, KeyType.CHAR, KeyType.ENTER), types)
         }
     }
 

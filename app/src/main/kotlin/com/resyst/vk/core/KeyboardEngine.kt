@@ -82,7 +82,6 @@ class KeyboardEngine {
             KeyType.ENTER -> listOf(enter())
             KeyType.BACKSPACE -> revert(pendingUndo, before) ?: listOf(Out.Backspace)
             KeyType.LAYER -> { layer = key.target ?: Layer.LETTERS; emptyList() }
-            KeyType.SWITCH_IME -> listOf(Out.SwitchIme)
             KeyType.SHIFT, KeyType.SPACER -> emptyList()
         }
         if (key.type != KeyType.SPACE) lastWasSpace = false

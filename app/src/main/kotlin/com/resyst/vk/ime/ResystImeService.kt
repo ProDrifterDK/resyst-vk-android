@@ -13,6 +13,7 @@ import android.text.InputType
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -190,11 +191,41 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         v.listener = this
         v.reserveNavBar = true
         view = v
+        hideSystemImeSwitcher()
         applySettings()
         return v
     }
 
     override fun onEvaluateFullscreenMode(): Boolean = false
+
+    // ── the system keyboard-switch globe (r7, see core/ImeSwitcher) ─────
+    /** API 36+: the framework asks for our own switcher once its IME nav bar is hidden. */
+    private var customSwitcherRequested = false
+
+    /**
+     * Hide the IME navigation bar (back chevron + globe) the system draws inside this window on
+     * gesture navigation; long-press space is the switcher. API 35+ honors it; older versions
+     * ignore it and KeyboardView keeps the 88 px floor (ImeSwitcher.systemGlobeHidden = false).
+     */
+    private fun hideSystemImeSwitcher() {
+        if (Build.VERSION.SDK_INT < 30) return
+        runCatching { window?.window?.decorView?.windowInsetsController?.hide(WindowInsets.Type.captionBar()) }
+            .onFailure { Log.w(TAG, "captionBar hide failed", it) }
+    }
+
+    override fun onCustomImeSwitcherButtonRequestedVisible(visible: Boolean) {
+        Log.i(TAG, "custom IME switcher requested visible=$visible")
+        customSwitcherRequested = visible
+        view?.setSwitchAvailable(visible || canSwitch())
+    }
+
+    @Suppress("DEPRECATION")
+    private fun canSwitch(): Boolean = runCatching { shouldOfferSwitchingToNextInputMethod() }.getOrDefault(false)
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        hideSystemImeSwitcher()
+    }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
@@ -269,8 +300,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private fun rebuildLayout() {
         val v = view ?: return
         val st = s
-        val showSwitch = runCatching { shouldOfferSwitchingToNextInputMethod() }.getOrDefault(false)
-        val spec = LayoutSpec(st.lang, st.effectiveTopRow, showSwitch, fieldKind)
+        v.setSwitchAvailable(customSwitcherRequested || canSwitch())
+        val spec = LayoutSpec(st.lang, st.effectiveTopRow, fieldKind)
         val rows = KeyboardLayouts.rows(engine.layer, spec)
         // Height is anchored to the letters layer so switching layers never jumps.
         val base = if (engine.layer == Layer.NUMPAD) 4 else st.baseRowCount
@@ -576,7 +607,6 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             is Out.Action -> ic.performEditorAction(o.action.toEditorInfo())
             Out.Backspace -> backspace(ic)
             Out.EnterKey -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
-            Out.SwitchIme -> switchToNextIme()
         }
     }
 
@@ -588,14 +618,6 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // never split a surrogate pair (emoji)
         val n = if (before.length == 2 && Character.isSurrogatePair(before[0], before[1])) 2 else 1
         ic.deleteSurroundingText(n, 0)
-    }
-
-    private fun switchToNextIme() {
-        if (Build.VERSION.SDK_INT >= 28) {
-            if (!switchToNextInputMethod(false)) getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-        } else {
-            getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
-        }
     }
 
     private fun feedback(key: Key?) {

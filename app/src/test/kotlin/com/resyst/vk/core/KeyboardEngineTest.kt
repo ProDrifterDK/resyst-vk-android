@@ -128,9 +128,8 @@ class KeyboardEngineTest {
         assertEquals(listOf(Out.Commit(" ")), e.press(space, "hola ", 0))
     }
 
-    @Test fun backspaceAndSwitch() {
+    @Test fun backspace() {
         assertEquals(listOf(Out.Backspace), e.press(bksp, "x", 0))
-        assertEquals(listOf(Out.SwitchIme), e.press(Key(KeyType.SWITCH_IME, ""), "", 0))
     }
 
     @Test fun pickingASuggestionReplacesTheWord() {
