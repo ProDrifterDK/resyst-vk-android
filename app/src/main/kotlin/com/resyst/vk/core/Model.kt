@@ -11,7 +11,7 @@ enum class FieldKind { TEXT, EMAIL, URL, NUMBER, PHONE, PASSWORD }
 
 enum class Layer { LETTERS, SYMBOLS, SYMBOLS2, NUMPAD }
 
-enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, LAYER, SPACER }
+enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, LAYER, SPACER, EMOJI }
 
 enum class KeyStyle { NORMAL, MOD, ACCENT, ACTION, NUM }
 
@@ -37,6 +37,8 @@ data class LayoutSpec(
     val lang: Lang = Lang.ES,
     val topRow: TopRow = TopRow.ACCENTS,
     val field: FieldKind = FieldKind.TEXT,
+    /** r8: dedicated emoji key in the bottom row (setting, default on; never in email/URL fields). */
+    val emojiKey: Boolean = false,
 )
 
 data class FieldInfo(

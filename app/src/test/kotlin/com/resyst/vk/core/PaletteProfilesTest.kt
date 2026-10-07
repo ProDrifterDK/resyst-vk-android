@@ -18,7 +18,7 @@ class PaletteProfilesTest {
         assertEquals("#3ee0cf", ColorMath.toHex(Themes.byId("arcade").accent))
         assertEquals("#7fb0ff", ColorMath.toHex(Themes.byId("slate").accent))
         assertEquals("#ffd60a", ColorMath.toHex(Themes.byId("hc").accent))
-        assertEquals(listOf("lab", "slate", "arcade", "paper", "hc"), Themes.ALL.map { it.id })
+        assertEquals(listOf("lab", "slate", "arcade", "paper", "hc"), Themes.ALL.map { it.id }.take(5)) // r8 appends sepia/amoled/eink
     }
 
     // P2 + P3

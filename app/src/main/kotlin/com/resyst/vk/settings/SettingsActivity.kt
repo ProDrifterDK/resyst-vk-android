@@ -25,6 +25,7 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.Density
 import com.resyst.vk.core.HapticEvent
 import com.resyst.vk.core.HapticStrength
@@ -188,6 +189,11 @@ class SettingsActivity : Activity() {
         livePreview(s)
         section("Apariencia")
         choice("Tema", Themes.ALL.map { it.id to it.label }, s.theme) { v -> commit { it.copy(theme = v) } }
+        val dark = Themes.byId(s.theme).dark
+        val toLabel = Themes.byId(DayNight.toggle(s).theme).label
+        root.addView(pill(if (dark) "☀  Modo día · $toLabel" else "☾  Modo noche · $toLabel") { commit { DayNight.toggle(it) } }
+            .apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f))
+        toggle("Botón día / noche en el teclado", "Sol / luna en la barra superior: un toque cambia el tema", s.dayNightChip) { v -> commit { it.copy(dayNightChip = v) } }
         accentRow(s)
         choice("Forma", listOf(KeyShape.SQUARE to "Recta", KeyShape.SOFT to "Suave", KeyShape.ROUND to "Redonda"), s.shape) { v -> commit { it.copy(shape = v) } }
         choice("Tecla", listOf(KeyCap.RAISED to "Relieve", KeyCap.FLAT to "Plana", KeyCap.OUTLINE to "Contorno"), s.cap) { v -> commit { it.copy(cap = v) } }
@@ -203,6 +209,7 @@ class SettingsActivity : Activity() {
         if (!s.hideTopRow) {
             choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
         }
+        toggle("Tecla de emojis", "Junto a la coma · abre el panel de emojis con recientes", s.emojiKey) { v -> commit { it.copy(emojiKey = v) } }
         toggle("Sugerencias", "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
         if (s.suggest) {
             toggle("El espacio aplica la corrección", "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
@@ -547,7 +554,7 @@ class SettingsActivity : Activity() {
         kv.setStyle(s, Palette.of(s.theme, s.accent))
         kv.setProfile(store.byId(editing)?.icon ?: "✦", store.byId(editing)?.name ?: "")
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
-        val spec = LayoutSpec(s.lang, s.effectiveTopRow)
+        val spec = LayoutSpec(s.lang, s.effectiveTopRow, emojiKey = s.emojiKey)
         kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)
         kv.setShift(ShiftState.OFF)
         kv.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS

@@ -17,6 +17,9 @@ enum class Ctl(
 ) {
     // appearance
     THEME("theme", Scope.PROFILE),
+    /** r8: "Modo día / noche" — one tap flips to the remembered light/dark partner. */
+    DAY_NIGHT("altTheme", Scope.PROFILE),
+    DAY_NIGHT_CHIP("dayNightChip", Scope.PROFILE),
     ACCENT("accent", Scope.PROFILE),
     SHAPE("shape", Scope.PROFILE),
     CAP("cap", Scope.PROFILE),
@@ -30,6 +33,7 @@ enum class Ctl(
     SYSTEM_LANGS(null, Scope.PROFILE),
     HIDE_TOP_ROW("hideTopRow", Scope.PROFILE),
     TOP_ROW("topRow", Scope.PROFILE, dependsOn = HIDE_TOP_ROW),
+    EMOJI_KEY("emojiKey", Scope.PROFILE),
     POPUPS("popups", Scope.PROFILE),
     LONG_PRESS("longPressMs", Scope.PROFILE),
 
@@ -78,15 +82,15 @@ object SettingsIA {
 
     /** The settings Alan changes often — one tap from opening the app. */
     val HOME: List<Ctl> = listOf(
-        Ctl.THEME, Ctl.ACCENT, Ctl.LANG, Ctl.HIDE_TOP_ROW, Ctl.SUGGEST, Ctl.HAPTICS, Ctl.SOUND,
+        Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.LANG, Ctl.HIDE_TOP_ROW, Ctl.SUGGEST, Ctl.HAPTICS, Ctl.SOUND,
     )
 
     val PAGES: List<SettingsPage> = listOf(
         SettingsPage("apariencia", "Apariencia", Scope.PROFILE, listOf(
-            Ctl.THEME, Ctl.ACCENT, Ctl.SHAPE, Ctl.CAP, Ctl.FONT, Ctl.DENSITY, Ctl.HEIGHT, Ctl.SUB_LEGENDS,
+            Ctl.THEME, Ctl.DAY_NIGHT, Ctl.DAY_NIGHT_CHIP, Ctl.ACCENT, Ctl.SHAPE, Ctl.CAP, Ctl.FONT, Ctl.DENSITY, Ctl.HEIGHT, Ctl.SUB_LEGENDS,
         ), preview = true),
         SettingsPage("teclas", "Teclas e idioma", Scope.PROFILE, listOf(
-            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.POPUPS, Ctl.LONG_PRESS,
+            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true),
         SettingsPage("escritura", "Escritura", Scope.PROFILE, listOf(
             Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE,

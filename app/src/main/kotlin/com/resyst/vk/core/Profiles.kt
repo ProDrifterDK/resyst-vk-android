@@ -35,6 +35,12 @@ data class KbSettings(
     val doubleSpace: Boolean = true,
     /** Hide the special-characters row above the letters. Off = row visible (default). */
     val hideTopRow: Boolean = false,
+    /** r8: dedicated emoji key next to the comma (opens the emoji panel). */
+    val emojiKey: Boolean = true,
+    /** r8: the sun/moon chip in the strip flips day/night ([DayNight]). */
+    val dayNightChip: Boolean = true,
+    /** r8: the theme the last day/night flip left (null = never flipped). */
+    val altTheme: String? = null,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -125,6 +131,9 @@ object ProfileCodec {
             m[k + "autoCap"] = s.autoCap.toString()
             m[k + "doubleSpace"] = s.doubleSpace.toString()
             m[k + "hideTopRow"] = s.hideTopRow.toString()
+            m[k + "emojiKey"] = s.emojiKey.toString()
+            m[k + "dayNightChip"] = s.dayNightChip.toString()
+            m[k + "altTheme"] = s.altTheme ?: ""
         }
         return m
     }
@@ -178,6 +187,9 @@ object ProfileCodec {
                 autoCap = bool("autoCap", d.autoCap),
                 doubleSpace = bool("doubleSpace", d.doubleSpace),
                 hideTopRow = hideTopRow,
+                emojiKey = bool("emojiKey", d.emojiKey),
+                dayNightChip = bool("dayNightChip", d.dayNightChip),
+                altTheme = str("altTheme")?.takeIf { t -> Themes.ALL.any { it.id == t } } ?: d.altTheme,
             )
             Profile(
                 id = id,

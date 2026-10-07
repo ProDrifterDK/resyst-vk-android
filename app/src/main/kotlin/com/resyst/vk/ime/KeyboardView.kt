@@ -67,6 +67,12 @@ class KeyboardView(context: Context) : View(context) {
         fun onClipboardButton()
         /** A panel action the service must perform (paste, pin, delete, clear, close). */
         fun onClipboardPanel(act: ClipboardPanel.Act, id: Long)
+        /** The emoji key: the service opens the panel (it owns the recents). */
+        fun onEmojiKey()
+        /** An emoji panel action: EMOJI commits [text], SPACE / DELETE edit, ABC closes. */
+        fun onEmojiPanel(act: EmojiPanel.Act, text: String)
+        /** The day/night chip in the strip (r8). */
+        fun onDayNight()
     }
 
     var listener: Listener? = null
@@ -102,6 +108,43 @@ class KeyboardView(context: Context) : View(context) {
     var clipboardOpen = false
         private set
 
+    /** The emoji panel (r8), same overlay pattern as the clipboard. */
+    val emojiPanel = EmojiPanel(resources.displayMetrics.density)
+    var emojiOpen = false
+        private set
+    private val panelOpen get() = clipboardOpen || emojiOpen
+
+    /** Show the day/night chip in the strip (only when the profile has a light/dark twin). */
+    private var dayNight: Boolean? = null
+
+    /** [dark] = the current theme is dark (the chip shows the sun to go light), null = no chip. */
+    fun setDayNight(dark: Boolean?) {
+        if (dark == dayNight) return
+        dayNight = dark
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
+
+    fun showEmoji(recents: List<String>) {
+        cancelPointers()
+        hideClipboard()
+        emojiOpen = true
+        layoutPanel()
+        emojiPanel.open(recents)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun updateEmojiRecents(recents: List<String>) {
+        emojiPanel.setRecents(recents)
+        if (emojiOpen) { invalidate(); a11y.invalidateRoot() }
+    }
+
+    fun hideEmoji() {
+        if (!emojiOpen) return
+        cancelPointers()
+        emojiOpen = false
+        invalidate(); a11y.invalidateRoot()
+    }
+
     // ── geometry ─────────────────────────────────────────────────────────
     private val dp = resources.displayMetrics.density
     private class Box(val key: Key, val rect: RectF, val cellLeft: Float, val cellRight: Float, val row: Int)
@@ -110,7 +153,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS }
+    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS, DAYNIGHT }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -198,6 +241,7 @@ class KeyboardView(context: Context) : View(context) {
 
     fun showClipboard(items: List<com.resyst.vk.core.ClipboardHistory.Entry>, now: Long) {
         cancelPointers()
+        emojiOpen = false
         if (!clipboardOpen) clipPanel.reset()
         clipboardOpen = true
         layoutPanel()
@@ -222,6 +266,7 @@ class KeyboardView(context: Context) : View(context) {
     private fun layoutPanel() {
         val h = if (height > 0) (height - paddingBottom).toFloat() else stripH + keysHeight() + 4 * dp
         clipPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
+        emojiPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
     }
 
     // ── measure / layout ─────────────────────────────────────────────────
@@ -323,7 +368,7 @@ class KeyboardView(context: Context) : View(context) {
         // the double-reserve guard needs the laid-out position: re-check once we have one
         if (reserveNavBar && paddingBottom > 0) post { rootWindowInsets?.let { applyNavPadding(navPaddingFrom(it, it)) } }
         layoutKeys()
-        if (clipboardOpen) layoutPanel()
+        if (panelOpen) layoutPanel()
     }
 
     private fun layoutKeys() {
@@ -364,6 +409,11 @@ class KeyboardView(context: Context) : View(context) {
         val gearW = 44 * dp
         stripItems += StripItem(StripKind.SETTINGS, "⚙", RectF(width - gearW, 0f, width.toFloat(), h))
         var r = width - gearW
+        if (dayNight != null) {
+            val dw = 40 * dp
+            stripItems += StripItem(StripKind.DAYNIGHT, "", RectF(r - dw, 0f, r, h))
+            r -= dw
+        }
         if (clipButton) {
             val cw = 42 * dp
             stripItems += StripItem(StripKind.CLIP, "", RectF(r - cw, 0f, r, h))
@@ -426,6 +476,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun down(id: Int, x: Float, y: Float) {
         if (clipboardOpen) { panelDown(id, x, y); return }
+        if (emojiOpen) { emojiDown(id, x, y); return }
         // Fast-typing roll-over: a new finger commits any char key still held without a popup.
         for (p in ptrs.values.toList()) {
             val b = p.box ?: continue
@@ -499,6 +550,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun move(id: Int, x: Float, y: Float) {
+        if (id == emojiPtr) { emojiMove(y); return }
         if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
         val b = p.box ?: return
@@ -533,6 +585,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun up(id: Int, x: Float, y: Float) {
+        if (id == emojiPtr) { emojiUp(x, y); return }
         if (id == panelPtr) { panelUp(x, y); return }
         val p = ptrs.remove(id) ?: return
         handler.removeCallbacksAndMessages(p)
@@ -548,6 +601,7 @@ class KeyboardView(context: Context) : View(context) {
             popup != null -> listener?.onVariant(p.popupItems[p.sel])
             p.cursorMode || p.longFired -> Unit
             b.key.type == KeyType.BACKSPACE || b.key.type == KeyType.SHIFT -> Unit
+            b.key.type == KeyType.EMOJI -> listener?.onEmojiKey()
             else -> listener?.onKeyCommit(b.key)
         }
         listener?.onKeyUp(b.key)
@@ -561,7 +615,67 @@ class KeyboardView(context: Context) : View(context) {
             StripKind.SUGGESTION -> listener?.onSuggestion(s.text)
             StripKind.PASTE -> listener?.onPasteOffer()
             StripKind.CLIP -> listener?.onClipboardButton()
+            StripKind.DAYNIGHT -> listener?.onDayNight()
         }
+    }
+
+    // ── emoji panel touch: tap = act, drag = scroll the grid, hold ⌫ = repeat ──
+    private val emojiToken = Any()
+    private var emojiPtr = -1
+    private var emojiHit: EmojiPanel.Hit? = null
+    private var emojiDownY = 0f
+    private var emojiLastY = 0f
+    private var emojiScrolling = false
+
+    private fun emojiDown(id: Int, x: Float, y: Float) {
+        if (emojiPtr != -1) return
+        emojiPtr = id
+        val hit = emojiPanel.hitAt(x, y)
+        emojiHit = hit
+        emojiDownY = y; emojiLastY = y
+        emojiScrolling = false
+        if (hit?.act == EmojiPanel.Act.DELETE) {
+            listener?.onEmojiPanel(EmojiPanel.Act.DELETE, "")
+            scheduleEmojiRepeat(REPEAT_START_MS)
+        }
+        invalidate()
+    }
+
+    private fun scheduleEmojiRepeat(delay: Long) {
+        handler.postAtTime({
+            if (emojiPtr != -1 && emojiHit?.act == EmojiPanel.Act.DELETE) {
+                listener?.onEmojiPanel(EmojiPanel.Act.DELETE, "")
+                scheduleEmojiRepeat(REPEAT_MS)
+            }
+        }, emojiToken, SystemClock.uptimeMillis() + delay)
+    }
+
+    private fun emojiMove(y: Float) {
+        val h = emojiHit
+        val inGrid = h == null || h.act == EmojiPanel.Act.EMOJI
+        if (!emojiScrolling && inGrid && abs(y - emojiDownY) > 10 * dp) {
+            emojiScrolling = true
+            emojiHit = null
+        }
+        if (emojiScrolling && emojiPanel.scrollBy(emojiLastY - y)) { invalidate(); a11y.invalidateRoot() }
+        emojiLastY = y
+    }
+
+    private fun emojiUp(x: Float, y: Float) {
+        handler.removeCallbacksAndMessages(emojiToken)
+        emojiPtr = -1
+        val h = emojiHit
+        emojiHit = null
+        if (!emojiScrolling && h != null && h.act != EmojiPanel.Act.DELETE && emojiPanel.hitAt(x, y)?.let { it.act == h.act && it.index == h.index } == true) emojiAct(h)
+        invalidate()
+    }
+
+    private fun emojiAct(h: EmojiPanel.Hit) {
+        when (h.act) {
+            EmojiPanel.Act.TAB -> emojiPanel.selectTab(h.index)
+            else -> listener?.onEmojiPanel(h.act, h.text)
+        }
+        invalidate(); a11y.invalidateRoot()
     }
 
     // ── clipboard panel touch: one finger; tap = act, hold a row = preview, drag = scroll ──
@@ -626,6 +740,9 @@ class KeyboardView(context: Context) : View(context) {
         handler.removeCallbacksAndMessages(panelToken)
         panelPtr = -1
         panelHit = null
+        handler.removeCallbacksAndMessages(emojiToken)
+        emojiPtr = -1
+        emojiHit = null
         for (p in ptrs.values) {
             handler.removeCallbacksAndMessages(p)
             val k = p.box?.key
@@ -646,6 +763,10 @@ class KeyboardView(context: Context) : View(context) {
         canvas.drawColor(t.bg)
         if (clipboardOpen) {
             clipPanel.draw(canvas, palette, radius(), ::typeface, if (panelScrolling || panelLong) null else panelHit)
+            return
+        }
+        if (emojiOpen) {
+            emojiPanel.draw(canvas, palette, radius(), ::typeface, if (emojiScrolling) null else emojiHit)
             return
         }
         drawStrip(canvas)
@@ -707,6 +828,15 @@ class KeyboardView(context: Context) : View(context) {
                     }
                     clipPanel.drawClipIcon(c, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted)
                 }
+                StripKind.DAYNIGHT -> {
+                    val pressed = s in pressedStrip
+                    if (pressed) {
+                        fill.color = t.keyHi
+                        tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
+                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                    }
+                    drawDayNight(c, r.centerX(), r.centerY(), 15 * dp, dayNight == true, if (pressed) palette.accent else t.muted)
+                }
                 StripKind.SETTINGS -> {
                     text.color = if (s in pressedStrip) palette.accent else t.muted
                     text.textSize = 18 * dp
@@ -731,6 +861,31 @@ class KeyboardView(context: Context) : View(context) {
                     firstSuggestion = false
                 }
             }
+        }
+    }
+
+    /** Sun (switch to the light twin, [sun] = current theme is dark) or crescent moon, as paths. */
+    private fun drawDayNight(c: Canvas, cx: Float, cy: Float, size: Float, sun: Boolean, color: Int) {
+        val h = size / 2
+        stroke.color = color
+        stroke.strokeWidth = size * 0.1f
+        stroke.strokeCap = Paint.Cap.ROUND
+        fill.shader = null
+        fill.color = color
+        if (sun) {
+            c.drawCircle(cx, cy, h * 0.42f, stroke)
+            for (i in 0 until 8) {
+                val a = Math.toRadians(i * 45.0)
+                val (dx, dy) = kotlin.math.cos(a).toFloat() to kotlin.math.sin(a).toFloat()
+                c.drawLine(cx + dx * h * 0.68f, cy + dy * h * 0.68f, cx + dx * h * 0.95f, cy + dy * h * 0.95f, stroke)
+            }
+        } else {
+            val p = android.graphics.Path()
+            p.addCircle(cx, cy, h * 0.8f, android.graphics.Path.Direction.CW)
+            val cut = android.graphics.Path()
+            cut.addCircle(cx + h * 0.42f, cy - h * 0.3f, h * 0.68f, android.graphics.Path.Direction.CW)
+            p.op(cut, android.graphics.Path.Op.DIFFERENCE)
+            c.drawPath(p, fill)
         }
     }
 
@@ -862,6 +1017,7 @@ class KeyboardView(context: Context) : View(context) {
                 text.typeface = Typeface.DEFAULT
                 drawCentered(c, k.label, cx, cy)
             }
+            KeyType.EMOJI -> KeyIcons.draw(c, Icon.EMOJI, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
             else -> {
                 text.textSize = 14 * dp
                 text.typeface = typeface(600)
@@ -929,6 +1085,7 @@ class KeyboardView(context: Context) : View(context) {
             val y = event.y
             if (x >= 0 && x < width && y >= 0 && y < height) {
                 if (clipboardOpen) { clipPanel.hitAt(x, y)?.let { panelAct(it) }; return true }
+                if (emojiOpen) { emojiPanel.hitAt(x, y)?.let { emojiAct(it) }; return true }
                 stripAt(x, y)?.let { stripTap(it); return true }
                 boxAt(x, y)?.let { activate(it); return true }
             }
@@ -939,7 +1096,11 @@ class KeyboardView(context: Context) : View(context) {
     private fun activate(b: Box) {
         val l = listener ?: return
         l.onKeyDown(b.key)
-        if (b.key.type != KeyType.SHIFT) l.onKeyCommit(b.key)
+        when (b.key.type) {
+            KeyType.SHIFT -> Unit
+            KeyType.EMOJI -> l.onEmojiKey()
+            else -> l.onKeyCommit(b.key)
+        }
         l.onKeyUp(b.key)
     }
 
@@ -962,16 +1123,22 @@ class KeyboardView(context: Context) : View(context) {
             else -> "Letras"
         }
         KeyType.SPACER -> ""
+        KeyType.EMOJI -> "Emojis"
     }
 
     private inner class KeyA11y : ExploreByTouchHelper(this) {
         private val stripBase = 10_000
         private val panelBase = 20_000
+        private val emojiBase = 30_000
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             if (clipboardOpen) {
                 val h = clipPanel.hitAt(x, y) ?: return INVALID_ID
                 return panelBase + clipPanel.hits.indexOf(h)
+            }
+            if (emojiOpen) {
+                val h = emojiPanel.hitAt(x, y) ?: return INVALID_ID
+                return emojiBase + emojiPanel.hits.indexOf(h)
             }
             stripAt(x, y)?.let { return stripBase + stripItems.indexOf(it) }
             val b = boxAt(x, y) ?: return INVALID_ID
@@ -980,6 +1147,7 @@ class KeyboardView(context: Context) : View(context) {
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
             if (clipboardOpen) { for (i in clipPanel.hits.indices) ids += panelBase + i; return }
+            if (emojiOpen) { for (i in emojiPanel.hits.indices) ids += emojiBase + i; return }
             for (i in stripItems.indices) ids += stripBase + i
             for (i in boxes.indices) ids += i
         }
@@ -987,7 +1155,11 @@ class KeyboardView(context: Context) : View(context) {
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
             val r = RectF()
             val desc: String
-            if (id >= panelBase) {
+            if (id >= emojiBase) {
+                val h = emojiPanel.hits.getOrNull(id - emojiBase)
+                desc = h?.desc ?: ""
+                h?.let { r.set(it.rect) }
+            } else if (id >= panelBase) {
                 val h = clipPanel.hits.getOrNull(id - panelBase)
                 desc = h?.desc ?: ""
                 h?.let { r.set(it.rect) }
@@ -1000,6 +1172,7 @@ class KeyboardView(context: Context) : View(context) {
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
                     StripKind.CLIP -> "Historial del portapapeles"
+                    StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"
                     null -> ""
                 }
                 s?.let { r.set(it.rect) }
@@ -1018,6 +1191,12 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id >= emojiBase) {
+                val h = emojiPanel.hits.getOrNull(id - emojiBase) ?: return false
+                if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+                if (h.act == EmojiPanel.Act.DELETE) listener?.onEmojiPanel(EmojiPanel.Act.DELETE, "") else emojiAct(h)
+                return true
+            }
             if (id >= panelBase) {
                 val h = clipPanel.hits.getOrNull(id - panelBase) ?: return false
                 return when {

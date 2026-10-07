@@ -29,6 +29,9 @@ import com.resyst.vk.core.ClipRules
 import com.resyst.vk.core.ClipSnapshot
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.Corrector
+import com.resyst.vk.core.DayNight
+import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.Themes
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
 import com.resyst.vk.core.FieldPolicy
@@ -238,6 +241,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
         learner.reset()
         view?.hideClipboard()
+        view?.hideEmoji()
         if (!restarting) typedSinceStart = false
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
@@ -270,6 +274,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onFinishInputView(finishingInput: Boolean) {
         rememberValue()
         view?.hideClipboard()
+        view?.hideEmoji()
         ClipStore.flush()
         super.onFinishInputView(finishingInput)
         view?.reset()
@@ -305,7 +310,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val v = view ?: return
         val st = s
         v.setSwitchAvailable(customSwitcherRequested || canSwitch())
-        val spec = LayoutSpec(st.lang, st.effectiveTopRow, fieldKind)
+        v.setDayNight(if (st.dayNightChip) Themes.byId(st.theme).dark else null)
+        val spec = LayoutSpec(st.lang, st.effectiveTopRow, fieldKind, emojiKey = st.emojiKey && !policy.secret)
         val rows = KeyboardLayouts.rows(engine.layer, spec)
         // Height is anchored to the letters layer so switching layers never jumps.
         val base = if (engine.layer == Layer.NUMPAD) 4 else st.baseRowCount
@@ -581,6 +587,50 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             ClipboardPanel.Act.CLEAR_YES -> ClipStore.clear(this)
             else -> Unit
         }
+    }
+
+    // ── emoji (r8) ──────────────────────────────────────────────────────
+    /** Recents live next to the learned words (files/personal/, excluded from backup). */
+    private val emojiFile by lazy { java.io.File(java.io.File(filesDir, "personal").apply { mkdirs() }, "emoji_recents.txt") }
+    private var emojiRecents: EmojiRecents? = null
+
+    private fun recents(): EmojiRecents = emojiRecents ?: runCatching {
+        EmojiRecents.decode(emojiFile.takeIf { it.exists() }?.readText())
+    }.getOrDefault(EmojiRecents()).also { emojiRecents = it }
+
+    override fun onEmojiKey() {
+        if (policy.secret) return
+        emojiRecents = null // re-read: "Borrar lo aprendido" may have wiped files/personal/
+        view?.showEmoji(recents().items())
+    }
+
+    override fun onEmojiPanel(act: EmojiPanel.Act, text: String) {
+        val ic = currentInputConnection ?: return
+        when (act) {
+            EmojiPanel.Act.EMOJI -> {
+                ic.commitText(text, 1)
+                learner.reset()
+                feedback(null)
+                // incognito fields leave no trace, not even in the recents
+                if (!policy.incognito && recents().push(text)) {
+                    val enc = recents().encode()
+                    clipIo.execute { runCatching { emojiFile.writeText(enc) } }
+                    view?.updateEmojiRecents(recents().items())
+                }
+            }
+            EmojiPanel.Act.SPACE -> { ic.commitText(" ", 1); feedback(null) }
+            EmojiPanel.Act.DELETE -> { backspace(ic); feedback(null) }
+            EmojiPanel.Act.ABC -> view?.hideEmoji()
+            EmojiPanel.Act.TAB -> Unit
+        }
+    }
+
+    override fun onDayNight() {
+        val next = store.update(store.active) { DayNight.toggle(it) }
+        store = next
+        repo.save(next) // listener reloads + re-applies
+        applySettings()
+        feedback(null)
     }
 
     override fun onOpenSettings() {

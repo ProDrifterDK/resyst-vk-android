@@ -93,8 +93,12 @@ object KeyboardLayouts {
         }
         // r7: no 🌐 key — long-press on space opens the keyboard picker (the key was redundant
         // and sat where thumbs land).
-        val fixed = layerKey.width + left.width + 1f + 1.5f
+        // r8: the emoji key sits right of the comma (Gboard's spot), taken from the space bar;
+        // email / URL fields keep their @ or / there and get no emoji key.
+        val emoji = spec.emojiKey && spec.field != FieldKind.EMAIL && spec.field != FieldKind.URL && spec.field != FieldKind.PASSWORD
+        val extra = if (emoji) listOf(Key(KeyType.EMOJI, "☺", width = 1f, style = KeyStyle.MOD)) else emptyList()
+        val fixed = layerKey.width + left.width + extra.sumOf { it.width.toDouble() }.toFloat() + 1f + 1.5f
         val spaceLabel = if (l == Lang.ES) "español" else "english"
-        return listOf(layerKey) + left + space(ROW_UNITS - fixed, spaceLabel) + ch(".", l) + enter(1.5f)
+        return listOf(layerKey) + left + extra + space(ROW_UNITS - fixed, spaceLabel) + ch(".", l) + enter(1.5f)
     }
 }

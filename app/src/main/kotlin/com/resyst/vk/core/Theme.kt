@@ -96,15 +96,53 @@ object Themes {
         t("hc", "Alto contraste", true,
             "#000000", "#0a0a0a", "#000000", "#000000", "#262626", "#000000", "#0d0d0d",
             "#bdbdbd", "#ffffff", "#ffd60a", "#ffffff", "#ffffff", "#d6d6d6", "#3ee07a", "#ff6b6b"),
+        // r8: warm daylight paper — sepia keys, umber ink, terracotta accent; easy on the eyes outdoors
+        t("sepia", "Sepia", false,
+            "#e8dcc4", "#ded0b4", "#f6eedc", "#fbf5e8", "#ece0c8", "#dccfb3", "#efe5d0",
+            "#c2b08c", "#a08c64", "#9a4a22", "#3b2a18", "#5a4630", "#6e5a40", "#4a7a3a", "#a83a2a"),
+        // r8: AMOLED — true #000 everywhere a pixel can switch off, keys barely lifted, mint accent
+        t("amoled", "AMOLED negro", true,
+            "#000000", "#000000", "#0b0b0b", "#101010", "#1c1c1c", "#000000", "#070707",
+            "#1a1a1a", "#3a3a3a", "#5ee0a8", "#ededed", "#bdbdbd", "#8c8c8c", "#5ee0a8", "#ff6b6b"),
+        // r8: e-ink — paper white, pure black ink and outlines, no gradients' worth of grey
+        t("eink", "Tinta electrónica", false,
+            "#ffffff", "#f2f2f2", "#ffffff", "#ffffff", "#e6e6e6", "#f0f0f0", "#f7f7f7",
+            "#000000", "#000000", "#000000", "#000000", "#000000", "#3a3a3a", "#1d6b2f", "#b00020"),
     )
 
     fun byId(id: String?): Theme = ALL.firstOrNull { it.id == id } ?: ALL[0]
+
+    /**
+     * Default light ⇄ dark partner for the day/night toggle (r8), used the first time a profile
+     * flips; afterwards the profile remembers where it came from ([DayNight]).
+     */
+    private val TWIN = mapOf(
+        "lab" to "paper", "slate" to "sepia", "arcade" to "paper", "amoled" to "eink", "hc" to "eink",
+        "paper" to "lab", "sepia" to "slate", "eink" to "amoled",
+    )
+
+    fun twin(id: String): String = TWIN[byId(id).id]?.takeIf { t -> byId(t).dark != byId(id).dark }
+        ?: if (byId(id).dark) "paper" else "lab"
 
     /** Curated accents (contrast-corrected against the active theme's key color). */
     val ACCENTS: List<Pair<Int, String>> = listOf(
         "#c9a84c" to "Ámbar Resyst", "#e2735a" to "Coral", "#e06c9f" to "Rosa", "#9b7bea" to "Violeta",
         "#5b9cf0" to "Azul", "#3cc8d8" to "Cian", "#4fc58f" to "Menta", "#a8c94c" to "Lima", "#e8e2d0" to "Marfil",
     ).map { h(it.first) to it.second }
+}
+
+/**
+ * One-tap "modo día / noche" (r8): flips the profile's theme between a dark and a light one.
+ * The theme it left is remembered in [KbSettings.altTheme], so the next flip goes back exactly
+ * (Pizarra → Sepia → Pizarra), whatever theme the user picked by hand meanwhile.
+ */
+object DayNight {
+    fun toggle(s: KbSettings): KbSettings {
+        val from = Themes.byId(s.theme)
+        val remembered = s.altTheme?.let { a -> Themes.ALL.firstOrNull { it.id == a } }
+        val to = remembered?.takeIf { it.dark != from.dark } ?: Themes.byId(Themes.twin(from.id))
+        return s.copy(theme = to.id, altTheme = from.id)
+    }
 }
 
 /** Effective colors: theme + optional custom accent with guaranteed ≥ 4.5:1 contrast over keys. */

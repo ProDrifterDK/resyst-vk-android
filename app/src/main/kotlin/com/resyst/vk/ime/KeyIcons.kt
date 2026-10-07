@@ -9,7 +9,7 @@ import kotlin.math.min
  * Vector key icons drawn with Paths: no dependence on font fallback glyphs (⏎ ⌫ ⇧ 🌐 render
  * inconsistently across OEM fonts and the globe would be a color emoji).
  */
-enum class Icon { ENTER, BACKSPACE, SHIFT, SHIFT_ON, SHIFT_LOCK, GLOBE, SEARCH, SEND, DONE, NEXT, PREVIOUS, GO }
+enum class Icon { ENTER, BACKSPACE, SHIFT, SHIFT_ON, SHIFT_LOCK, GLOBE, SEARCH, SEND, DONE, NEXT, PREVIOUS, GO, EMOJI }
 
 object KeyIcons {
     private val path = Path()
@@ -66,6 +66,13 @@ object KeyIcons {
                 c.drawCircle(cx, cy, r, stroke)
                 c.drawLine(cx - r, cy, cx + r, cy, stroke)
                 c.drawOval(cx - r * 0.45f, cy - r, cx + r * 0.45f, cy + r, stroke)
+            }
+            Icon.EMOJI -> {
+                val r = h * 0.85f
+                c.drawCircle(cx, cy, r, stroke)
+                c.drawCircle(cx - r * 0.36f, cy - r * 0.25f, r * 0.11f, fill)
+                c.drawCircle(cx + r * 0.36f, cy - r * 0.25f, r * 0.11f, fill)
+                c.drawArc(cx - r * 0.5f, cy - r * 0.2f, cx + r * 0.5f, cy + r * 0.55f, 20f, 140f, false, stroke)
             }
             Icon.SEARCH -> {
                 val r = h * 0.5f
