@@ -59,6 +59,8 @@ data class FieldPolicy(
         const val FLAG_MULTI_LINE = 0x20000
         const val FLAG_NO_SUGGESTIONS = 0x80000
         const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
+        const val IME_MASK_ACTION = 0xff
+        const val IME_ACTION_SEARCH = 3
 
         fun of(inputType: Int, imeOptions: Int): FieldPolicy {
             val cls = inputType and MASK_CLASS
@@ -73,7 +75,9 @@ data class FieldPolicy(
                 else -> FieldKind.TEXT
             }
             val optedOut = inputType and FLAG_NO_SUGGESTIONS != 0
-            val suggestions = kind == FieldKind.TEXT && (!optedOut || prose(inputType))
+            // a search box that opted out is looking up names / handles, not writing prose
+            val search = imeOptions and IME_MASK_ACTION == IME_ACTION_SEARCH
+            val suggestions = kind == FieldKind.TEXT && (!optedOut || (prose(inputType) && !search))
             // TYPE_NUMBER_VARIATION_PASSWORD shares its value with the text URI variation: only
             // meaningful together with the number class.
             val pin = cls == CLASS_NUMBER && variation == NUMBER_VARIATION_PASSWORD

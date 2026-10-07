@@ -62,11 +62,27 @@ object NavInsets {
         return (windowBottom - (screenHeight - navHeight)).coerceIn(0, navHeight)
     }
 
-    /** [reserve] limited to the measured [overlap] (when known): never reserve a strip we don't cover. */
+    /**
+     * [reserve] limited to the measured [overlap] (when known): never reserve a strip we don't
+     * cover. A window ending exactly where the nav bar starts (overlap 0) already sits above it
+     * — the insets still report the bar, and reserving it again is User 1's empty band. A
+     * partial overlap keeps the reserve: the gesture floor exists for a globe drawn ABOVE the
+     * strip, which the overlap can't see.
+     */
     fun clampToOverlap(reserve: Int, overlap: Int?, captionVisible: Boolean): Int = when {
         overlap == null || captionVisible -> reserve // the visible IME nav bar is drawn inside our window
         overlap == 0 -> 0
         else -> reserve
+    }
+
+    /** The whole decision for one insets pass (what KeyboardView applies). */
+    fun reserve(
+        current: Int, stable: Int, navigationMode: Int, captionHeight: Int, captionVisible: Boolean,
+        windowBottom: Int, screenHeight: Int,
+    ): Int {
+        val raw = bottomPadding(current, stable, navigationMode, captionHeight, captionVisible)
+        val captionDrawn = captionHeight > 0 && captionVisible
+        return clampToOverlap(raw, overlap(windowBottom, screenHeight, max(0, stable)), captionDrawn)
     }
 
     /** Total view height: drawn content + the reserved strip (never negative, never twice). */

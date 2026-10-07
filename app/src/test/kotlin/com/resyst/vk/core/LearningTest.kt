@@ -159,8 +159,13 @@ class LearningTest {
     }
 
     @Test fun noSuggestionsAndIncognitoFieldsAreClosed() { // X1 + X2
-        val noSugg = FieldPolicy.of(text or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
+        // r8: a single-line, uncapitalized NO_SUGGESTIONS box (handle, code) is fully closed …
+        val noSugg = FieldPolicy.of(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
         assertFalse(noSugg.suggestions || noSugg.personalWords(on))
+        // … a prose one (social composer) gets the static lexicon, never the personal model
+        val prose = FieldPolicy.of(text or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
+        assertTrue(prose.suggestions)
+        assertFalse(prose.personalWords(on))
         val incognito = FieldPolicy.of(text, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or EditorInfo.IME_ACTION_SEND)
         assertTrue(incognito.suggestions) // the static lexicon is not personal data
         assertFalse(incognito.personalWords(on))

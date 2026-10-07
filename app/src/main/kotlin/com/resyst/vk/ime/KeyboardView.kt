@@ -279,10 +279,10 @@ class KeyboardView(context: Context) : View(context) {
         if (hidden != systemGlobeHidden) { systemGlobeHidden = hidden; invalidate(); a11y.invalidateRoot() }
         // r8: caption-aware rule; no floor when the system keeps its own strip below us (inset 0)
         val cap = if (Build.VERSION.SDK_INT >= ImeSwitcher.MIN_HIDE_SDK) capH else 0
-        val raw = NavInsets.bottomPadding(current, stable, navMode, cap, capVisible)
         // double-reserve guard: where does our window really end vs the nav bar?
-        val ov = windowOverlap(stable)
-        val pad = NavInsets.clampToOverlap(raw, ov, cap > 0 && capVisible)
+        val (bottom, screenH) = screenBottom()
+        val ov = NavInsets.overlap(bottom, screenH, stable)
+        val pad = NavInsets.reserve(current, stable, navMode, cap, capVisible, bottom, screenH)
         val d = if (Build.VERSION.SDK_INT >= 30) dispatched.getInsets(WindowInsets.Type.navigationBars()).bottom
         else @Suppress("DEPRECATION") dispatched.systemWindowInsetBottom
         Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode caption=$capH visible=$capVisible globeHidden=$hidden overlap=$ov → padding=$pad")
@@ -290,18 +290,19 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /**
-     * How much of a [navH] px nav bar our view really covers, from where it sits on screen; null
-     * before the first layout. A view the system already placed above its own nav strip covers 0
-     * even if the insets claim otherwise (the double-reserve case).
+     * Where our view ends on screen and the display height, for the double-reserve guard
+     * ([NavInsets.overlap]); (0, 0) before the first layout = unknown, trust the insets. A view
+     * the system already placed above its own nav strip covers 0 of it even if the insets claim
+     * otherwise.
      */
-    private fun windowOverlap(navH: Int): Int? {
-        if (!isLaidOut || height == 0) return null
+    private fun screenBottom(): Pair<Int, Int> {
+        if (!isLaidOut || height == 0) return 0 to 0
         val loc = IntArray(2)
         getLocationOnScreen(loc)
         val screenH = if (Build.VERSION.SDK_INT >= 30) {
             context.getSystemService(android.view.WindowManager::class.java)?.maximumWindowMetrics?.bounds?.height() ?: 0
         } else resources.displayMetrics.heightPixels
-        return NavInsets.overlap(loc[1] + height, screenH, navH)
+        return (loc[1] + height) to screenH
     }
 
     /**
