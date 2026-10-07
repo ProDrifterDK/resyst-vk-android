@@ -122,7 +122,11 @@ def main():
             check(f'social field corrects "{word}" like a plain field', social == plain, f'plain={plain!r} social={social!r}')
             check(f'handle field leaves "{word}" alone', handle == word, repr(handle))
     log = adb('logcat', '-d', '-s', 'ResystVK:I')
-    fl = [l.split('ResystVK:')[-1].strip() for l in log.splitlines() if 'field: pkg=' in l and 'inputType=0xa4001' in l]
+    # API 37 sets an extra high bit (0x2a4001 on the Pixel 6): match the low 20 bits, not the exact value
+    def low_bits(l):
+        m = re.search(r'inputType=0x([0-9a-f]+)', l)
+        return int(m.group(1), 16) & 0xfffff if m else -1
+    fl = [l.split('ResystVK:')[-1].strip() for l in log.splitlines() if 'field: pkg=' in l and low_bits(l) == 0xa4001]
     check('social field logged as prose + optedOut', bool(fl) and 'suggestions=true' in fl[-1] and 'optedOut=true' in fl[-1], fl[-1] if fl else 'no log')
 
     # 5 — day/night chip flips the theme

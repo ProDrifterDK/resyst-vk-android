@@ -141,6 +141,15 @@ class Round8Test {
         assertFalse(FieldPolicy.prose(InputType.TYPE_CLASS_NUMBER or multi))
     }
 
+    @Test fun undocumentedHighBitsDoNotChangeTheClass() { // F8-7: Pixel 6 API 37 logged 0x2a4001 / 0x280001 / 0x200091
+        val hi = 0x200000
+        val composer = FieldPolicy.of(hi or cls or caps or multi or noSugg, EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI)
+        assertTrue(composer.suggestions && composer.optedOut)
+        assertFalse(FieldPolicy.of(hi or cls or noSugg, EditorInfo.IME_ACTION_DONE).suggestions)
+        val visiblePw = FieldPolicy.of(hi or cls or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD, EditorInfo.IME_ACTION_DONE)
+        assertEquals(FieldKind.PASSWORD, visiblePw.kind); assertTrue(visiblePw.secret)
+    }
+
     @Test fun notificationReplyKeepsEverything() { // F8-6
         val remoteInput = cls or caps or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or multi or InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE
         val p = FieldPolicy.of(remoteInput, EditorInfo.IME_ACTION_SEND)
