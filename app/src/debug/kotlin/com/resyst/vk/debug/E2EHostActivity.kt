@@ -69,6 +69,12 @@ class E2EHostActivity : Activity() {
                 "number" -> InputType.TYPE_CLASS_NUMBER
                 "multiline" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 "search" -> InputType.TYPE_CLASS_TEXT
+                // r8: a social-app composer (Instagram-style): prose, but opts out of suggestions
+                // because the app draws its own @mention / #hashtag dropdown
+                "social" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                // a username / handle box with the same opt-out: must stay uncorrected
+                "handle" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
                     InputType.TYPE_TEXT_FLAG_AUTO_CORRECT // explicit: without it the framework infers NO_SUGGESTIONS (0x4000) and the IME disables autocorrect
             }

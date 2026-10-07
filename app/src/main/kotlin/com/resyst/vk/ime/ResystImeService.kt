@@ -232,6 +232,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val flags = info.inputType and InputType.TYPE_MASK_FLAGS
         policy = FieldPolicy.of(info.inputType, info.imeOptions)
+        // r8: which flags real apps send (Instagram diagnosis). Debuggable builds only; flags + package, never text.
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            Log.i(TAG, "field: pkg=${info.packageName} ${FieldPolicy.describe(info.inputType, info.imeOptions)} restarting=$restarting")
+        }
         learner.reset()
         view?.hideClipboard()
         if (!restarting) typedSinceStart = false

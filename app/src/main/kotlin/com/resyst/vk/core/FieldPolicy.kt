@@ -6,8 +6,17 @@ package com.resyst.vk.core
  *
  * The privacy gate (X1–X3): personal data — learned words and remembered values — is read and
  * written only when the field is not secret (passwords, PINs, phone), not incognito
- * (IME_FLAG_NO_PERSONALIZED_LEARNING) and the profile has both "Sugerencias" and "Sugerencias
- * personales" on. [suggestions] gates the static lexicon (the old `noSuggestField`).
+ * (IME_FLAG_NO_PERSONALIZED_LEARNING), did not opt out of suggestions, and the profile has both
+ * "Sugerencias" and "Sugerencias personales" on. [suggestions] gates the static lexicon + the
+ * space correction.
+ *
+ * r8 (social apps): message composers (Instagram & co.) often carry TYPE_TEXT_FLAG_NO_SUGGESTIONS
+ * because the app draws its own @mention / #hashtag dropdown, not because correction is unwanted —
+ * the same text typed into a notification reply (RemoteInput, no flag) was corrected. A field
+ * that is prose by its own declaration ([prose]) gets the on-device lexicon and the space
+ * correction anyway; the flag still closes everything personal ([optedOut]): nothing is learned
+ * there and learned words are not offered. Secret, email, URL, number and phone fields are never
+ * prose.
  */
 data class FieldPolicy(
     val kind: FieldKind,
@@ -15,9 +24,11 @@ data class FieldPolicy(
     val incognito: Boolean,
     /** Password variations and numeric PINs: no clipboard chip, capture or history, ever (r6). */
     val secret: Boolean = kind == FieldKind.PASSWORD,
+    /** The field set TYPE_TEXT_FLAG_NO_SUGGESTIONS (personal data stays closed even if [suggestions]). */
+    val optedOut: Boolean = false,
 ) {
 
-    fun personalWords(s: KbSettings): Boolean = suggestions && !incognito && s.suggest && s.personal
+    fun personalWords(s: KbSettings): Boolean = suggestions && !optedOut && !incognito && s.suggest && s.personal
 
     /**
      * Email value memory. NO_SUGGESTIONS doesn't close it: email fields set that flag to stop
@@ -34,11 +45,18 @@ data class FieldPolicy(
         const val CLASS_DATETIME = 4
         const val VARIATION_URI = 0x10
         const val VARIATION_EMAIL = 0x20
+        const val VARIATION_EMAIL_SUBJECT = 0x30
+        const val VARIATION_SHORT_MESSAGE = 0x40
+        const val VARIATION_LONG_MESSAGE = 0x50
         const val VARIATION_PASSWORD = 0x80
         const val VARIATION_VISIBLE_PASSWORD = 0x90
+        const val VARIATION_WEB_EDIT_TEXT = 0xa0
         const val VARIATION_WEB_EMAIL = 0xd0
         const val VARIATION_WEB_PASSWORD = 0xe0
         const val NUMBER_VARIATION_PASSWORD = 0x10
+        const val FLAG_CAP_SENTENCES = 0x4000
+        const val FLAG_AUTO_CORRECT = 0x8000
+        const val FLAG_MULTI_LINE = 0x20000
         const val FLAG_NO_SUGGESTIONS = 0x80000
         const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
 
@@ -54,12 +72,32 @@ data class FieldPolicy(
                     variation == VARIATION_WEB_PASSWORD -> FieldKind.PASSWORD
                 else -> FieldKind.TEXT
             }
-            val suggestions = kind == FieldKind.TEXT && inputType and FLAG_NO_SUGGESTIONS == 0
+            val optedOut = inputType and FLAG_NO_SUGGESTIONS != 0
+            val suggestions = kind == FieldKind.TEXT && (!optedOut || prose(inputType))
             // TYPE_NUMBER_VARIATION_PASSWORD shares its value with the text URI variation: only
             // meaningful together with the number class.
             val pin = cls == CLASS_NUMBER && variation == NUMBER_VARIATION_PASSWORD
             return FieldPolicy(kind, suggestions, imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
-                secret = kind == FieldKind.PASSWORD || pin)
+                secret = kind == FieldKind.PASSWORD || pin, optedOut = optedOut)
+        }
+
+        /**
+         * A text field that declares itself as sentences someone writes: multi-line, sentence
+         * capitalization, explicit AUTO_CORRECT, or a message / subject / long-text variation.
+         * Usernames, codes and handles declare none of these (single line, no caps).
+         */
+        fun prose(inputType: Int): Boolean {
+            if (inputType and MASK_CLASS != CLASS_TEXT) return false
+            val variation = inputType and MASK_VARIATION
+            if (variation == VARIATION_SHORT_MESSAGE || variation == VARIATION_LONG_MESSAGE || variation == VARIATION_EMAIL_SUBJECT) return true
+            return inputType and (FLAG_MULTI_LINE or FLAG_CAP_SENTENCES or FLAG_AUTO_CORRECT) != 0
+        }
+
+        /** One log line describing a field (debug builds): flags only, never text. */
+        fun describe(inputType: Int, imeOptions: Int): String {
+            val p = of(inputType, imeOptions)
+            return "inputType=0x%x imeOptions=0x%x → kind=%s suggestions=%s optedOut=%s prose=%s incognito=%s secret=%s"
+                .format(inputType, imeOptions, p.kind, p.suggestions, p.optedOut, prose(inputType), p.incognito, p.secret)
         }
     }
 }

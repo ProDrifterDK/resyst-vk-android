@@ -277,21 +277,50 @@ class KeyboardView(context: Context) : View(context) {
         } else 0 to false
         val hidden = ImeSwitcher.systemGlobeHidden(Build.VERSION.SDK_INT, capH, capVisible)
         if (hidden != systemGlobeHidden) { systemGlobeHidden = hidden; invalidate(); a11y.invalidateRoot() }
-        val pad = NavInsets.bottomPadding(current, stable, navMode, hidden)
+        // r8: caption-aware rule; no floor when the system keeps its own strip below us (inset 0)
+        val cap = if (Build.VERSION.SDK_INT >= ImeSwitcher.MIN_HIDE_SDK) capH else 0
+        val raw = NavInsets.bottomPadding(current, stable, navMode, cap, capVisible)
+        // double-reserve guard: where does our window really end vs the nav bar?
+        val ov = windowOverlap(stable)
+        val pad = NavInsets.clampToOverlap(raw, ov, cap > 0 && capVisible)
         val d = if (Build.VERSION.SDK_INT >= 30) dispatched.getInsets(WindowInsets.Type.navigationBars()).bottom
         else @Suppress("DEPRECATION") dispatched.systemWindowInsetBottom
-        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode caption=$capH visible=$capVisible globeHidden=$hidden → padding=$pad")
+        Log.i(TAG, "nav inset: root current=$current stable=$stable dispatched=$d mode=$navMode caption=$capH visible=$capVisible globeHidden=$hidden overlap=$ov → padding=$pad")
         return pad
     }
 
+    /**
+     * How much of a [navH] px nav bar our view really covers, from where it sits on screen; null
+     * before the first layout. A view the system already placed above its own nav strip covers 0
+     * even if the insets claim otherwise (the double-reserve case).
+     */
+    private fun windowOverlap(navH: Int): Int? {
+        if (!isLaidOut || height == 0) return null
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        val screenH = if (Build.VERSION.SDK_INT >= 30) {
+            context.getSystemService(android.view.WindowManager::class.java)?.maximumWindowMetrics?.bounds?.height() ?: 0
+        } else resources.displayMetrics.heightPixels
+        return NavInsets.overlap(loc[1] + height, screenH, navH)
+    }
+
+    /**
+     * A new reserve arrives inside the window's insets pass, after the traversal decided whether
+     * the window may resize: a requestLayout() there is measured against the OLD window height and
+     * the window never grows (API 35, 3-button: window 829 px, view 955 px, nav buttons drawn over
+     * the space row). Ask again on the next frame so the window re-measures from the full display.
+     */
     private fun applyNavPadding(px: Int) {
         if (px != paddingBottom) {
             setPadding(0, 0, 0, px)
             requestLayout()
+            if (isAttachedToWindow) post { requestLayout() }
         }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        // the double-reserve guard needs the laid-out position: re-check once we have one
+        if (reserveNavBar && paddingBottom > 0) post { rootWindowInsets?.let { applyNavPadding(navPaddingFrom(it, it)) } }
         layoutKeys()
         if (clipboardOpen) layoutPanel()
     }
