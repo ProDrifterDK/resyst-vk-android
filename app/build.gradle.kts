@@ -54,6 +54,12 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // r8 lexicon eval knobs (LexiconEvalTest): -Pvk.lexDir=… -Pvk.evalTag=… -Pvk.evalOnly
+        unitTests.all { t ->
+            listOf("vk.lexDir", "vk.evalTag", "vk.evalOnly").forEach { k ->
+                project.findProperty(k)?.let { t.systemProperty(k, it.toString()) }
+            }
+        }
     }
 }
 

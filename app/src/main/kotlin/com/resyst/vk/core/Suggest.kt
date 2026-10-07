@@ -13,7 +13,9 @@ import kotlin.math.min
  *
  * Not thread-safe (reuses DP buffers); the IME calls it from the main thread only.
  */
-class Suggest(words: List<String>) {
+class Suggest(words: List<String>, lang: Lang? = null) {
+    /** Key centers of the layout this lexicon is typed on (r8: per language, see [geometry]). */
+    private val keyPos = geometry(lang)
     private val words: Array<String> = words.toTypedArray()
     private val folded: Array<String> = Array(words.size) { fold(words[it]) }
     private val rankOf = HashMap<String, Int>(words.size * 2)
@@ -87,7 +89,9 @@ class Suggest(words: List<String>) {
         if (typed.length < MIN_LEN || typed.length > MAX_FUZZY_LEN || !typed.all { it.isLetter() }) return null
         val ft = fold(typed)
         rankOf[typed]?.let { own ->
-            val twin = foldRank[ft] ?: return null
+            // r8: the 25k list carries subtitle spellings without ñ ("manana" at 17k): an ñ twin
+            // that is ACCENT_RATIO× more frequent wins, exactly like an accent twin
+            val twin = listOfNotNull(foldRank[ft], enyeTwin(ft)).minOrNull() ?: return null
             return if (words[twin] != typed && twin.toLong() * ACCENT_RATIO <= own) Candidate(words[twin], true) else null
         }
         val maxD = maxDistance(ft.length)
@@ -103,11 +107,25 @@ class Suggest(words: List<String>) {
         // accent twins of the winner ("tú"/"tu") are the same word, not a rival
         val rival = hits.filter { folded[it.index] != folded[best.index] }.minOfOrNull { it.cost } ?: Float.MAX_VALUE
         val confident = best.distance == 0 || (
-            best.index < FREQUENT_RANK &&
-                rival - best.cost >= MIN_GAP &&
+            best.index < frequentRank(ft.length) &&
+                rival - best.cost >= minGap(ft.length) &&
                 best.weighted <= allowance(ft.length, best.index)
             )
         return Candidate(words[best.index], confident)
+    }
+
+    /** Best rank among the spellings of [ft] with some n → ñ (≤ 3 n's), or null. */
+    private fun enyeTwin(ft: String): Int? {
+        val at = ft.indices.filter { ft[it] == 'n' }
+        if (at.isEmpty() || at.size > 3) return null
+        var best: Int? = null
+        for (mask in 1 until (1 shl at.size)) {
+            val c = ft.toCharArray()
+            at.forEachIndexed { b, i -> if (mask and (1 shl b) != 0) c[i] = 'ñ' }
+            val r = foldRank[String(c)] ?: continue
+            if (best == null || r < best) best = r
+        }
+        return best
     }
 
     private class Hit(val index: Int, val distance: Int, val weighted: Float, val cost: Float)
@@ -141,7 +159,7 @@ class Suggest(words: List<String>) {
                 var dv = min(min(d[up] + 1, d[left] + 1), d[diag] + if (ca == cb) 0 else 1)
                 val del = if (i >= 2 && ca == a[i - 2]) DOUBLED_COST else 1f
                 val ins = if (j >= 2 && cb == b[j - 2]) DOUBLED_COST else 1f
-                var wv = min(min(w[up] + del, w[left] + ins), w[diag] + substitution(ca, cb, i == 1 && j == 1))
+                var wv = min(min(w[up] + del, w[left] + ins), w[diag] + substitution(keyPos, ca, cb, i == 1 && j == 1))
                 if (i > 1 && j > 1 && ca == b[j - 2] && a[i - 2] == cb) {
                     val tr = (i - 2) * cols + (j - 2)
                     dv = min(dv, d[tr] + 1)
@@ -163,10 +181,16 @@ class Suggest(words: List<String>) {
         const val MAX_FUZZY_LEN = 16
         /** In-lexicon word → accented twin only when the twin is this many times more frequent. */
         const val ACCENT_RATIO = 10
-        /** Confident corrections only land on words this frequent (top N of the lexicon). */
+        /** Confident corrections on short words only land on words this frequent (top N). */
         const val FREQUENT_RANK = 3000
+        /** r8: 5–6 letters may land deeper in the (now 20–25k) lexicon. */
+        const val MID_RANK = 12000
         /** Cost margin over the best different word; below it the call is ambiguous. */
         const val MIN_GAP = 0.35f
+        /** r8: short words need a clearly unique fix (its/it's class). */
+        const val SHORT_GAP = 0.6f
+        /** r8: a long word rarely has a near twin; a smaller margin is still unambiguous. */
+        const val LONG_GAP = 0.3f
         const val FREQ_WEIGHT = 0.12f
         const val DOUBLED_COST = 0.4f
         const val TRANSPOSE_COST = 0.6f
@@ -183,33 +207,87 @@ class Suggest(words: List<String>) {
             else -> 2
         }
 
-        /** Weighted cost a confident correction may spend: cheap typos only on rarer targets. */
-        private fun allowance(len: Int, rank: Int): Float = when {
+        /**
+         * r8 thresholds by TYPED length (docs: reports/r8b-android.report.md):
+         * - ≤ 4 letters: target in the top [FREQUENT_RANK], margin [SHORT_GAP], only cheap typos
+         *   (adjacent key, transposition, doubled letter: weighted ≤ 0.6) — a dropped letter in a
+         *   3-letter word has too many readings ("cas" → casa? caso? casi?).
+         * - 5–6: target in the top [MID_RANK], margin [MIN_GAP], one full edit.
+         * - ≥ 7: any lexicon word, margin [LONG_GAP], two edits (weighted ≤ 2).
+         */
+        fun frequentRank(len: Int): Int = when {
+            len >= 7 -> Int.MAX_VALUE
+            len >= 5 -> MID_RANK
+            else -> FREQUENT_RANK
+        }
+
+        fun minGap(len: Int): Float = when {
+            len >= 7 -> LONG_GAP
+            len >= 5 -> MIN_GAP
+            else -> SHORT_GAP
+        }
+
+        /**
+         * Weighted cost a confident correction may spend. 5–6 letters: a full non-adjacent edit
+         * only toward the top 1000 words; deeper targets need a thumb-shaped typo (≤ 0.8:
+         * neighbour key, transposition, doubled letter) — "pololo" (Chilean) ↛ "pollo".
+         */
+        fun allowance(len: Int, rank: Int): Float = when {
             len >= 7 -> 2f
-            rank < 1000 -> 1f
+            len >= 5 -> if (rank < 1000) 1f else 0.8f
             else -> 0.6f
         }
 
+        /** r8: straight neighbours (same row ±1, or the key right above/below) are the commonest slip. */
+        const val NEIGHBOUR_COST = 0.4f
+
         private val KEY_ROWS = listOf("qwertyuiop", "asdfghjklñ", "zxcvbnm")
-        private val ROW_OFFSET = floatArrayOf(0f, 0.25f, 1.5f)
-        private val KEY_POS: Map<Char, Pair<Float, Int>> = buildMap {
-            KEY_ROWS.forEachIndexed { r, row -> row.forEachIndexed { i, c -> put(c, (ROW_OFFSET[r] + i) to r) } }
+
+        /**
+         * Key positions in key units, rows as drawn by [KeyboardLayouts]: ES has a full 10-key
+         * home row (ñ), so a sits right under q; EN centers 9 keys (offset ½); z follows the
+         * 1.5-wide shift in both. null = a compromise between both (pre-r8 map).
+         */
+        fun geometry(lang: Lang?): Map<Char, Pair<Float, Int>> {
+            val home = when (lang) { Lang.ES -> 0f; Lang.EN -> 0.5f; null -> 0.25f }
+            val offsets = floatArrayOf(0f, home, 1.5f)
+            return buildMap {
+                KEY_ROWS.forEachIndexed { r, row -> row.forEachIndexed { i, c -> put(c, (offsets[r] + i) to r) } }
+            }
         }
 
-        /** Keys that touch on the drawn QWERTY (same row ±1, the two touching keys above/below). */
-        fun adjacent(a: Char, b: Char): Boolean {
-            val pa = KEY_POS[a] ?: return false
-            val pb = KEY_POS[b] ?: return false
+        private val KEY_POS = geometry(null)
+
+        /** Squared center distance of two keys in key units, or null if either isn't a letter key. */
+        private fun dist2(pos: Map<Char, Pair<Float, Int>>, a: Char, b: Char): Float? {
+            val pa = pos[a] ?: return null
+            val pb = pos[b] ?: return null
             val dx = pa.first - pb.first
             val dy = (pa.second - pb.second).toFloat()
-            return a != b && dx * dx + dy * dy <= 1.69f
+            return dx * dx + dy * dy
         }
 
-        private fun substitution(a: Char, b: Char, first: Boolean): Float {
+        /** Keys that touch on the drawn QWERTY (same row ±1, the touching keys above/below). */
+        fun adjacent(a: Char, b: Char, lang: Lang? = null): Boolean {
+            val d = dist2(if (lang == null) KEY_POS else geometry(lang), a, b) ?: return false
+            return a != b && d <= 1.69f
+        }
+
+        /** Substitution cost on [pos]: straight neighbour < diagonal neighbour < any other key. */
+        fun substitutionCost(pos: Map<Char, Pair<Float, Int>>, a: Char, b: Char): Float {
             if (a == b) return 0f
             if ((a == 'n' && b == 'ñ') || (a == 'ñ' && b == 'n')) return ENYE_COST
-            val base = if (adjacent(a, b)) ADJACENT_COST else 1f
-            return if (first) base + FIRST_LETTER_PENALTY else base
+            val d = dist2(pos, a, b) ?: return 1f
+            return when {
+                d <= 1.0001f -> NEIGHBOUR_COST
+                d <= 1.69f -> ADJACENT_COST
+                else -> 1f
+            }
+        }
+
+        private fun substitution(pos: Map<Char, Pair<Float, Int>>, a: Char, b: Char, first: Boolean): Float {
+            val base = substitutionCost(pos, a, b)
+            return if (first && base > 0f) base + FIRST_LETTER_PENALTY else base
         }
 
         /** Lowercase + strip diacritics, but ñ stays ñ (it is a letter in Spanish). */

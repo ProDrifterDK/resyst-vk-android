@@ -15,7 +15,8 @@ import os
 import re
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'app', 'src', 'main', 'assets', 'lexicon')
-WORD_RE = re.compile(r"^[a-záéíóúüñ']+$")
+# letters with inner apostrophes only: subtitle-tokenizer fragments ('s, 't, 'cause) are not words
+WORD_RE = re.compile(r"^[a-záéíóúüñ]+(?:'[a-záéíóúüñ]+)*$")
 
 
 def from_freq(path, n):

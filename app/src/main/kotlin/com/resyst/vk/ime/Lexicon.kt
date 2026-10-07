@@ -21,7 +21,7 @@ class Lexicon(context: Context) {
                     seq.map { it.trim() }.filter { it.isNotEmpty() }.toList()
                 }
             }.getOrDefault(emptyList())
-            ready[lang] = Suggest(words)
+            ready[lang] = Suggest(words, lang)
         }
     }
 

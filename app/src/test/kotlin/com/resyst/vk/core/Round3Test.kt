@@ -97,8 +97,8 @@ class Round3Test {
             for (w in words) {
                 if (!w.all { it.isLetter() } || w.length < Suggest.MIN_LEN) continue
                 val fix = s.correction(w, sentenceStart = false) ?: continue
-                // only the accent twin, never a different word
-                assertEquals("$name: $w → $fix", Suggest.fold(w), Suggest.fold(fix))
+                // only the accent / ñ twin (r8: "senor" → "señor"), never a different word
+                assertEquals("$name: $w → $fix", Suggest.fold(w).replace('ñ', 'n'), Suggest.fold(fix).replace('ñ', 'n'))
                 respelled++
             }
             assertTrue("$name: $respelled accent respellings", respelled < words.size / 50)
