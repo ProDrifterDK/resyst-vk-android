@@ -42,6 +42,8 @@ enum class Ctl(
     TOP_ROW("phone.topRow", Scope.DEVICE, "Fila superior", dependsOn = HIDE_TOP_ROW),
     EMOJI_KEY("phone.emojiKey", Scope.DEVICE, "Tecla de emojis"),
     DAY_NIGHT_CHIP("phone.dayNightChip", Scope.DEVICE, "Botón día / noche en el teclado"),
+    /** r10 (UX-13): keys narrowed to one side; also a tile in the quick panel. */
+    ONE_HANDED("phone.oneHanded", Scope.DEVICE, "Modo una mano"),
     POPUPS("phone.popups", Scope.DEVICE, "Vista previa de tecla"),
     LONG_PRESS("phone.longPressMs", Scope.DEVICE, "Pulsación larga"),
 
@@ -115,7 +117,7 @@ object SettingsIA {
             Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.SHAPE, Ctl.CAP, Ctl.FONT, Ctl.DENSITY, Ctl.HEIGHT, Ctl.SUB_LEGENDS,
         ), preview = true, summary = "Colores, acento, forma, fuente y altura del tema activo"),
         SettingsPage("teclas", "Teclas e idioma", Scope.DEVICE, listOf(
-            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.POPUPS, Ctl.LONG_PRESS,
+            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
         SettingsPage("escritura", "Escritura", Scope.DEVICE, listOf(
             Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE,

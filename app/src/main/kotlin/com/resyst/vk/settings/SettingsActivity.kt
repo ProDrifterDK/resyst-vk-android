@@ -46,6 +46,7 @@ import com.resyst.vk.core.Lang
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Mode
+import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileCodec
 import com.resyst.vk.core.ProfileStore
@@ -405,7 +406,8 @@ class SettingsActivity : Activity() {
             Ctl.HIDE_TOP_ROW -> toggle(ctl.label, "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
             Ctl.TOP_ROW -> choice(ctl.label, listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
             Ctl.EMOJI_KEY -> toggle(ctl.label, "Junto a la coma · abre el panel de emojis con recientes", s.emojiKey) { v -> commit { it.copy(emojiKey = v) } }
-            Ctl.DAY_NIGHT_CHIP -> toggle(ctl.label, "Un toque en el teclado cambia entre el tema claro y el oscuro", s.dayNightChip) { v -> commit { it.copy(dayNightChip = v) } }
+            Ctl.DAY_NIGHT_CHIP -> toggle(ctl.label, "Sol / luna en la barra, además del panel ⚙ · un toque cambia entre claro y oscuro", s.dayNightChip) { v -> commit { it.copy(dayNightChip = v) } }
+            Ctl.ONE_HANDED -> choice(ctl.label, listOf(OneHand.OFF to "Apagado", OneHand.RIGHT to "Derecha", OneHand.LEFT to "Izquierda"), s.oneHanded) { v -> commit { it.copy(oneHanded = v) } }
             Ctl.POPUPS -> toggle(ctl.label, "Burbuja sobre la tecla al pulsar · nunca en contraseñas", s.popups) { v -> commit { it.copy(popups = v) } }
             Ctl.LONG_PRESS -> slider(ctl.label, 150, 900, s.longPressMs, { "$it ms" }, step = 25) { v -> commit { it.copy(longPressMs = v) } }
 
@@ -1033,7 +1035,6 @@ class SettingsActivity : Activity() {
         val s = store.settings
         val kv = KeyboardView(this)
         kv.setStyle(s, Palette.of(s.theme, s.accent))
-        kv.setProfile(if (store.mode == Mode.NONE) store.activeTema.icon else store.mode.icon, store.activeTema.name)
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
         val spec = LayoutSpec(s.lang, s.effectiveTopRow, emojiKey = s.emojiKey)
         kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)

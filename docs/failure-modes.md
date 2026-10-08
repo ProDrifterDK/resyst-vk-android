@@ -411,3 +411,38 @@ keyboard and in settings, not a paragraph.
   the next panel open; a delete of an unknown entry throws or changes anything else.
 - V13 The listing leaks across languages, is unbounded (shows every word at once without order),
   or lists anything the keyboard does not actually keep.
+## Round 10 — the strip is for suggestions; a quick panel under ⚙ (`StripPlan`, `Quick`, `OneHand`)
+
+UX-3 + UI-1 of `proposals/resyst-vk-vision.md`: the strip keeps only what helps typing; every
+other control moves to a panel opened by ⚙, drawn with one vector icon family.
+
+### Strip
+- QS1 The strip shows anything but suggestions, the contextual «Pegar» chip, the r9 update chip,
+  the «sin memoria» dot and ⚙: the profile/tema chip or the clipboard button come back, or the
+  sun/moon shows without the user opting in.
+- QS2 «Pegar» takes more than one suggestion slot (with it, two suggestions remain; without it,
+  three), or the suggestions overflow [Bar.LIMIT].
+- QS3 A store migrated from r1–r9 (where the sun/moon chip defaulted ON) keeps it in the strip.
+- QS4 ⚙ no longer reaches Settings (long-press) or loses the r9 update dot.
+
+### Quick panel
+- QP1 A tile changes more than it says: Día/noche flips another tema; Tema changes behavior;
+  Modo writes its overrides into the phone settings; Altura edits another tema or leaves
+  [HEIGHT_MIN, HEIGHT_MAX].
+- QP2 A cycle never comes back: Tema (n temas), Modo (3), Altura (4 steps), Una mano (3) must
+  return to the start after a full turn; an off-step height snaps to the next step.
+- QP3 Portapapeles opens the history in a secret field or with the history off (W5 restated): the
+  tile is disabled and says why.
+- QP4 A tile is under 48 dp or invisible to TalkBack (each tile = one node: label + state).
+- QP5 An announced update is unreachable once the user started typing (the strip chip steps
+  down): the panel must offer it.
+
+### One-handed keyboard (`OneHand`)
+- QO1 OFF is not exactly the full width; ON narrows the keys below 80 % or leaves a rail under
+  48 dp; the keys and the rail overlap or overflow the view.
+- QO2 The side is per tema (it is phone-wide), doesn't round-trip, or junk storage isn't OFF.
+
+### Icons (`KeyIcons`)
+- QI1 Shift / ⌫ / Enter / ⚙ / sun / moon / clipboard are font glyphs (OEM font roulette, the ⚙
+  read as a sun in the r8 captures) or use different stroke weights.
+- QI2 The shift states (off / once / locked) are told apart only by color.

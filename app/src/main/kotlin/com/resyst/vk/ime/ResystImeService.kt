@@ -46,10 +46,13 @@ import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Learner
-import com.resyst.vk.core.Mode
+import com.resyst.vk.core.UpdateSurface
+import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Out
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
+import com.resyst.vk.core.Quick
+import com.resyst.vk.core.QuickAction
 import com.resyst.vk.core.SoundKind
 import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
@@ -256,6 +259,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         learner.reset()
         view?.hideClipboard()
         view?.hideEmoji()
+        view?.hideQuick()
+        view?.setSecret(policy.secret)
         if (!restarting) { typedSinceStart = false; typedForUpdate = false }
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
@@ -276,7 +281,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val autoCap = fieldKind == FieldKind.TEXT && info.inputType and (
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
         engine.start(FieldInfo(fieldKind, multiLine, action, autoCap))
-        view?.setEnter(enterLabel(action, multiLine), enterDesc(action, multiLine))
+        view?.setEnter(enterIcon(action, multiLine), enterDesc(action, multiLine))
         subtypes.enableAllOnce()
         syncSubtype(systemSubtype = null)
         applySettings()
@@ -289,6 +294,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         rememberValue()
         view?.hideClipboard()
         view?.hideEmoji()
+        view?.hideQuick()
         ClipStore.flush()
         super.onFinishInputView(finishingInput)
         view?.reset()
@@ -314,7 +320,6 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang, clean = st.profanityFilter) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
-        v.setProfile(if (store.mode == Mode.NONE) store.activeTema.icon else store.mode.icon, store.activeTema.name)
         sound?.configure(st.sound, st.soundPack)
         if (st.suggest) lexicon?.warm(st.lang)
         rebuildLayout()
@@ -415,10 +420,43 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
     }
 
-    override fun onProfileTap() {
-        val next = store.withTema(store.nextTemaId())
-        store = next
-        repo.save(next) // listener reloads + re-applies
+    // ── quick panel (r10, UX-3) ─────────────────────────────────────────
+    override fun onQuickPanel() {
+        feedback(null)
+        openQuick()
+    }
+
+    /** (Re)fills the quick panel from the store: tiles show the state a tap just produced. */
+    private fun openQuick() {
+        val v = view ?: return
+        val announced = runCatching { Updater.announced(this) }.getOrNull()
+        // the strip chip already shows the update on a fresh field; the panel line is for after typing (QP5)
+        val line = if (announced != null && UpdateNotice.surface(true, typedForUpdate, offer != null, policy.secret) != UpdateSurface.CHIP) Quick.updateLine(announced.version) else null
+        v.showQuick(Quick.tiles(store, policy, editPanel = EDIT_PANEL), line, store.mode)
+    }
+
+    override fun onQuickAction(action: QuickAction) {
+        feedback(null)
+        when (action) {
+            QuickAction.CLIPBOARD -> { view?.hideQuick(); onClipboardButton() }
+            QuickAction.SETTINGS -> { view?.hideQuick(); onOpenSettings() }
+            QuickAction.EDIT -> { view?.hideQuick(); onEditPanel() }
+            else -> {
+                store = Quick.apply(store, action)
+                repo.save(store) // listener reloads + re-applies
+                applySettings()
+                openQuick()
+            }
+        }
+    }
+
+    /** text-editing (bet 5) opens its panel here. */
+    private fun onEditPanel() = Unit
+
+    override fun onOneHand(side: OneHand) {
+        feedback(null)
+        store = store.updatePhone { it.copy(oneHanded = side) }
+        repo.save(store)
         applySettings()
     }
 
@@ -481,7 +519,6 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** The chip and the history button for the current field (never read in a secret field). */
     private fun refreshClip() {
         val v = view ?: return
-        v.setClipButton(ClipRules.mayShowHistory(policy, clipS))
         val info = currentInputEditorInfo
         val o = if (policy.secret || typedSinceStart || info == null) null else {
             val snap = snapshot()?.let { if (it.stamp != 0L && it.stamp == secretStamp) it.copy(sensitive = true) else it }
@@ -762,6 +799,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
         const val CLIP_DIR = "clip"
         const val IMAGE_MAX_BYTES = 10L * 1024 * 1024
+        /** The editing panel (bet 5) is wired: the quick panel's Edición tile is live. */
+        const val EDIT_PANEL = false
     }
 
     private fun ImeAction.toEditorInfo(): Int = when (this) {
@@ -774,14 +813,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ImeAction.NONE -> EditorInfo.IME_ACTION_NONE
     }
 
-    private fun enterLabel(a: ImeAction, multiLine: Boolean) = if (multiLine) "⏎" else when (a) {
-        ImeAction.SEARCH -> "⌕"
-        ImeAction.SEND -> "➤"
-        ImeAction.GO -> "→"
-        ImeAction.NEXT -> "⇥"
-        ImeAction.PREVIOUS -> "⇤"
-        ImeAction.DONE -> "✓"
-        ImeAction.NONE -> "⏎"
+    /** r10 (UI-1): the Enter key's vector icon for the field's action. */
+    private fun enterIcon(a: ImeAction, multiLine: Boolean): Icon = if (multiLine) Icon.ENTER else when (a) {
+        ImeAction.SEARCH -> Icon.SEARCH
+        ImeAction.SEND -> Icon.SEND
+        ImeAction.GO -> Icon.GO
+        ImeAction.NEXT -> Icon.NEXT
+        ImeAction.PREVIOUS -> Icon.PREVIOUS
+        ImeAction.DONE -> Icon.DONE
+        ImeAction.NONE -> Icon.ENTER
     }
 
     private fun enterDesc(a: ImeAction, multiLine: Boolean) = if (multiLine) "Nueva línea" else when (a) {

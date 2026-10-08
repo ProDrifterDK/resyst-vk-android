@@ -36,10 +36,15 @@ import com.resyst.vk.core.KeyStyle
 import com.resyst.vk.core.KeyType
 import com.resyst.vk.core.KbSettings
 import com.resyst.vk.core.Layer
+import com.resyst.vk.core.Mode
 import com.resyst.vk.core.NavInsets
+import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.PopupGeometry
+import com.resyst.vk.core.Quick
+import com.resyst.vk.core.QuickAction
 import com.resyst.vk.core.ShiftState
+import com.resyst.vk.core.StripPlan
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.UpdateSurface
 import com.resyst.vk.core.VariantPopup
@@ -49,9 +54,14 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Canvas-drawn Resyst keyboard: suggestion/profile strip + key grid + key previews +
- * long-press variants popup. All popups are drawn inside this view (the strip doubles as
- * headroom), so there are no PopupWindows to leak or mis-position inside the IME window.
+ * Canvas-drawn Resyst keyboard: suggestion strip + key grid + key previews + long-press variants
+ * popup. All popups are drawn inside this view (the strip doubles as headroom), so there are no
+ * PopupWindows to leak or mis-position inside the IME window.
+ *
+ * r10 (UX-3): the strip is for typing — suggestions, the contextual «Pegar» chip, the r9 update
+ * chip, a «sin memoria» mark and ⚙. ⚙ opens the quick panel ([QuickPanel]); long-press ⚙ opens
+ * Settings. Every glyph is a [KeyIcons] vector (UI-1). The keys may be narrowed to one side
+ * ([OneHand]) with a rail to move them back.
  */
 @SuppressLint("ViewConstructor")
 class KeyboardView(context: Context) : View(context) {
@@ -65,7 +75,6 @@ class KeyboardView(context: Context) : View(context) {
         fun onSuggestion(word: String)
         fun onCursorDrag(steps: Int)
         fun onSpaceLongPress()
-        fun onProfileTap()
         fun onOpenSettings()
         /** The "Pegar" chip: paste the current clipboard offer. */
         fun onPasteOffer()
@@ -83,6 +92,14 @@ class KeyboardView(context: Context) : View(context) {
         fun onUpdateChip() = Unit
         /** r9: the update chip's ✕ — quiet until a newer version. */
         fun onUpdateDismiss() = Unit
+        /** r10: ⚙ tapped — the service fills the quick panel ([showQuick]). */
+        fun onQuickPanel() = Unit
+        /** r10: a quick-panel tile. */
+        fun onQuickAction(action: QuickAction) = Unit
+        /** r10: the one-handed rail (move to [side], or [OneHand.OFF] = full width). */
+        fun onOneHand(side: OneHand) = Unit
+        /** r10: the «sin memoria» mark was tapped (privacy-visible explains why). */
+        fun onNoMemory() = Unit
     }
 
     var listener: Listener? = null
@@ -94,14 +111,13 @@ class KeyboardView(context: Context) : View(context) {
     private var settings = KbSettings()
     private var palette = Palette.of("lab", null)
     private var shift = ShiftState.OFF
-    private var enterLabel = "⏎"
     private var enterDesc = "Intro"
+    private var enterIcon = Icon.ENTER
     private var suggestions: List<String> = emptyList()
-    private var profileIcon = "☾"
-    private var profileName = "Noche"
     private var pasteLabel: String? = null
     private var pasteImage = false
-    private var clipButton = false
+    /** r10 (F-6): why personal memory is off in this field, null = it is on (no mark). */
+    private var noMemory: String? = null
 
     /** The system globe is hidden in this window (IME nav bar caption hidden, r7). */
     private var systemGlobeHidden = false
@@ -122,7 +138,45 @@ class KeyboardView(context: Context) : View(context) {
     val emojiPanel = EmojiPanel(resources.displayMetrics.density)
     var emojiOpen = false
         private set
-    private val panelOpen get() = clipboardOpen || emojiOpen
+
+    /** r10: the quick panel under ⚙ (UX-3), same overlay pattern. */
+    val quickPanel = QuickPanel(resources.displayMetrics.density)
+    var quickOpen = false
+        private set
+    private var mode = Mode.NONE
+    private val panelOpen get() = clipboardOpen || emojiOpen || quickOpen
+
+    /** The quick panel with [tiles]; [update] = the r9 notice line (null = none). */
+    fun showQuick(tiles: List<Quick.Tile>, update: String?, mode: Mode) {
+        cancelPointers()
+        hideClipboard(); hideEmoji()
+        this.mode = mode
+        quickOpen = true
+        layoutPanel()
+        quickPanel.set(tiles, update)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun hideQuick() {
+        if (!quickOpen) return
+        cancelPointers()
+        quickOpen = false
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    /** r10 (bet 3): a secret field (password, PIN) — no key-preview bubble shows what is typed. */
+    private var secretField = false
+
+    fun setSecret(secret: Boolean) {
+        if (secret != secretField) { secretField = secret; invalidate() }
+    }
+
+    /** r10 (F-6): the «sin memoria» mark; [reason] is what TalkBack (and a tap) explains. */
+    fun setNoMemory(reason: String?) {
+        if (reason == noMemory) return
+        noMemory = reason
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
 
     /** Show the day/night chip in the strip (only when the profile has a light/dark twin). */
     private var dayNight: Boolean? = null
@@ -196,6 +250,7 @@ class KeyboardView(context: Context) : View(context) {
     fun showEmoji(recents: List<String>) {
         cancelPointers()
         hideClipboard()
+        quickOpen = false
         emojiOpen = true
         layoutPanel()
         emojiPanel.open(recents)
@@ -222,7 +277,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X }
+    private enum class StripKind { PASTE, SUGGESTION, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -236,6 +291,8 @@ class KeyboardView(context: Context) : View(context) {
         var cursorX = 0f
         var longFired = false
         var strip: StripItem? = null
+        /** r10: a one-handed rail button (move to that side / OFF = full width). */
+        var rail: OneHand? = null
     }
     private val ptrs = LinkedHashMap<Int, Ptr>()
     private val handler = Handler(Looper.getMainLooper())
@@ -269,6 +326,7 @@ class KeyboardView(context: Context) : View(context) {
 
     fun setStyle(s: KbSettings, p: Palette) {
         val heightChanged = s.heightScale != settings.heightScale
+        if (s.oneHanded != settings.oneHanded) cancelPointers()
         settings = s
         palette = p
         if (heightChanged) requestLayout()
@@ -280,16 +338,12 @@ class KeyboardView(context: Context) : View(context) {
         if (state != shift) { shift = state; invalidate(); a11y.invalidateRoot() }
     }
 
-    fun setEnter(label: String, desc: String) {
-        if (label != enterLabel) { enterLabel = label; enterDesc = desc; invalidate() }
+    fun setEnter(icon: Icon, desc: String) {
+        if (icon != enterIcon || desc != enterDesc) { enterIcon = icon; enterDesc = desc; invalidate(); a11y.invalidateRoot() }
     }
 
     fun setSuggestions(list: List<String>) {
         if (list != suggestions) { suggestions = list; layoutStrip(); invalidate(); a11y.invalidateRoot() }
-    }
-
-    fun setProfile(icon: String, name: String) {
-        profileIcon = icon; profileName = name; layoutStrip(); invalidate()
     }
 
     fun reset() { cancelPointers(); invalidate() }
@@ -301,16 +355,10 @@ class KeyboardView(context: Context) : View(context) {
         layoutStrip(); invalidate(); a11y.invalidateRoot()
     }
 
-    /** The clipboard (history) button in the strip; hidden in secret fields / history off. */
-    fun setClipButton(show: Boolean) {
-        if (show == clipButton) return
-        clipButton = show
-        layoutStrip(); invalidate(); a11y.invalidateRoot()
-    }
-
     fun showClipboard(items: List<com.resyst.vk.core.ClipboardHistory.Entry>, now: Long) {
         cancelPointers()
         emojiOpen = false
+        quickOpen = false
         if (!clipboardOpen) clipPanel.reset()
         clipboardOpen = true
         layoutPanel()
@@ -336,6 +384,7 @@ class KeyboardView(context: Context) : View(context) {
         val h = if (height > 0) (height - paddingBottom).toFloat() else stripH + keysHeight() + 4 * dp
         clipPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
         emojiPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
+        quickPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
     }
 
     // ── measure / layout ─────────────────────────────────────────────────
@@ -440,16 +489,29 @@ class KeyboardView(context: Context) : View(context) {
         if (panelOpen) layoutPanel()
     }
 
+    /** r10 (UX-13): where the keys sit and where the one-handed rail goes. */
+    private var split = OneHand.Split(0f, 0f, 0f, 0f)
+    private val rail = ArrayList<Pair<OneHand, RectF>>()
+
     private fun layoutKeys() {
-        boxes.clear(); rowBoxes.clear()
+        boxes.clear(); rowBoxes.clear(); rail.clear()
         if (width == 0 || rows.isEmpty()) return
+        split = OneHand.split(width.toFloat(), settings.oneHanded, dp)
         val padX = 3 * dp
         val gap = settings.density.gapDp * dp
-        val unit = (width - 2 * padX) / com.resyst.vk.core.KeyboardLayouts.ROW_UNITS
+        val unit = (split.keysRight - split.keysLeft - 2 * padX) / com.resyst.vk.core.KeyboardLayouts.ROW_UNITS
         rowH = keysHeight() / rows.size
+        if (split.railWidth > 0f) {
+            val top = stripH + 2 * dp
+            val mid = stripH + keysHeight() / 2
+            val bottom = stripH + keysHeight()
+            val other = if (settings.oneHanded == OneHand.LEFT) OneHand.RIGHT else OneHand.LEFT
+            rail += other to RectF(split.railLeft, top, split.railLeft + split.railWidth, mid)
+            rail += OneHand.OFF to RectF(split.railLeft, mid, split.railLeft + split.railWidth, bottom)
+        }
         rows.forEachIndexed { r, row ->
             val y0 = stripH + r * rowH
-            var x = padX
+            var x = split.keysLeft + padX
             val list = ArrayList<Box>()
             for (k in row) {
                 val w = k.width * unit
@@ -469,32 +531,26 @@ class KeyboardView(context: Context) : View(context) {
         stripItems.clear()
         if (width == 0) return
         val h = stripH
-        text.textSize = 15 * dp
-        text.typeface = typeface(600)
-        val compact = suggestions.isNotEmpty() || pasteLabel != null || chipShown
-        val chipLabel = if (!compact) "✦  $profileIcon $profileName" else "✦ $profileIcon"
-        val chipW = text.measureText(chipLabel) + 24 * dp
-        stripItems += StripItem(StripKind.PROFILE, chipLabel, RectF(6 * dp, 6 * dp, 6 * dp + chipW, h - 6 * dp))
-        val gearW = 44 * dp
-        stripItems += StripItem(StripKind.SETTINGS, "⚙", RectF(width - gearW, 0f, width.toFloat(), h))
+        // ⚙ owns the right edge (48 dp target); the opt-in sun/moon and the «sin memoria» mark sit beside it
+        val gearW = 48 * dp
+        stripItems += StripItem(StripKind.SETTINGS, "", RectF(width - gearW, 0f, width.toFloat(), h))
         var r = width - gearW
         if (dayNight != null) {
-            val dw = 40 * dp
+            val dw = 44 * dp
             stripItems += StripItem(StripKind.DAYNIGHT, "", RectF(r - dw, 0f, r, h))
             r -= dw
         }
-        if (clipButton) {
-            val cw = 42 * dp
-            stripItems += StripItem(StripKind.CLIP, "", RectF(r - cw, 0f, r, h))
-            r -= cw
+        if (noMemory != null) {
+            val nw = 36 * dp
+            stripItems += StripItem(StripKind.NO_MEMORY, noMemory ?: "", RectF(r - nw, 0f, r, h))
+            r -= nw
         }
-        var l = 6 * dp + chipW + 4 * dp
+        var l = 6 * dp
         // r9: the update chip leads (a fresh field only — the service decides, UpdateNotice.surface)
         val upd = chipVersion
         updateLabel = null
         var chipRoomLeft = Float.MAX_VALUE
         if (chipShown && upd != null) {
-            l += 2 * dp // 6 dp from the profile pill, like the strip's outer margin
             val room = r - l - 2 * dp
             val label = UpdateNotice.fit(upd, room - CHIP_ICON_W * dp - CHIP_X_W * dp - CHIP_TEXT_END * dp,
                 { t, two -> chipTitlePaint(two).measureText(t) }, { t, two -> chipActionPaint(two).measureText(t) })
@@ -512,20 +568,21 @@ class KeyboardView(context: Context) : View(context) {
         }
         gearDot = updateVersion != null && updateSurface != UpdateSurface.NONE && updateLabel == null
         val paste = pasteLabel
+        // QS2: «Pegar» takes one suggestion slot — two suggestions stay beside it
+        var shown = StripPlan.suggestions(suggestions, paste != null)
+        if (updateLabel != null) shown = shown.take((chipRoomLeft / (96 * dp)).toInt())
         if (paste != null) {
             text.textSize = 14 * dp
             text.typeface = typeface(600)
             val label = if (pasteImage) "Pegar imagen" else paste
             val room = r - l
             val want = text.measureText(label) + 44 * dp
-            val w = if (suggestions.isEmpty()) min(want, room) else min(want, room * 0.55f)
+            val slot = if (shown.isEmpty()) room else room / (shown.size + 1)
+            val w = min(want, max(slot, min(room, 96 * dp)))
             stripItems += StripItem(StripKind.PASTE, label, RectF(l, 6 * dp, l + w, h - 6 * dp))
             l += w + 4 * dp
         }
-        if (suggestions.isNotEmpty() && r - l > 40 * dp) {
-            var shown = if (paste != null) suggestions.take(2) else suggestions
-            if (updateLabel != null) shown = shown.take((chipRoomLeft / (96 * dp)).toInt())
-            if (shown.isEmpty()) return
+        if (shown.isNotEmpty() && r - l > 40 * dp) {
             val cw = (r - l) / shown.size
             shown.forEachIndexed { i, s ->
                 stripItems += StripItem(StripKind.SUGGESTION, s, RectF(l + i * cw, 0f, l + (i + 1) * cw, h))
@@ -584,6 +641,7 @@ class KeyboardView(context: Context) : View(context) {
     private fun down(id: Int, x: Float, y: Float) {
         if (clipboardOpen) { panelDown(id, x, y); return }
         if (emojiOpen) { emojiDown(id, x, y); return }
+        if (quickOpen) { quickDown(id, x, y); return }
         // Fast-typing roll-over: a new finger commits any char key still held without a popup.
         for (p in ptrs.values.toList()) {
             val b = p.box ?: continue
@@ -597,11 +655,17 @@ class KeyboardView(context: Context) : View(context) {
         if (strip != null) {
             val p = Ptr(id, null, x).also { it.strip = strip }
             ptrs[id] = p
-            if (strip.kind == StripKind.PROFILE) {
-                handler.postAtTime({ p.longFired = true; listener?.onOpenSettings() }, p, SystemClock.uptimeMillis() + 500)
+            if (strip.kind == StripKind.SETTINGS) {
+                // r10: tap ⚙ = quick panel, hold ⚙ = Settings (QS4)
+                handler.postAtTime({ p.longFired = true; listener?.onLongPressOpened(); listener?.onOpenSettings() }, p, SystemClock.uptimeMillis() + 500)
             } else if (strip.kind == StripKind.PASTE) {
                 handler.postAtTime({ p.longFired = true; listener?.onLongPressOpened(); listener?.onClipboardButton() }, p, SystemClock.uptimeMillis() + 500)
             }
+            invalidate()
+            return
+        }
+        railAt(x, y)?.let { side ->
+            ptrs[id] = Ptr(id, null, x).also { it.rail = side }
             invalidate()
             return
         }
@@ -657,6 +721,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun move(id: Int, x: Float, y: Float) {
+        if (id == quickPtr) return
         if (id == emojiPtr) { emojiMove(y); return }
         if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
@@ -692,6 +757,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun up(id: Int, x: Float, y: Float) {
+        if (id == quickPtr) { quickUp(x, y); return }
         if (id == emojiPtr) { emojiUp(x, y); return }
         if (id == panelPtr) { panelUp(x, y); return }
         val p = ptrs.remove(id) ?: return
@@ -699,6 +765,11 @@ class KeyboardView(context: Context) : View(context) {
         val strip = p.strip
         if (strip != null) {
             if (!p.longFired && stripAt(x, y) === strip) stripTap(strip)
+            invalidate()
+            return
+        }
+        p.rail?.let { side ->
+            if (railAt(x, y) == side) listener?.onOneHand(side)
             invalidate()
             return
         }
@@ -717,16 +788,47 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun stripTap(s: StripItem) {
         when (s.kind) {
-            StripKind.PROFILE -> listener?.onProfileTap()
-            StripKind.SETTINGS -> listener?.onOpenSettings()
+            StripKind.SETTINGS -> listener?.onQuickPanel()
             StripKind.SUGGESTION -> listener?.onSuggestion(s.text)
             StripKind.PASTE -> listener?.onPasteOffer()
-            StripKind.CLIP -> listener?.onClipboardButton()
+            StripKind.NO_MEMORY -> listener?.onNoMemory()
             StripKind.DAYNIGHT -> listener?.onDayNight()
             StripKind.UPDATE -> if (!chipExiting) listener?.onUpdateChip()
             StripKind.UPDATE_X -> if (!chipExiting) listener?.onUpdateDismiss()
         }
     }
+
+    // ── quick panel touch: one finger, tap = act ──────────────────────────
+    private var quickPtr = -1
+    private var quickHit: QuickPanel.Hit? = null
+
+    private fun quickDown(id: Int, x: Float, y: Float) {
+        if (quickPtr != -1) return
+        quickPtr = id
+        quickHit = quickPanel.hitAt(x, y)?.takeIf { it.enabled }
+        invalidate()
+    }
+
+    private fun quickUp(x: Float, y: Float) {
+        quickPtr = -1
+        val h = quickHit
+        quickHit = null
+        if (h != null && quickPanel.hitAt(x, y) === h) quickAct(h)
+        invalidate()
+    }
+
+    private fun quickAct(h: QuickPanel.Hit) {
+        if (!h.enabled) return
+        when (h.act) {
+            QuickPanel.Act.CLOSE -> hideQuick()
+            QuickPanel.Act.UPDATE -> { hideQuick(); listener?.onUpdateChip() }
+            QuickPanel.Act.TILE -> h.action?.let { listener?.onQuickAction(it) }
+        }
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    private fun railAt(x: Float, y: Float): OneHand? =
+        if (y < stripH) null else rail.firstOrNull { it.second.contains(x, y) }?.first
 
     // ── emoji panel touch: tap = act, drag = scroll the grid, hold ⌫ = repeat ──
     private val emojiToken = Any()
@@ -846,6 +948,8 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun cancelPointers() {
+        quickPtr = -1
+        quickHit = null
         handler.removeCallbacksAndMessages(panelToken)
         panelPtr = -1
         panelHit = null
@@ -879,7 +983,12 @@ class KeyboardView(context: Context) : View(context) {
             emojiPanel.draw(canvas, palette, radius(), ::typeface, if (emojiScrolling) null else emojiHit)
             return
         }
+        if (quickOpen) {
+            quickPanel.draw(canvas, palette, radius(), ::typeface, quickHit, mode)
+            return
+        }
         drawStrip(canvas)
+        drawRail(canvas)
         val pressed = HashSet<Box>()
         for (p in ptrs.values) p.box?.let { if (!p.cursorMode) pressed += it }
         for (b in boxes) drawKey(canvas, b, b in pressed)
@@ -887,7 +996,7 @@ class KeyboardView(context: Context) : View(context) {
             val b = p.box ?: continue
             val pop = p.popup
             if (pop != null) drawVariants(canvas, p, pop)
-            else if (settings.popups && b.key.type == KeyType.CHAR && !p.cursorMode) drawPreview(canvas, b)
+            else if (settings.popups && !secretField && b.key.type == KeyType.CHAR && !p.cursorMode) drawPreview(canvas, b)
         }
     }
 
@@ -903,14 +1012,6 @@ class KeyboardView(context: Context) : View(context) {
         for (s in stripItems) {
             val r = s.rect
             when (s.kind) {
-                StripKind.PROFILE -> {
-                    fill.color = if (s in pressedStrip) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
-                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
-                    text.color = palette.accent
-                    text.textSize = 14 * dp
-                    text.typeface = typeface(600)
-                    drawCentered(c, s.text, r.centerX(), r.centerY())
-                }
                 StripKind.PASTE -> {
                     val pressed = s in pressedStrip
                     fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
@@ -918,7 +1019,7 @@ class KeyboardView(context: Context) : View(context) {
                     stroke.color = palette.accentGlow
                     stroke.strokeWidth = 1 * dp
                     c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
-                    clipPanel.drawClipIcon(c, r.left + 17 * dp, r.centerY(), 13 * dp, palette.accent)
+                    KeyIcons.draw(c, Icon.CLIPBOARD, r.left + 17 * dp, r.centerY(), 14 * dp, palette.accent, stroke, fill)
                     text.color = palette.accent
                     text.textSize = 14 * dp
                     text.typeface = typeface(600)
@@ -929,15 +1030,6 @@ class KeyboardView(context: Context) : View(context) {
                     c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
                     text.textAlign = Paint.Align.CENTER
                 }
-                StripKind.CLIP -> {
-                    val pressed = s in pressedStrip
-                    if (pressed) {
-                        fill.color = t.keyHi
-                        tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
-                        c.drawRoundRect(tmp, radius(), radius(), fill)
-                    }
-                    clipPanel.drawClipIcon(c, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted)
-                }
                 StripKind.DAYNIGHT -> {
                     val pressed = s in pressedStrip
                     if (pressed) {
@@ -945,13 +1037,16 @@ class KeyboardView(context: Context) : View(context) {
                         tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
                         c.drawRoundRect(tmp, radius(), radius(), fill)
                     }
-                    drawDayNight(c, r.centerX(), r.centerY(), 15 * dp, dayNight == true, if (pressed) palette.accent else t.muted)
+                    KeyIcons.draw(c, if (dayNight == true) Icon.SUN else Icon.MOON, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted, stroke, fill)
                 }
                 StripKind.SETTINGS -> {
-                    text.color = if (s in pressedStrip || gearDot) palette.accent else t.muted
-                    text.textSize = 18 * dp
-                    text.typeface = Typeface.DEFAULT
-                    drawCentered(c, s.text, r.centerX(), r.centerY())
+                    val on = s in pressedStrip
+                    if (on) {
+                        fill.color = t.keyHi
+                        tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp)
+                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                    }
+                    KeyIcons.draw(c, Icon.GEAR, r.centerX(), r.centerY(), 19 * dp, if (on || gearDot) palette.accent else t.muted, stroke, fill)
                     if (gearDot) { // r9: an update waits — amber dot, ringed in the strip color
                         fill.color = t.bg
                         c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 5 * dp, fill)
@@ -959,6 +1054,7 @@ class KeyboardView(context: Context) : View(context) {
                         c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 3.5f * dp, fill)
                     }
                 }
+                StripKind.NO_MEMORY -> drawNoMemory(c, r, s in pressedStrip)
                 StripKind.UPDATE_X -> Unit // drawn with its chip
                 StripKind.UPDATE -> drawUpdateChip(c, s, pressedStrip)
                 StripKind.SUGGESTION -> {
@@ -1054,28 +1150,39 @@ class KeyboardView(context: Context) : View(context) {
         c.restoreToCount(save)
     }
 
-    /** Sun (switch to the light twin, [sun] = current theme is dark) or crescent moon, as paths. */
-    private fun drawDayNight(c: Canvas, cx: Float, cy: Float, size: Float, sun: Boolean, color: Int) {
-        val h = size / 2
-        stroke.color = color
-        stroke.strokeWidth = size * 0.1f
+    /**
+     * r10 (F-6): «sin memoria» — a small hollow ring with a slash, muted: this field learns nothing
+     * and offers nothing learned. Quiet on purpose (it explains itself on tap / TalkBack).
+     */
+    private fun drawNoMemory(c: Canvas, r: RectF, pressed: Boolean) {
+        val t = palette.theme
+        if (pressed) {
+            fill.color = t.keyHi
+            tmp.set(r.left + 3 * dp, 8 * dp, r.right - 3 * dp, stripH - 8 * dp)
+            c.drawRoundRect(tmp, radius(), radius(), fill)
+        }
+        val cx = r.centerX()
+        val cy = r.centerY()
+        stroke.color = if (pressed) palette.accent else t.muted
+        stroke.strokeWidth = 1.5f * dp
         stroke.strokeCap = Paint.Cap.ROUND
-        fill.shader = null
-        fill.color = color
-        if (sun) {
-            c.drawCircle(cx, cy, h * 0.42f, stroke)
-            for (i in 0 until 8) {
-                val a = Math.toRadians(i * 45.0)
-                val (dx, dy) = kotlin.math.cos(a).toFloat() to kotlin.math.sin(a).toFloat()
-                c.drawLine(cx + dx * h * 0.68f, cy + dy * h * 0.68f, cx + dx * h * 0.95f, cy + dy * h * 0.95f, stroke)
-            }
-        } else {
-            val p = android.graphics.Path()
-            p.addCircle(cx, cy, h * 0.8f, android.graphics.Path.Direction.CW)
-            val cut = android.graphics.Path()
-            cut.addCircle(cx + h * 0.42f, cy - h * 0.3f, h * 0.68f, android.graphics.Path.Direction.CW)
-            p.op(cut, android.graphics.Path.Op.DIFFERENCE)
-            c.drawPath(p, fill)
+        c.drawCircle(cx, cy, 6.5f * dp, stroke)
+        c.drawLine(cx - 4.6f * dp, cy + 4.6f * dp, cx + 4.6f * dp, cy - 4.6f * dp, stroke)
+    }
+
+    /** r10 (UX-13): the one-handed rail — move to the other side (top) / back to full width (bottom). */
+    private fun drawRail(c: Canvas) {
+        if (rail.isEmpty()) return
+        val t = palette.theme
+        val pressed = ptrs.values.mapNotNull { it.rail }.toSet()
+        for ((side, r) in rail) {
+            val on = side in pressed
+            fill.shader = null
+            fill.color = if (on) t.keyHi else t.bg2
+            tmp.set(r.left + 4 * dp, r.top + 4 * dp, r.right - 4 * dp, r.bottom - 4 * dp)
+            c.drawRoundRect(tmp, radius() + 2 * dp, radius() + 2 * dp, fill)
+            val icon = when (side) { OneHand.LEFT -> Icon.ARROW_LEFT; OneHand.RIGHT -> Icon.ARROW_RIGHT; OneHand.OFF -> Icon.EXPAND }
+            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), min(22 * dp, r.width() * 0.45f), if (on) palette.accent else t.muted, stroke, fill)
         }
     }
 
@@ -1188,25 +1295,17 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
             KeyType.SHIFT -> {
-                text.color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) palette.accent else ink
-                text.textSize = 20 * dp
-                text.typeface = Typeface.DEFAULT
-                drawCentered(c, if (shift == ShiftState.OFF) "⇧" else "⬆", cx, cy)
-                if (shift == ShiftState.LOCKED) {
-                    fill.color = ink
-                    c.drawRoundRect(cx - 7 * dp, tmp.bottom - 7 * dp, cx + 7 * dp, tmp.bottom - 5 * dp, dp, dp, fill)
+                // QI2: off = outline, once/auto = filled (accent), locked = filled + bar (on the accent key)
+                val icon = when (shift) {
+                    ShiftState.OFF -> Icon.SHIFT
+                    ShiftState.LOCKED -> Icon.SHIFT_LOCK
+                    ShiftState.ONCE, ShiftState.AUTO -> Icon.SHIFT_ON
                 }
+                val color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) palette.accent else ink
+                KeyIcons.draw(c, icon, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), color, stroke, fill)
             }
-            KeyType.ENTER -> {
-                text.textSize = 20 * dp
-                text.typeface = typeface(600)
-                drawCentered(c, enterLabel, cx, cy)
-            }
-            KeyType.BACKSPACE -> {
-                text.textSize = 19 * dp
-                text.typeface = Typeface.DEFAULT
-                drawCentered(c, k.label, cx, cy)
-            }
+            KeyType.ENTER -> KeyIcons.draw(c, enterIcon, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
+            KeyType.BACKSPACE -> KeyIcons.draw(c, Icon.BACKSPACE, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
             KeyType.EMOJI -> KeyIcons.draw(c, Icon.EMOJI, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
             else -> {
                 text.textSize = 14 * dp
@@ -1276,7 +1375,9 @@ class KeyboardView(context: Context) : View(context) {
             if (x >= 0 && x < width && y >= 0 && y < height) {
                 if (clipboardOpen) { clipPanel.hitAt(x, y)?.let { panelAct(it) }; return true }
                 if (emojiOpen) { emojiPanel.hitAt(x, y)?.let { emojiAct(it) }; return true }
+                if (quickOpen) { quickPanel.hitAt(x, y)?.let { quickAct(it) }; return true }
                 stripAt(x, y)?.let { stripTap(it); return true }
+                railAt(x, y)?.let { listener?.onOneHand(it); return true }
                 boxAt(x, y)?.let { activate(it); return true }
             }
         }
@@ -1320,6 +1421,8 @@ class KeyboardView(context: Context) : View(context) {
         private val stripBase = 10_000
         private val panelBase = 20_000
         private val emojiBase = 30_000
+        private val quickBase = 40_000
+        private val railBase = 50_000
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             if (clipboardOpen) {
@@ -1330,7 +1433,12 @@ class KeyboardView(context: Context) : View(context) {
                 val h = emojiPanel.hitAt(x, y) ?: return INVALID_ID
                 return emojiBase + emojiPanel.hits.indexOf(h)
             }
+            if (quickOpen) {
+                val h = quickPanel.hitAt(x, y) ?: return INVALID_ID
+                return quickBase + quickPanel.hits.indexOf(h)
+            }
             stripAt(x, y)?.let { return stripBase + stripItems.indexOf(it) }
+            railAt(x, y)?.let { side -> return railBase + rail.indexOfFirst { it.first == side } }
             val b = boxAt(x, y) ?: return INVALID_ID
             return boxes.indexOf(b)
         }
@@ -1338,14 +1446,30 @@ class KeyboardView(context: Context) : View(context) {
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
             if (clipboardOpen) { for (i in clipPanel.hits.indices) ids += panelBase + i; return }
             if (emojiOpen) { for (i in emojiPanel.hits.indices) ids += emojiBase + i; return }
+            if (quickOpen) { for (i in quickPanel.hits.indices) ids += quickBase + i; return }
             for (i in stripItems.indices) ids += stripBase + i
+            for (i in rail.indices) ids += railBase + i
             for (i in boxes.indices) ids += i
         }
 
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
             val r = RectF()
             val desc: String
-            if (id >= emojiBase) {
+            if (id >= railBase) {
+                val e = rail.getOrNull(id - railBase)
+                desc = when (e?.first) {
+                    OneHand.LEFT -> "Mover el teclado a la izquierda"
+                    OneHand.RIGHT -> "Mover el teclado a la derecha"
+                    OneHand.OFF -> "Teclado a todo el ancho"
+                    null -> ""
+                }
+                e?.let { r.set(it.second) }
+            } else if (id >= quickBase) {
+                val h = quickPanel.hits.getOrNull(id - quickBase)
+                desc = h?.desc ?: ""
+                h?.let { r.set(it.rect) }
+                node.isEnabled = h?.enabled ?: false
+            } else if (id >= emojiBase) {
                 val h = emojiPanel.hits.getOrNull(id - emojiBase)
                 desc = h?.desc ?: ""
                 h?.let { r.set(it.rect) }
@@ -1357,13 +1481,12 @@ class KeyboardView(context: Context) : View(context) {
             } else if (id >= stripBase) {
                 val s = stripItems.getOrNull(id - stripBase)
                 desc = when (s?.kind) {
-                    StripKind.PROFILE -> "Perfil $profileName. Toca para cambiar de perfil"
                     StripKind.SETTINGS -> if (gearDot) "Ajustes de Resyst VK. Actualización ${updateVersion} disponible" else "Ajustes de Resyst VK"
+                    StripKind.NO_MEMORY -> "Sin memoria: ${s.text}"
                     StripKind.UPDATE -> "Resyst VK ${s.text} disponible. Toca para actualizar"
                     StripKind.UPDATE_X -> "Descartar el aviso de la versión ${s.text}"
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
-                    StripKind.CLIP -> "Historial del portapapeles"
                     StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"
                     null -> ""
                 }
@@ -1383,6 +1506,16 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id >= railBase) {
+                if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+                rail.getOrNull(id - railBase)?.let { listener?.onOneHand(it.first); return true }
+                return false
+            }
+            if (id >= quickBase) {
+                val h = quickPanel.hits.getOrNull(id - quickBase) ?: return false
+                if (action != AccessibilityNodeInfo.ACTION_CLICK || !h.enabled) return false
+                quickAct(h); return true
+            }
             if (id >= emojiBase) {
                 val h = emojiPanel.hits.getOrNull(id - emojiBase) ?: return false
                 if (action != AccessibilityNodeInfo.ACTION_CLICK) return false

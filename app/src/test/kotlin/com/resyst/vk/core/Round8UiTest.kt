@@ -128,7 +128,8 @@ class Round8UiTest {
         assertEquals("lab", back.settings.altTheme)
         val raw = ProfileCodec.encode(st).toMutableMap<String, Any?>().apply { put("t.resyst.altTheme", "neon") }
         assertEquals(null, ProfileCodec.decode(raw).settings.altTheme)
-        assertTrue(ProfileCodec.decode(emptyMap<String, Any?>()).settings.dayNightChip)
+        // r10 (QS1/QS3): the strip's sun/moon is opt-in now; Día / noche lives in the quick panel
+        assertFalse(ProfileCodec.decode(emptyMap<String, Any?>()).settings.dayNightChip)
     }
 
     @Test fun everyThemeHasAnOppositeTwin() { // T8-5

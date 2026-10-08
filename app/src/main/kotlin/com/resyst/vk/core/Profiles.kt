@@ -42,12 +42,17 @@ data class KbSettings(
     val hideTopRow: Boolean = false,
     /** r8: dedicated emoji key next to the comma (opens the emoji panel). */
     val emojiKey: Boolean = true,
-    /** r8: the sun/moon chip in the strip flips day/night ([DayNight]). r10: phone-wide. */
-    val dayNightChip: Boolean = true,
+    /**
+     * r8: the sun/moon chip in the strip flips day/night ([DayNight]). r10: phone-wide, and OFF by
+     * default — the strip is for typing; Día / noche lives in the quick panel under ⚙ (UX-3).
+     */
+    val dayNightChip: Boolean = false,
     /** r8: the theme the last day/night flip left (null = never flipped). Part of the [Look]. */
     val altTheme: String? = null,
     /** r10 (F-3): proposals (completions, predictions, corrections) skip offensive words. Phone-wide. */
     val profanityFilter: Boolean = true,
+    /** r10 (UX-13): keys narrowed to one side, phone-wide. */
+    val oneHanded: OneHand = OneHand.OFF,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -250,6 +255,7 @@ object ProfileCodec {
         "emojiKey" to s.emojiKey.toString(),
         "dayNightChip" to s.dayNightChip.toString(),
         "profanityFilter" to s.profanityFilter.toString(),
+        "oneHanded" to s.oneHanded.name,
     )
 
     fun decode(raw: Map<String, *>): ProfileStore {
@@ -295,7 +301,9 @@ object ProfileCodec {
         val active = activeOf(raw, temas)
         val gaming = active == LEGACY_GAME
         val behaviorFrom = if (gaming) ids.firstOrNull { it != LEGACY_GAME } else active
-        val phone = Look().applyTo(behaviorFrom?.let { settings[it] } ?: KbSettings())
+        // r10 (QS3): r8 defaulted the strip's sun/moon ON; the strip is now for typing and Día /
+        // noche lives in the quick panel. The option stays in Teclas e idioma.
+        val phone = Look().applyTo(behaviorFrom?.let { settings[it] } ?: KbSettings()).copy(dayNightChip = false)
         return ProfileStore(
             temas = temas,
             active = active,
@@ -384,6 +392,7 @@ object ProfileCodec {
             dayNightChip = bool("dayNightChip", d.dayNightChip),
             altTheme = themeId(str("altTheme")) ?: d.altTheme,
             profanityFilter = bool("profanityFilter", d.profanityFilter),
+            oneHanded = enumOr(str("oneHanded"), d.oneHanded),
         )
     }
 
