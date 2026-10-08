@@ -731,7 +731,7 @@ class SettingsActivity : Activity() {
             tag = "know-intro"
         }
         card.addView(label("Esto es todo lo que Resyst VK guarda de ti.", 14f, t.text, 600))
-        card.addView(label("Vive solo en este teléfono, fuera de las copias de seguridad, y nunca se envía a ningún lado. Toca × para borrar una cosa; nada más cambia.", 12f, t.textMod), lp(top = 4f))
+        card.addView(label("Vive solo en este teléfono, fuera de las copias de seguridad, y nunca se envía a ningún lado. Toca ✕ para borrar una cosa; lo demás se queda igual.", 12f, t.textMod), lp(top = 4f))
         root.addView(card, lp(bottom = 10f))
     }
 
@@ -745,9 +745,10 @@ class SettingsActivity : Activity() {
         }
         row.addView(label(text, 15f, t.text, 500).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        if (meta != null) row.addView(label(meta, 12f, t.muted, 500).apply { setPadding(px(8f), 0, px(4f), 0) })
-        row.addView(label("×", 22f, t.bad, 500).apply {
-            gravity = Gravity.CENTER
+        if (meta != null) row.addView(label(meta, 12f, t.textMod, 500).apply { setPadding(px(8f), 0, px(4f), 0) })
+        // 48 dp target; the glyph's visual edge sits on the content margin (no ragged right edge)
+        row.addView(label("✕", 18f, t.bad, 500).apply {
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
             isClickable = true
             contentDescription = "Borrar $desc"
             tag = "forget.$tagId"
@@ -758,7 +759,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun knowHead(title: String, summary: String) {
-        into.addView(label(title, 14f, t.textMod, 600), lp(top = 10f))
+        into.addView(label(title, 15f, t.text, 600), lp(top = 22f))
         into.addView(label(summary, 12f, t.muted).apply { tag = "know-summary" }, lp(bottom = 4f))
     }
 
@@ -766,13 +767,14 @@ class SettingsActivity : Activity() {
         val w = PersonalStore.words
         if (w == null) { knowHead(Ctl.KNOW_WORDS.label, "Cargando…"); return }
         val total = Lang.values().sumOf { w.vocabCount(it) }
-        knowHead(Ctl.KNOW_WORDS.label, if (total == 0) "Ninguna todavía. Las aprende al escribir, solo en campos normales (nunca en contraseñas ni en modo incógnito)." else "$total palabras · con cuántas veces las usaste")
-        for (lang in Lang.values()) {
+        knowHead(Ctl.KNOW_WORDS.label, if (total == 0) "Ninguna todavía. Las aprende al escribir, solo en campos normales (nunca en contraseñas ni en modo incógnito)." else "$total palabras y cuántas veces las usaste")
+        val langs = Lang.values().filter { w.vocabCount(it) > 0 }
+        for (lang in langs) {
             val n = w.vocabCount(lang)
-            if (n == 0) continue
-            into.addView(label(if (lang == Lang.ES) "Español · $n" else "English · $n", 12f, pal.accent, 650).apply { letterSpacing = 0.04f }, lp(top = 6f))
+            // the model is per keyboard language: say which keyboard learned them (only when both did)
+            if (langs.size > 1) into.addView(label((if (lang == Lang.ES) "CON EL TECLADO EN ESPAÑOL · $n" else "CON EL TECLADO EN INGLÉS · $n"), 11f, t.muted, 700).apply { letterSpacing = 0.1f }, lp(top = 10f, bottom = 2f))
             for (e in w.words(lang, wordsShown)) {
-                knowRow(e.form, "×${e.count}", "la palabra ${e.form}", "${lang.code}.${e.key}") {
+                knowRow(e.form, if (e.count == 1) "1 vez" else "${e.count} veces", "la palabra ${e.form}", "${lang.code}.${e.key}") {
                     if (w.forget(lang, e.key)) { PersonalStore.changed(); rerender() }
                 }
             }
