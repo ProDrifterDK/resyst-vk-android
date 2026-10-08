@@ -411,6 +411,7 @@ keyboard and in settings, not a paragraph.
   the next panel open; a delete of an unknown entry throws or changes anything else.
 - V13 The listing leaks across languages, is unbounded (shows every word at once without order),
   or lists anything the keyboard does not actually keep.
+
 ## Round 10 — the strip is for suggestions; a quick panel under ⚙ (`StripPlan`, `Quick`, `OneHand`)
 
 UX-3 + UI-1 of `proposals/resyst-vk-vision.md`: the strip keeps only what helps typing; every

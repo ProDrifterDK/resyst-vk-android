@@ -1177,12 +1177,16 @@ class KeyboardView(context: Context) : View(context) {
         val pressed = ptrs.values.mapNotNull { it.rail }.toSet()
         for ((side, r) in rail) {
             val on = side in pressed
+            // drawn like a modifier key (fill + edge), so the rail reads as buttons, not dead space
             fill.shader = null
-            fill.color = if (on) t.keyHi else t.bg2
-            tmp.set(r.left + 4 * dp, r.top + 4 * dp, r.right - 4 * dp, r.bottom - 4 * dp)
+            fill.color = if (on) t.keyHi else t.keyMod
+            tmp.set(r.left + 5 * dp, r.top + 4 * dp, r.right - 5 * dp, r.bottom - 4 * dp)
             c.drawRoundRect(tmp, radius() + 2 * dp, radius() + 2 * dp, fill)
+            stroke.color = if (on) palette.accentGlow else t.edgeHi
+            stroke.strokeWidth = dp
+            c.drawRoundRect(tmp, radius() + 2 * dp, radius() + 2 * dp, stroke)
             val icon = when (side) { OneHand.LEFT -> Icon.ARROW_LEFT; OneHand.RIGHT -> Icon.ARROW_RIGHT; OneHand.OFF -> Icon.EXPAND }
-            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), min(22 * dp, r.width() * 0.45f), if (on) palette.accent else t.muted, stroke, fill)
+            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), min(24 * dp, r.width() * 0.5f), if (on) palette.accent else t.textMod, stroke, fill)
         }
     }
 
