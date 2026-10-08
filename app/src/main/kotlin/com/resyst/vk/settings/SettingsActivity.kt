@@ -28,7 +28,6 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import com.resyst.vk.core.ClipSettings
 import com.resyst.vk.core.ClipboardHistory
-import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.Ctl
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.Density
@@ -45,6 +44,7 @@ import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Mode
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.ProfileCodec
 import com.resyst.vk.core.ProfileStore
 import com.resyst.vk.core.Scope
 import com.resyst.vk.core.SettingsIA
@@ -338,6 +338,14 @@ class SettingsActivity : Activity() {
         if (!enabled) {
             box.alpha = 0.42f
             disable(box, ctl)
+        } else if (overridden(ctl)) {
+            // The mode wins while it is on: say so on the control itself, keep it editable
+            // (the stored value is what comes back when the mode is turned off).
+            box.alpha = 0.6f
+            box.addView(label("En pausa por el modo ${store.mode.label} · vuelve al apagarlo", 12f, pal.accent, 550).apply {
+                tag = "paused.${ctl.name}"
+            }, lp(bottom = 6f))
+            box.contentDescription = "${ctl.label}: en pausa por el modo ${store.mode.label}"
         }
         if (indent > 0) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -353,6 +361,14 @@ class SettingsActivity : Activity() {
             val what = if (hint == Ctl.HIDE_TOP_ROW) "Desactiva «${hint.label}»" else "Activa «${hint.label}»"
             into.addView(label("$what para cambiar esto.", 12f, t.muted).apply { tag = "hint.${ctl.name}" }, lp(bottom = 4f).apply { marginStart = px(20f) })
         }
+    }
+
+    /** True when the active mode replaces this control's stored value ([Mode.apply] changes its field). */
+    private fun overridden(ctl: Ctl): Boolean {
+        if (store.mode == Mode.NONE) return false
+        val field = ctl.key?.removePrefix(ProfileCodec.PHONE) ?: return false
+        val stored = ProfileCodec.fields(store.base)[field] ?: return false
+        return stored != ProfileCodec.fields(store.settings)[field]
     }
 
     private fun disable(v: View, ctl: Ctl) {
@@ -412,7 +428,7 @@ class SettingsActivity : Activity() {
             Ctl.FORGET_LEARNED -> forgetRow()
 
             Ctl.UPDATES -> {
-                into.addView(label("Versión y actualización", 14f, t.textMod, 550), lp(top = 4f))
+                into.addView(label(ctl.label, 14f, t.textMod, 550), lp(top = 4f))
                 updateSection()
             }
             Ctl.UPDATE_AUTO -> toggle(ctl.label, "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
@@ -427,37 +443,38 @@ class SettingsActivity : Activity() {
 
     /** The temas as cards in their own colors; tapping one puts it in use right away. */
     private fun temaPicker() {
-        into.addView(label("TEMA", 11f, t.muted, 700).apply { letterSpacing = 0.12f }, lp(top = 4f, bottom = 8f))
-        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        into.addView(label(Ctl.TEMA.label, 14f, t.textMod, 550), lp(top = 4f, bottom = 8f))
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (tm in store.temas) {
             val sel = tm.id == store.active
             val pp = Palette.of(tm.look.theme, tm.look.accent)
+            // Each card wears its own tema; the one in use gets a 2 dp accent ring + a dot (one signal).
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                minimumHeight = px(72f)
-                minimumWidth = px(92f)
-                background = rounded(pp.theme.bg2, if (sel) pp.accent else pp.theme.edge, 12f).apply { if (sel) setStroke(px(2f), pp.accent) }
-                setPadding(px(10f), px(8f), px(10f), px(8f))
+                minimumHeight = px(76f)
+                background = rounded(pp.theme.bg2, pp.theme.edgeHi, 12f).apply { if (sel) setStroke(px(2f), pp.accent) }
+                setPadding(px(8f), px(8f), px(8f), px(8f))
                 isClickable = true
                 tag = "tema.${tm.id}"
                 setOnClickListener { if (!sel) commitStore(store.withTema(tm.id)) }
                 contentDescription = "Tema ${tm.name}, ${Themes.byId(tm.look.theme).label}" + if (sel) ", en uso" else ""
             }
-            card.addView(label(tm.icon, 18f, pp.accent, 500).apply { gravity = Gravity.CENTER })
-            card.addView(label(tm.name, 13f, pp.theme.text, if (sel) 700 else 500).apply { gravity = Gravity.CENTER })
-            card.addView(label(if (sel) "● en uso" else Themes.byId(tm.look.theme).label, 10f, if (sel) pp.accent else pp.theme.muted, 600).apply { gravity = Gravity.CENTER; maxLines = 1 })
-            row.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+            card.addView(label(tm.name + if (sel) "  ●" else "", 14f, pp.theme.text, if (sel) 700 else 550).apply {
+                gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            card.addView(label(Themes.byId(tm.look.theme).label, 11f, pp.theme.textMod, 500).apply {
+                gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            }, lp(top = 2f))
+            row.addView(card, LinearLayout.LayoutParams(px(118f), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
         }
-        hs.addView(row)
-        into.addView(hs, lp(bottom = 4f))
-        into.addView(label("Un tema es solo la apariencia. Idioma, sugerencias, vibración y sonido valen para todos los temas.", 12f, t.muted), lp(bottom = 6f))
+        into.addView(bleedRow(row), bleedLp())
+        into.addView(label("Un tema es solo la apariencia. Idioma, sugerencias, vibración y sonido valen para todos los temas.", 12f, t.muted), lp(top = 4f, bottom = 6f))
     }
 
     /** "Modo": off, Código or Juego, each with its fixed, spelled-out effect. */
     private fun modePicker() {
-        choice("Modo", Mode.values().map { it to (if (it == Mode.NONE) "Ninguno" else "${it.icon}  ${it.label}") }, store.mode) { m ->
+        choice("Modo", Mode.values().map { it to (if (it == Mode.NONE) "Ninguno" else it.label) }, store.mode) { m ->
             commitStore(store.withMode(m))
         }
         into.addView(label(store.mode.summary, 12f, if (store.mode == Mode.NONE) t.muted else pal.accent, 500).apply { tag = "mode-summary" }, lp(bottom = 6f))
@@ -486,6 +503,7 @@ class SettingsActivity : Activity() {
     private fun dayNightPill(s: KbSettings) {
         val dark = Themes.byId(s.theme).dark
         val toLabel = Themes.byId(DayNight.toggle(s).theme).label
+        into.addView(label(Ctl.DAY_NIGHT.label, 14f, t.textMod, 550), lp(top = 8f))
         into.addView(pill(if (dark) "☀  Modo día · $toLabel" else "☾  Modo noche · $toLabel") {
             commitStore(store.updateLook(store.activeTema.id) { DayNight.toggle(it) })
         }.apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f, bottom = 4f))
@@ -758,22 +776,22 @@ class SettingsActivity : Activity() {
 
     /** A page: back to home, its title, and where its settings are stored. */
     private fun pageHeader(pg: SettingsPage) {
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        row.addView(label("‹", 28f, pal.accent, 500).apply {
-            gravity = Gravity.CENTER
+        // "‹ Ajustes" sits on the content edge (48 dp target), the title under it on the same edge.
+        root.addView(label("‹  Ajustes", 15f, pal.accent, 600).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            minHeight = px(48f)
             isClickable = true
             tag = "nav-back"
             contentDescription = "Volver a Ajustes"
             setOnClickListener { go(null) }
-        }, LinearLayout.LayoutParams(px(48f), px(48f)))
-        row.addView(label(pg.title, 22f, t.text, 700).apply { tag = "page-title" }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        root.addView(row, lp(bottom = 4f))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(label(pg.title, 24f, t.text, 700).apply { tag = "page-title" }, lp(top = 2f))
         val where = if (pg.scope == Scope.TEMA) {
             "Solo para el tema «${store.activeTema.name}». Los otros temas tienen su propia apariencia."
         } else {
             "Vale para todo el teclado, con cualquier tema."
         }
-        root.addView(label(where, 12f, t.muted).apply { tag = "page-scope" }, lp(bottom = 12f).apply { marginStart = px(48f) })
+        root.addView(label(where, 13f, t.muted).apply { tag = "page-scope" }, lp(top = 2f, bottom = 14f))
     }
 
     /** One home row per page: title, what it holds, chevron. */
@@ -884,9 +902,21 @@ class SettingsActivity : Activity() {
         root.addView(View(this).apply { setBackgroundColor(t.edge) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(1f)).apply { bottomMargin = px(8f) })
     }
 
+    /**
+     * A horizontal row that bleeds to the right screen edge (the root's 18 dp padding), so a
+     * partly visible last item reads as "scroll for more", not as a clipped layout.
+     */
+    private fun bleedRow(row: LinearLayout): HorizontalScrollView = HorizontalScrollView(this).apply {
+        isHorizontalScrollBarEnabled = false
+        clipToPadding = false
+        setPadding(0, 0, px(18f), 0)
+        addView(row)
+    }
+
+    private fun bleedLp(bottom: Float = 4f) = lp(bottom = bottom).apply { marginEnd = -px(18f) }
+
     private fun <T> choice(title: String, options: List<Pair<T, String>>, current: T, onPick: (T) -> Unit) {
         into.addView(label(title, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
-        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, name) in options) {
             val sel = value == current
@@ -894,19 +924,17 @@ class SettingsActivity : Activity() {
                 gravity = Gravity.CENTER
                 minHeight = px(40f)
                 setPadding(px(14f), px(8f), px(14f), px(8f))
-                background = rounded(if (sel) pal.accent else t.key, if (sel) pal.accent else t.edge, 20f)
+                background = rounded(if (sel) pal.accent else t.key, if (sel) pal.accent else t.edgeHi, 20f)
                 isClickable = true
                 setOnClickListener { if (!sel) onPick(value) }
                 contentDescription = "$title: $name" + if (sel) ", seleccionado" else ""
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
         }
-        hs.addView(row)
-        into.addView(hs, lp(bottom = 4f))
+        into.addView(bleedRow(row), bleedLp())
     }
 
     private fun accentRow(s: KbSettings) {
         into.addView(label(Ctl.ACCENT.label, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
-        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val options = listOf<Pair<Int?, String>>(null to "Del tema") + Themes.ACCENTS.map { it.first to it.second }
         for ((c, name) in options) {
@@ -928,9 +956,8 @@ class SettingsActivity : Activity() {
             }
             row.addView(sw, LinearLayout.LayoutParams(px(44f), px(44f)).apply { marginEnd = px(8f) })
         }
-        hs.addView(row)
-        into.addView(hs, lp(bottom = 4f))
-        into.addView(label("El acento se corrige automáticamente a contraste ≥ 4.5:1 (${ColorMath.toHex(Palette.of(s.theme, s.accent).accent)}).", 11f, t.muted), lp(bottom = 4f))
+        into.addView(bleedRow(row), bleedLp())
+        into.addView(label("«T» = el acento propio del tema. Cualquier acento se ajusta solo para leerse bien sobre las teclas.", 11f, t.muted), lp(top = 2f, bottom = 4f))
     }
 
     private fun toggle(title: String, sub: String?, value: Boolean, onChange: (Boolean) -> Unit) {
