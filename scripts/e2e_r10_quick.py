@@ -51,7 +51,7 @@ def gear_of(k):
     return next((d for d in k if d.startswith('Ajustes de Resyst VK')), None)
 
 
-UPDATE = ('Resyst VK ', 'Descartar el aviso')
+UPDATE = ('Resyst VK ', 'Descartar el aviso', 'Pegar del portapapeles', 'Pegar imagen')  # QS1: the contextual paste chip is allowed
 
 
 def letter(k, ch):
@@ -105,7 +105,7 @@ def main():
     q_top = bounds(q)[1]
     strip = strip_descs(k, q_top)
     rest = [d for d in strip if not d.startswith('Ajustes de Resyst VK') and not d.startswith(UPDATE)]
-    check('strip holds only ⚙ (+ the r9 update chip) on an empty field', gear_of(k) is not None and not rest, strip)
+    check('strip holds only ⚙ (+ the r9 update chip / «Pegar») on an empty field', gear_of(k) is not None and not rest, strip)
     check('no tema chip / clipboard / sun-moon in the strip',
           not any(d.startswith(('Perfil', 'Historial', 'Cambiar a tema')) for d in strip))
     gear = k.get(gear_of(k))

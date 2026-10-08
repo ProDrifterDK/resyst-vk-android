@@ -76,7 +76,7 @@ class EditPanel(private val dp: Float) {
                 fill.color = t.keyHi
                 c.drawRoundRect(close.rect.left + 4 * dp, close.rect.top + 6 * dp, close.rect.right - 4 * dp, close.rect.bottom - 6 * dp, radius, radius, fill)
             }
-            KeyIcons.draw(c, Icon.PREVIOUS, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, t.textMod, stroke, fill)
+            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, t.textMod, stroke, fill)
             text.textAlign = Paint.Align.LEFT
             text.color = t.textMod
             text.textSize = 14 * dp
