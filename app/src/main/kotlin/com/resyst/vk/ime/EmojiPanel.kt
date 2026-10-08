@@ -192,9 +192,13 @@ class EmojiPanel(private val dp: Float) {
             c.drawRoundRect(h.rect, radius, radius, stroke)
         }
         if (label.isEmpty()) return
+        if (label == "⌫") { // r10 (UI-1): the same vector ⌫ as the keyboard
+            KeyIcons.draw(c, Icon.BACKSPACE, h.rect.centerX(), h.rect.centerY(), min(22 * dp, h.rect.height() * 0.45f), ink, stroke, fill)
+            return
+        }
         text.color = ink
-        text.typeface = if (label == "⌫") Typeface.DEFAULT else typeface(600)
-        text.textSize = (if (label == "⌫") 19 else 14) * dp
+        text.typeface = typeface(600)
+        text.textSize = 14 * dp
         drawCentered(c, label, h.rect.centerX(), h.rect.centerY())
     }
 
