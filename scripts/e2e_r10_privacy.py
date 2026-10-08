@@ -238,8 +238,40 @@ def main():
     d = descs(tree)
     mark = [x for x in d if 'Sin memoria' in x]
     check('S1 password field shows the "Sin memoria" mark with its reason', any('contraseña' in x for x in mark), mark)
+    # S3: press a letter in the password field: no bubble (canvas-drawn, so: the pixels above the
+    # pressed key must not change while it is down). The same press on a text field DOES change
+    # them. Long-press is raised to 900 ms so the press (850 ms) never opens the variants popup.
+    def held_delta(kind):
+        tree, km = e2e.open_host(kind)
+        k = km.get('q') if km.get('q') is not None else km.get('Q')
+        x1, y1, x2, y2 = e2e.bounds(k)
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        above = (cx, max(0, y1 - (y2 - y1) // 2))  # where the bubble would be drawn
+        def px():
+            png = adb('exec-out', 'screencap', binary=True)  # raw RGBA: 12-16 byte header
+            w = int.from_bytes(png[0:4], 'little')
+            hdr = 16 if len(png) >= 16 + w * int.from_bytes(png[4:8], 'little') * 4 else 12
+            i = hdr + (above[1] * w + above[0]) * 4
+            return tuple(png[i:i + 3])
+        idle = px()
+        import subprocess
+        p = subprocess.Popen(e2e.ADB + ['shell', f'input swipe {cx} {cy} {cx} {cy} 850'])
+        time.sleep(0.3)
+        pressed = px()
+        p.wait()
+        sh('input keyevent KEYCODE_DEL')  # whatever the hold typed
+        return idle, pressed
+    set_phone('phone.longPressMs', '900')
+    i0, p0 = held_delta('text')
+    i1, p1 = held_delta('password')
+    check('S3a control: holding q in a text field draws the bubble (pixels change)', i0 != p0, (i0, p0))
+    check('S3b holding q in a password field draws no bubble', i1 == p1, (i1, p1))
+    set_phone('phone.longPressMs', '350')
+    tree, km = e2e.open_host('password')  # S3 restarted the app (set_phone): a fresh field
     e2e.type_word('zorzalito', km)
-    e2e.tap(keys(dump())['Espacio'])
+    sp = next((n for d, n in keys(dump()).items() if d.startswith('Espacio')), None)
+    if sp is not None:
+        e2e.tap(sp)
     time.sleep(2.5)
     sh(f'am force-stop {PKG}')
     learned = run_as(f'cat {WORDS}')

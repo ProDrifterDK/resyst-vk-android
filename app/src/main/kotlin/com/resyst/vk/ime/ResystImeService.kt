@@ -324,6 +324,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang, clean = st.profanityFilter) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
+        refreshMemory()
         sound?.configure(st.sound, st.soundPack)
         if (st.suggest) lexicon?.warm(st.lang)
         rebuildLayout()
@@ -469,6 +470,23 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 openQuick()
             }
         }
+    }
+
+    // ── r10 (F-6): «sin memoria» ────────────────────────────────────────
+    /** Why nothing is learned in this field right now (null = memory on), re-read on every settings apply. */
+    private var noMemory: com.resyst.vk.core.NoMemory? = null
+
+    private fun refreshMemory() {
+        noMemory = com.resyst.vk.core.MemoryNotice.reason(policy, s, store.base)
+        view?.setNoMemory(noMemory?.label)
+    }
+
+    /** A tap on the mark says why, in words, and where to change it when it is a setting (V9). */
+    override fun onNoMemory() {
+        val r = noMemory ?: return
+        feedback(null)
+        Toast.makeText(this, r.detail, Toast.LENGTH_LONG).show()
+        view?.announceForAccessibility(r.detail)
     }
 
     /** text-editing (bet 5) opens its panel here. */
