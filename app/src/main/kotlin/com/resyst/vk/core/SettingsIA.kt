@@ -58,6 +58,8 @@ enum class Ctl(
     FORGET_LEARNED(null, Scope.DEVICE, destructive = true),
 
     // about
+    /** r9: "Buscar actualizaciones al iniciar" — one release.json check per process start. */
+    UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE),
     UPDATES(null, Scope.DEVICE),
     RESET_PROFILES(null, Scope.DEVICE, destructive = true),
 }
@@ -102,7 +104,7 @@ object SettingsIA {
             Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
         )),
         SettingsPage("acerca", "Acerca de", Scope.DEVICE, listOf(
-            Ctl.UPDATES, Ctl.RESET_PROFILES,
+            Ctl.UPDATES, Ctl.UPDATE_AUTO, Ctl.RESET_PROFILES,
         )),
     )
 

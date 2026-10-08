@@ -51,8 +51,16 @@ data class KbSettings(
 
 data class Profile(val id: String, val name: String, val icon: String, val settings: KbSettings)
 
-/** [clip] is device-wide (not per profile), stored next to the profiles. */
-data class ProfileStore(val profiles: List<Profile>, val active: String, val clip: ClipSettings = ClipSettings()) {
+/**
+ * [clip] and [autoUpdateCheck] are device-wide (not per profile), stored next to the profiles.
+ * [autoUpdateCheck] (r9): one release.json check when the keyboard process starts; default on.
+ */
+data class ProfileStore(
+    val profiles: List<Profile>,
+    val active: String,
+    val clip: ClipSettings = ClipSettings(),
+    val autoUpdateCheck: Boolean = true,
+) {
     val activeProfile: Profile get() = byId(active) ?: profiles.first()
 
     fun byId(id: String): Profile? = profiles.firstOrNull { it.id == id }
@@ -75,6 +83,8 @@ data class ProfileStore(val profiles: List<Profile>, val active: String, val cli
 object ProfileCodec {
     const val HEIGHT_MIN = 0.8f
     const val HEIGHT_MAX = 1.3f
+    /** r9: "Buscar actualizaciones al iniciar" (device-wide). */
+    const val UPDATE_AUTO_KEY = "update.auto"
 
     fun seed(): ProfileStore {
         val base = KbSettings()
@@ -103,6 +113,7 @@ object ProfileCodec {
         m["order"] = st.profiles.joinToString(",") { it.id }
         m["clip.history"] = st.clip.history.toString()
         m["clip.purge"] = st.clip.purgeHour.toString()
+        m[UPDATE_AUTO_KEY] = st.autoUpdateCheck.toString()
         for (p in st.profiles) {
             val k = "p.${p.id}."
             val s = p.settings
@@ -202,7 +213,7 @@ object ProfileCodec {
         fun flag(key: String, d: Boolean) = when (raw[key]?.toString()) { "true" -> true; "false" -> false; else -> d }
         val dc = ClipSettings()
         val clip = ClipSettings(history = flag("clip.history", dc.history), purgeHour = flag("clip.purge", dc.purgeHour))
-        return ProfileStore(profiles, active, clip)
+        return ProfileStore(profiles, active, clip, autoUpdateCheck = flag(UPDATE_AUTO_KEY, true))
     }
 
     private inline fun <reified E : Enum<E>> enumOr(v: String?, d: E): E =

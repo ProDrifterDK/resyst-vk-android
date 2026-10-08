@@ -20,7 +20,7 @@ class SettingsIATest {
         .toSet()
 
     private val storedDeviceKeys = ProfileCodec.encode(ProfileCodec.seed()).keys
-        .filter { it.startsWith("clip.") }.toSet()
+        .filter { it.startsWith("clip.") || it.startsWith("update.") }.toSet()
 
     @Test fun everyStoredSettingHasAControl() { // I1
         val profileKeys = Ctl.values().filter { it.scope == Scope.PROFILE }.mapNotNull { it.key }.toSet()

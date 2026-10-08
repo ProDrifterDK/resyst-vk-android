@@ -303,3 +303,36 @@ and (on a second explicit tap) download the APK and hand it to Android's install
 - G5 Nothing tells the user how to switch keyboards once the system globe is hidden, or that hint
   shows with only one keyboard enabled (nothing to switch to).
 - G6 TalkBack users lose the way to switch: the space key exposes no long-click action.
+
+## Round 9 — startup update check + update notice (`UpdateNotice`, `AutoCheckGate`)
+
+One automatic `release.json` GET per process start (the same `Updater.check()` path), surfaced only
+inside the keyboard strip and the settings "Actualización" section — never the status bar.
+
+### Once-per-process gate
+- A1 The automatic check runs more than once in one process (a second `onCreate` of the IME after a
+  rebind, the settings screen opening, a configuration change).
+- A2 It runs with "Buscar actualizaciones al iniciar" off.
+- A3 It clobbers an update already in flight or done: a pending download id, Downloading, Verifying,
+  Ready, or a check the user started by hand (state not Idle).
+- A4 Settings opening in a process that already checked fetches again instead of reusing the
+  stored state.
+- A5 A failed automatic check (offline, timeout, HTTP error, bad JSON) shows an error anywhere:
+  it must leave the updater Idle and only log.
+
+### Update chip (keyboard strip)
+- N1 A chip appears for anything but "available" (up to date, incompatible, not published, error,
+  no check yet).
+- N2 A dismissed version comes back in the same version (nagging), or dismissing an old version
+  hides a newer one.
+- N3 The version number is ellipsized or cut in the chip label (a label must show it whole or the
+  chip steps down to the gear badge).
+- N4 The chip takes the strip while a word is being typed or while the paste chip is offered
+  (suggestions / paste win; the update steps down to a dot on ⚙), or it leaves no room for the
+  dismiss target.
+- N5 The chip changes the strip height (the keys jump when it appears or leaves).
+
+### Settings + copy
+- S1 The toggle is not ON for a fresh install / r8 storage, does not round-trip, is per profile
+  (it is device-wide), or has no control on any settings page.
+- S2 The privacy copy still says the app never connects by itself while the startup check is on.
