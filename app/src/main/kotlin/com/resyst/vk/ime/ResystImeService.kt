@@ -265,6 +265,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         view?.hideClipboard()
         view?.hideEmoji()
         view?.hideQuick()
+        view?.hideEdit()
+        selecting = false
         view?.setSecret(policy.secret)
         if (!restarting) { typedSinceStart = false; typedForUpdate = false }
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
@@ -300,6 +302,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         view?.hideClipboard()
         view?.hideEmoji()
         view?.hideQuick()
+        view?.hideEdit()
+        selecting = false
         ClipStore.flush()
         super.onFinishInputView(finishingInput)
         view?.reset()
@@ -533,8 +537,17 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         view?.announceForAccessibility(r.detail)
     }
 
-    /** text-editing (bet 5) opens its panel here. */
-    private fun onEditPanel() = Unit
+    /** r10 (bet 5): the quick panel's «Edición» opens the edit panel. */
+    private fun onEditPanel() { view?.showEdit(selecting) }
+
+    /** An edit-panel button: [editAction] does the edit (and the feedback); the panel shows the selection state. */
+    override fun onEditOp(op: EditOp) {
+        editAction(op)
+        view?.setEditSelecting(selecting)
+    }
+
+    /** r10 (UX-6): the leftward swipe on ⌫ deletes the previous word (one char in secret fields, W4). */
+    override fun onDeleteWord() = editAction(EditOp.DELETE_WORD)
 
     override fun onOneHand(side: OneHand) {
         feedback(null)
@@ -968,7 +981,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         const val CLIP_DIR = "clip"
         const val IMAGE_MAX_BYTES = 10L * 1024 * 1024
         /** The editing panel (bet 5) is wired: the quick panel's Edición tile is live. */
-        const val EDIT_PANEL = false
+        const val EDIT_PANEL = true
     }
 
     private fun ImeAction.toEditorInfo(): Int = when (this) {
