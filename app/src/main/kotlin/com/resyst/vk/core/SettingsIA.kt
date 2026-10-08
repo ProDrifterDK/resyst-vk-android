@@ -55,6 +55,8 @@ enum class Ctl(
     DOUBLE_SPACE("phone.doubleSpace", Scope.DEVICE, "Doble espacio = punto"),
     /** r10 (F-3): the keyboard never proposes offensive words (default on). */
     PROFANITY_FILTER("phone.profanityFilter", Scope.DEVICE, "Filtrar palabras ofensivas", dependsOn = SUGGEST),
+    /** r10 (UX-8): "¿…?" offer when a Spanish sentence closes without its opener. */
+    AUTO_OPENERS("phone.autoOpeners", Scope.DEVICE, "Signos de apertura ¿ ¡"),
 
     // feedback (phone)
     HAPTICS("phone.haptics", Scope.DEVICE, "Vibración"),
@@ -120,8 +122,8 @@ object SettingsIA {
             Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
         SettingsPage("escritura", "Escritura", Scope.DEVICE, listOf(
-            Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE,
-        ), summary = "Sugerencias, corrección, filtro de groserías, mayúsculas"),
+            Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE, Ctl.AUTO_OPENERS,
+        ), summary = "Sugerencias, corrección, filtro de groserías, mayúsculas, ¿ ¡"),
         SettingsPage("respuesta", "Sonido y vibración", Scope.DEVICE, listOf(
             Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME,
         ), summary = "Vibración, intensidad, sonido y volumen"),

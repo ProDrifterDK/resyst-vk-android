@@ -447,3 +447,30 @@ other control moves to a panel opened by ⚙, drawn with one vector icon family.
 - QI1 Shift / ⌫ / Enter / ⚙ / sun / moon / clipboard are font glyphs (OEM font roulette, the ⚙
   read as a sun in the r8 captures) or use different stroke weights.
 - QI2 The shift states (off / once / locked) are told apart only by color.
+
+## Round 10 — text editing core (`TextEdit`, `KeyboardEngine` undo offer)
+
+### Delete a word (`TextEdit.wordBefore`)
+- W1 "Borrar palabra" eats more than the previous word (two words, or text before the space that
+  separates it) or less (leaves a fragment of it).
+- W2 It splits an emoji / surrogate pair, or deletes nothing when the text ends in punctuation
+  or spaces only.
+- W3 The accelerated ⌫ (chars → words) starts on a tap or on a run of quick taps: only a held key,
+  after 8 auto-repeats, switches to words.
+- W4 Word deletion (accelerated ⌫ or the panel/gesture) runs in a secret field: a hidden password
+  must only ever lose one character per press.
+- W5 Word mode survives releasing ⌫ (the next press starts already deleting words).
+
+### Undo a correction (the "↶" chip)
+- U1 The ↶ offer appears without a space-correction, or survives the next key / a cursor move away
+  (the text no longer ends with the corrected word + space).
+- U2 Tapping it does not restore exactly the typed word + the space, or the next space corrects
+  the restored word again.
+
+### Opening ¿ ¡ (`TextEdit.opener`)
+- O1 Offered when the sentence already has its opener, in English, in non-prose fields, or when
+  `?`/`!` is not closing a sentence (URLs, `a=b?c`, a lone `?`).
+- O2 Inserted at the wrong place: before the sentence's leading spaces, inside the previous
+  sentence, or the rewrite loses / duplicates characters.
+- O3 Offered when the sentence start is outside the text the keyboard can read (window full,
+  no terminator): the rewrite could cut the user's text.

@@ -136,6 +136,24 @@ class KeyboardEngine {
         return if (fix != word) word to fix else null
     }
 
+    /**
+     * r10 (UX-5): the word the last space-correction replaced, while the text still ends with
+     * that correction + space — the bar offers "↶ typed" for exactly that long (U1).
+     */
+    fun undoOffer(before: CharSequence): String? {
+        val (typedWord, fixed) = undo ?: return null
+        return if (before.endsWith("$fixed ")) typedWord else null
+    }
+
+    /** The "↶" chip: restore the typed word and its space; the next space keeps it (U2). */
+    fun undoCorrection(before: CharSequence): List<Out>? {
+        val u = undo ?: return null
+        val outs = revert(u, before) ?: return null
+        undo = null
+        lastWasSpace = false
+        return outs + Out.Commit(" ")
+    }
+
     /** Backspace right after a space-correction restores the typed word (A10). */
     private fun revert(u: Pair<String, String>?, before: CharSequence): List<Out>? {
         val (typedWord, fixed) = u ?: return null

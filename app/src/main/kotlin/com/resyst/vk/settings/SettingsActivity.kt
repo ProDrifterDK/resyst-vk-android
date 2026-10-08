@@ -417,6 +417,7 @@ class SettingsActivity : Activity() {
             Ctl.AUTO_CAP -> toggle(ctl.label, "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
             Ctl.DOUBLE_SPACE -> toggle(ctl.label, "Dos espacios seguidos escriben «. »", s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
             Ctl.PROFANITY_FILTER -> toggle(ctl.label, "El teclado no propone groserías · lo que tú escribes no se toca, y si una la usas seguido vuelve a aparecer", s.profanityFilter) { v -> commit { it.copy(profanityFilter = v) } }
+            Ctl.AUTO_OPENERS -> toggle(ctl.label, "Al cerrar una pregunta con ? sin su ¿, la barra ofrece «¿…?» · solo en español", s.autoOpeners) { v -> commit { it.copy(autoOpeners = v) } }
 
             Ctl.HAPTICS -> toggle(ctl.label, null, s.haptics) { v -> commit { it.copy(haptics = v) } }
             Ctl.HAPTIC_STRENGTH -> choice(ctl.label, listOf(HapticStrength.LOW to "Suave", HapticStrength.MEDIUM to "Media", HapticStrength.HIGH to "Fuerte"), s.hapticStrength) { v ->

@@ -30,7 +30,11 @@ import com.resyst.vk.core.ClipSnapshot
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.DayNight
+import com.resyst.vk.core.EditOp
+import com.resyst.vk.core.Edits
 import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.Lang
+import com.resyst.vk.core.TextEdit
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.FieldInfo
 import com.resyst.vk.core.FieldKind
@@ -339,7 +343,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     // ── KeyboardView.Listener ───────────────────────────────────────────
+    /** Auto-repeats of the ⌫ being held (onKeyDown = a new press = 0); drives word mode (W3, W5). */
+    private var bsRepeats = 0
+
     override fun onKeyDown(key: Key) {
+        if (key.type == KeyType.BACKSPACE) bsRepeats = 0
         feedback(key)
         if (key.type == KeyType.SHIFT) {
             engine.shiftDown(SystemClock.uptimeMillis())
@@ -359,7 +367,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
         val layerBefore = engine.layer
-        val outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
+        var outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
+        if (key.type == KeyType.BACKSPACE) {
+            // r10 (UX-6): a held ⌫ speeds up to whole words after 8 repeats — never in secret fields (W4)
+            val span = TextEdit.backspaceSpan(before, bsRepeats++, policy.secret)
+            if (outs == listOf(Out.Backspace) && span > 2 && ic.getSelectedText(0).isNullOrEmpty()) outs = listOf(Out.DeleteBefore(span))
+        }
         if (key.type == KeyType.CHAR && offer != null) { typedSinceStart = true; refreshClip() }
         if (key.type == KeyType.CHAR && !typedForUpdate) { typedForUpdate = true; refreshUpdate() }
         // delete + commit (correction, undo, double-space) must land as one edit
@@ -367,6 +380,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
+        if (key.type == KeyType.SPACE) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
+            // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
+            view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
+        }
         if (outs.any { it is Out.Action || it == Out.EnterKey }) rememberValue()
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
@@ -392,6 +409,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSuggestion(word: String) {
         val ic = currentInputConnection ?: return
+        if (word.startsWith(TextEdit.UNDO_PREFIX) || word == openerOffer?.let(TextEdit::openerLabel)) {
+            barOffer(word, ic)
+            return
+        }
         if (barShowsValues) {
             val outs = ValueMemory.pick(ic.getTextBeforeCursor(ValueMemory.MAX_LEN, 0) ?: "", word)
             ic.beginBatchEdit()
@@ -783,12 +804,92 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             v.setSuggestions(ValueMemory.bar(before, after, values, fieldKind))
             return
         }
-        if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(emptyList()); return }
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        // r10 offers lead the bar (they only exist for one edit): "↶ typed" after a space
+        // correction (UX-5), "¿…?" when a Spanish sentence closed without its opener (UX-8)
+        val offers = barOffers(before, st)
+        if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(offers); return }
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
         val sugg = Bar.words(before, after, before.length >= WINDOW, st.lang, lexicon?.get(st.lang), personalWords(), engine.shift, clean = st.profanityFilter)
-        v.setSuggestions(sugg)
+        v.setSuggestions((offers + sugg).take(Bar.LIMIT))
+    }
+
+    // ── r10: text editing (bet 5) ───────────────────────────────────────
+    /** The ¿/¡ offer on the bar right now (null = none). */
+    private var openerOffer: TextEdit.Opener? = null
+
+    private fun barOffers(before: CharSequence, st: com.resyst.vk.core.KbSettings): List<String> {
+        val out = ArrayList<String>(2)
+        engine.undoOffer(before)?.let { out += TextEdit.UNDO_PREFIX + it }
+        openerOffer = if (st.autoOpeners && st.lang == Lang.ES && !policy.secret && proseField) {
+            TextEdit.opener(before, before.length >= WINDOW)
+        } else null
+        openerOffer?.let { out += TextEdit.openerLabel(it) }
+        return out
+    }
+
+    private fun barOffer(word: String, ic: InputConnection) {
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        val outs = if (word.startsWith(TextEdit.UNDO_PREFIX)) engine.undoCorrection(before)
+        else openerOffer?.let { TextEdit.applyOpener(before, it) }
+        openerOffer = null
+        if (outs == null) { refreshContext(); return }
+        ic.beginBatchEdit()
+        run(outs, ic)
+        ic.endBatchEdit()
+        learner.reset()
+        feedback(null)
+    }
+
+    /** True for fields that are prose (the ¿¡ offer never rewrites usernames, codes, URLs). */
+    private val proseField: Boolean
+        get() = currentInputEditorInfo?.let { FieldPolicy.prose(it.inputType) } == true && fieldKind == FieldKind.TEXT
+
+    /** Selection mode of the edit panel: arrows extend the selection while it is on. */
+    var selecting = false
+        private set
+
+    /**
+     * One edit-panel action (UX-7). Context-menu ids first (apps implement them for their own
+     * menus); key events as the fallback. Secret fields: no copy/cut, and delete-word removes
+     * one character (W4).
+     */
+    fun editAction(op: EditOp) {
+        val ic = currentInputConnection ?: return
+        fun key(code: Int) {
+            if (selecting) {
+                val meta = KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+                val t = SystemClock.uptimeMillis()
+                ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0, meta))
+                ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0, meta))
+            } else sendDownUpKeyEvents(code)
+        }
+        when (op) {
+            EditOp.LEFT -> key(KeyEvent.KEYCODE_DPAD_LEFT)
+            EditOp.RIGHT -> key(KeyEvent.KEYCODE_DPAD_RIGHT)
+            EditOp.UP -> key(KeyEvent.KEYCODE_DPAD_UP)
+            EditOp.DOWN -> key(KeyEvent.KEYCODE_DPAD_DOWN)
+            EditOp.HOME -> key(KeyEvent.KEYCODE_MOVE_HOME)
+            EditOp.END -> key(KeyEvent.KEYCODE_MOVE_END)
+            EditOp.SELECT -> selecting = !selecting
+            EditOp.ALL -> { ic.performContextMenuAction(android.R.id.selectAll); selecting = true }
+            EditOp.COPY -> if (!policy.secret) { ic.performContextMenuAction(android.R.id.copy); selecting = false }
+            EditOp.CUT -> if (!policy.secret) { ic.performContextMenuAction(android.R.id.cut); selecting = false }
+            EditOp.PASTE -> { ic.performContextMenuAction(android.R.id.paste); selecting = false }
+            EditOp.DELETE_WORD -> {
+                val sel = ic.getSelectedText(0)
+                if (!sel.isNullOrEmpty()) ic.commitText("", 1)
+                else {
+                    val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+                    val n = if (policy.secret) TextEdit.backspaceSpan(before, 0, secret = true) else TextEdit.wordBefore(before)
+                    if (n > 0) ic.deleteSurroundingText(n, 0) else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+                }
+                learner.reset()
+                selecting = false
+            }
+        }
+        feedback(null)
     }
 
     private companion object {

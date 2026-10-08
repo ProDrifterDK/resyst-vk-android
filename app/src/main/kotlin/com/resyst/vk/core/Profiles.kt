@@ -53,6 +53,8 @@ data class KbSettings(
     val profanityFilter: Boolean = true,
     /** r10 (UX-13): keys narrowed to one side, phone-wide. */
     val oneHanded: OneHand = OneHand.OFF,
+    /** r10 (UX-8): closing a Spanish sentence with ?/! offers the missing ¿/¡ in the bar. */
+    val autoOpeners: Boolean = true,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -102,7 +104,7 @@ enum class Mode(val id: String, val label: String, val icon: String, val summary
     fun apply(s: KbSettings): KbSettings = when (this) {
         NONE -> s
         CODE -> s.copy(
-            suggest = false, spaceCorrects = false, personal = false, autoCap = false, doubleSpace = false,
+            suggest = false, spaceCorrects = false, personal = false, autoCap = false, doubleSpace = false, autoOpeners = false,
             hideTopRow = false, topRow = TopRow.NUMBERS, font = KeyFont.TECH,
         )
         GAME -> s.copy(
@@ -256,6 +258,7 @@ object ProfileCodec {
         "dayNightChip" to s.dayNightChip.toString(),
         "profanityFilter" to s.profanityFilter.toString(),
         "oneHanded" to s.oneHanded.name,
+        "autoOpeners" to s.autoOpeners.toString(),
     )
 
     fun decode(raw: Map<String, *>): ProfileStore {
@@ -393,6 +396,7 @@ object ProfileCodec {
             altTheme = themeId(str("altTheme")) ?: d.altTheme,
             profanityFilter = bool("profanityFilter", d.profanityFilter),
             oneHanded = enumOr(str("oneHanded"), d.oneHanded),
+            autoOpeners = bool("autoOpeners", d.autoOpeners),
         )
     }
 
