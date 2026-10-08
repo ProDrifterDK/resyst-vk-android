@@ -24,6 +24,7 @@ import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import com.resyst.vk.core.Bar
+import com.resyst.vk.core.BiLang
 import com.resyst.vk.core.ClipOffer
 import com.resyst.vk.core.ClipRules
 import com.resyst.vk.core.ClipSnapshot
@@ -319,14 +320,19 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val st = s
         engine.autoCapEnabled = st.autoCap
         engine.doubleSpacePeriod = st.doubleSpace
-        val lang = st.lang
+        writeLang = st.lang
         engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
-            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang, clean = st.profanityFilter) }
+            // r10 (bet 4): correct in the language being written (writeLang), guarded by the other one
+            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexiconFor(writeLang), personalWords(), writeLang, clean = st.profanityFilter) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
         refreshMemory()
         sound?.configure(st.sound, st.soundPack)
-        if (st.suggest) lexicon?.warm(st.lang)
+        lexicon?.region = st.region
+        if (st.suggest) {
+            lexicon?.warm(st.lang)
+            if (st.bilingual) lexicon?.warm(BiLang.other(st.lang))
+        }
         rebuildLayout()
     }
 
@@ -368,6 +374,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
         val layerBefore = engine.layer
+        if (key.type == KeyType.SPACE) writeLang = detectLang(before) // the corrector reads it
         var outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
         if (key.type == KeyType.BACKSPACE) {
             // r10 (UX-6): a held ⌫ speeds up to whole words after 8 repeats — never in secret fields (W4)
@@ -440,6 +447,43 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSpaceLongPress() {
         getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+    }
+
+    // ── languages inside Resyst (r10, bet 4) ────────────────────────────
+    /** The language the user is writing in right now: the keyboard's, or the other by [BiLang]. */
+    private var writeLang = com.resyst.vk.core.Lang.ES
+    /** The language of the last learning edit (its ⌫ undo must hit the same table). */
+    private var learnedLang = com.resyst.vk.core.Lang.ES
+
+    private fun detectLang(before: CharSequence): com.resyst.vk.core.Lang {
+        val st = s
+        if (!st.bilingual || !st.suggest || noSuggestField) return st.lang
+        val lex = lexicon ?: return st.lang
+        val personal = personalWords()
+        return BiLang.detect(
+            BiLang.recentWords(before, windowFull = before.length >= WINDOW), st.lang,
+            rank = { l, w -> lex.peek(l)?.rank(w) },
+            knows = { l, w -> personal?.knows(l, w, Bar.HABIT) == true },
+        )
+    }
+
+    /** [lang]'s lexicon with the other language as its guard (BL4); without bilingual, no guard (BL6). */
+    private fun lexiconFor(lang: com.resyst.vk.core.Lang): Suggest? {
+        val lex = lexicon ?: return null
+        val main = lex.get(lang) ?: lex.get(s.lang) ?: return null
+        main.foreign = if (s.bilingual) lex.peek(BiLang.other(lang)) else null
+        return main
+    }
+
+    /** A vertical flick on space: ES ⇄ EN, phone-wide, pushed to the system subtype (FL1/FL5). */
+    override fun onSpaceFlick() {
+        val next = BiLang.other(s.lang)
+        store = store.updatePhone { it.copy(lang = next) }
+        repo.save(store) // listener → syncSubtype pushes the new language to the system picker
+        applySettings()
+        refreshContext()
+        pulse(HapticEvent.LONG_PRESS)
+        view?.announceForAccessibility(if (next == com.resyst.vk.core.Lang.EN) "English" else "Español")
     }
 
     // ── quick panel (r10, UX-3) ─────────────────────────────────────────
@@ -754,7 +798,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** Feeds the edit just applied to the personal model (gated inside [learner]). */
     private fun learn(before: CharSequence, outs: List<Out>, kind: Learner.Edit) {
         val b = before.toString()
-        if (learner.afterEdit(s.lang, b, outs, windowFull = b.length >= WINDOW, kind = kind)) PersonalStore.changed()
+        // r10 (BL7): a word is learned in the language it was written in (same privacy gate), and
+        // the ⌫ that takes it back targets that same language even if detection moved since
+        val lang = if (kind == Learner.Edit.BACKSPACE) learnedLang else writeLang
+        if (learner.afterEdit(lang, b, outs, windowFull = b.length >= WINDOW, kind = kind)) PersonalStore.changed()
+        if (kind != Learner.Edit.BACKSPACE) learnedLang = writeLang
     }
 
     /** The field's whole text into the value memory (email fields, gate open — F1/X1). */
@@ -823,13 +871,14 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             return
         }
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        writeLang = detectLang(before) // r10 bet 4: the language being written right now
         // r10 offers lead the bar (they only exist for one edit): "↶ typed" after a space
         // correction (UX-5), "¿…?" when a Spanish sentence closed without its opener (UX-8)
         val offers = barOffers(before, st)
         if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(offers); return }
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
-        val sugg = Bar.words(before, after, before.length >= WINDOW, st.lang, lexicon?.get(st.lang), personalWords(), engine.shift, clean = st.profanityFilter)
+        val sugg = Bar.words(before, after, before.length >= WINDOW, writeLang, lexiconFor(writeLang), personalWords(), engine.shift, clean = st.profanityFilter)
         v.setSuggestions((offers + sugg).take(Bar.LIMIT))
     }
 
@@ -840,7 +889,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private fun barOffers(before: CharSequence, st: com.resyst.vk.core.KbSettings): List<String> {
         val out = ArrayList<String>(2)
         engine.undoOffer(before)?.let { out += TextEdit.UNDO_PREFIX + it }
-        openerOffer = if (st.autoOpeners && st.lang == Lang.ES && !policy.secret && proseField) {
+        openerOffer = if (st.autoOpeners && writeLang == Lang.ES && !policy.secret && proseField) {
             TextEdit.opener(before, before.length >= WINDOW)
         } else null
         openerOffer?.let { out += TextEdit.openerLabel(it) }

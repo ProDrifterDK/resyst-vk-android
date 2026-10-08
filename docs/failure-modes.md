@@ -498,7 +498,9 @@ other control moves to a panel opened by ⚙, drawn with one vector icon family.
 - BL5 The other-language guard blocks real typo fixes: Spanish thumb-typo quality (LexiconEval Q1/Q2)
   drops below the r8 gates.
 - BL6 "Sugerencias en dos idiomas" off must be exactly the r9 behavior (one lexicon, no guard).
-- BL7 Personal learning moves to the detected language or leaks into the secret/incognito gate.
+- BL7 Personal learning escapes the privacy gate (secret / incognito / opt-out / toggle off) because
+  of the second language, or a word learned in the detected language is not taken back by the ⌫
+  that undoes it (the undo looks in the keyboard language's table).
 
 ### Regional Spanish (`Regional`, assets/lexicon/es-419.txt + es-CL.txt)
 - RG1 A re-rank rule deletes a word: a demoted word ("vosotros", "ordenador") typed exactly is then

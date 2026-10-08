@@ -44,6 +44,7 @@ import com.resyst.vk.core.PopupGeometry
 import com.resyst.vk.core.Quick
 import com.resyst.vk.core.QuickAction
 import com.resyst.vk.core.ShiftState
+import com.resyst.vk.core.SpaceGesture
 import com.resyst.vk.core.StripPlan
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.UpdateSurface
@@ -100,6 +101,8 @@ class KeyboardView(context: Context) : View(context) {
         fun onOneHand(side: OneHand) = Unit
         /** r10: the «sin memoria» mark was tapped (privacy-visible explains why). */
         fun onNoMemory() = Unit
+        /** r10 (bet 4): a quick vertical flick on space — switch ES ⇄ EN ([SpaceGesture]). */
+        fun onSpaceFlick() = Unit
     }
 
     var listener: Listener? = null
@@ -293,6 +296,10 @@ class KeyboardView(context: Context) : View(context) {
         var strip: StripItem? = null
         /** r10: a one-handed rail button (move to that side / OFF = full width). */
         var rail: OneHand? = null
+        /** r10 (bet 4): where/when the finger landed, for the space flick; a flick commits nothing. */
+        var downY = 0f
+        var downAt = 0L
+        var flicked = false
     }
     private val ptrs = LinkedHashMap<Int, Ptr>()
     private val handler = Handler(Looper.getMainLooper())
@@ -670,7 +677,7 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         val box = boxAt(x, y) ?: return
-        val p = Ptr(id, box, x)
+        val p = Ptr(id, box, x).also { it.downY = y; it.downAt = SystemClock.uptimeMillis() }
         ptrs[id] = p
         listener?.onKeyDown(box.key)
         when (box.key.type) {
@@ -733,10 +740,22 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         if (b.key.type == KeyType.SPACE) {
-            if (!p.cursorMode && !p.longFired && abs(x - p.downX) > 14 * dp) {
-                p.cursorMode = true
-                p.cursorX = x
-                handler.removeCallbacksAndMessages(p)
+            if (!p.cursorMode && !p.longFired && !p.flicked) {
+                // r10 (FL1/FL2): a quick vertical flick switches the language, a horizontal drag moves the cursor
+                when (SpaceGesture.classify((x - p.downX) / dp, (y - p.downY) / dp, SystemClock.uptimeMillis() - p.downAt)) {
+                    SpaceGesture.Kind.FLICK -> {
+                        p.flicked = true
+                        handler.removeCallbacksAndMessages(p) // FL4: no picker after a flick
+                        listener?.onSpaceFlick()
+                        invalidate()
+                    }
+                    SpaceGesture.Kind.CURSOR -> {
+                        p.cursorMode = true
+                        p.cursorX = x
+                        handler.removeCallbacksAndMessages(p)
+                    }
+                    SpaceGesture.Kind.NONE -> Unit
+                }
             }
             if (p.cursorMode) {
                 val stepPx = 9 * dp
@@ -777,7 +796,7 @@ class KeyboardView(context: Context) : View(context) {
         val popup = p.popup
         when {
             popup != null -> listener?.onVariant(p.popupItems[p.sel])
-            p.cursorMode || p.longFired -> Unit
+            p.cursorMode || p.longFired || p.flicked -> Unit
             b.key.type == KeyType.BACKSPACE || b.key.type == KeyType.SHIFT -> Unit
             b.key.type == KeyType.EMOJI -> listener?.onEmojiKey()
             else -> listener?.onKeyCommit(b.key)
