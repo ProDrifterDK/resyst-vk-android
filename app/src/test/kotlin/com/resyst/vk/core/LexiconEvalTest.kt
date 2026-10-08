@@ -41,15 +41,21 @@ class LexiconEvalTest {
 
     private class Score { var tries = 0; var fixed = 0; var wrong = 0; var realWord = 0 }
 
-    private fun evaluate(lang: String, sample: Int = 1600): Map<String, Score> {
-        val words = File(dir, "$lang.txt").readLines().map { it.trim() }.filter { it.isNotEmpty() }
+    /** r10: [region] re-ranks Spanish (RG6); [guard] adds the other language's lexicon (BL5). */
+    private fun evaluate(lang: String, sample: Int = 1600, region: Region = Region.ES_ES, guard: Boolean = false, tag: String = ""): Map<String, Score> {
+        val raw = File(dir, "$lang.txt").readLines().map { it.trim() }.filter { it.isNotEmpty() }
+        val words = if (lang == "es") Regional.forRegion(raw, region) { File(dir, "regional/$it.txt").takeIf { f -> f.exists() }?.readText() } else raw
         this.lang = if (lang == "es") Lang.ES else Lang.EN
         val s = Suggest(words, this.lang)
+        if (guard) {
+            val other = if (lang == "es") "en" else "es"
+            s.foreign = Suggest(File(dir, "$other.txt").readLines().map { it.trim() }.filter { it.isNotEmpty() }, if (lang == "es") Lang.EN else Lang.ES)
+        }
         val known = words.map(Suggest::fold).toHashSet()
         val rnd = Random(8)
         val out = linkedMapOf<String, Score>()
         // targets: real words people write, from the top of the list (rank < 12000), letters only
-        val pool = words.take(12000).filter { w -> w.length >= 3 && w.all { it.isLetter() } }
+        val pool = raw.take(12000).filter { w -> w.length >= 3 && w.all { it.isLetter() } }
         repeat(sample) {
             val w = pool[rnd.nextInt(pool.size)]
             val f = Suggest.fold(w)
@@ -79,7 +85,7 @@ class LexiconEvalTest {
                 k, v.tries, v.realWord, 100.0 * v.fixed / maxOf(1, att), 100.0 * v.wrong / maxOf(1, att)))
         }
         File("build/r8-lex").mkdirs()
-        File("build/r8-lex/eval-$lang${System.getProperty("vk.evalTag") ?: ""}.txt").writeText(report.toString())
+        File("build/r8-lex/eval-$lang$tag${System.getProperty("vk.evalTag") ?: ""}.txt").writeText(report.toString())
         println(report)
         return out
     }
@@ -89,6 +95,15 @@ class LexiconEvalTest {
     @Test fun spanishThumbTypos() = gates(evaluate("es"))
 
     @Test fun englishThumbTypos() = gates(evaluate("en"))
+
+    /** r10 RG6: the Chilean re-rank keeps the r8 gates (promoted words don't become wrong targets). */
+    @Test fun chileanThumbTypos() = gates(evaluate("es", region = Region.ES_CL, tag = "-cl"))
+
+    /** r10 BL5: the other-language guard doesn't cost real typo fixes. */
+    @Test fun bilingualGuardKeepsTheGates() {
+        gates(evaluate("es", region = Region.ES_CL, guard = true, tag = "-cl-guard"))
+        gates(evaluate("en", guard = true, tag = "-guard"))
+    }
 
     private fun gates(r: Map<String, Score>) {
         if (System.getProperty("vk.evalOnly") != null) return

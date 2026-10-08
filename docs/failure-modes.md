@@ -474,3 +474,42 @@ other control moves to a panel opened by ⚙, drawn with one vector icon family.
   sentence, or the rewrite loses / duplicates characters.
 - O3 Offered when the sentence start is outside the text the keyboard can read (window full,
   no terminator): the rewrite could cut the user's text.
+## Round 10 — bilingual + regional (bet 4: `SpaceGesture`, `BiLang`, `Regional`)
+
+### Language flick on space (`SpaceGesture`)
+- FL1 A vertical flick on space (≥ 20 dp, mostly vertical, < 300 ms) types a space, opens the
+  keyboard picker, or does nothing — it must switch ES ⇄ EN and commit nothing.
+- FL2 A horizontal drag (cursor) or a slightly diagonal drag is read as a flick, or a flick starts
+  cursor mode: the axes must not steal each other (|dy| > 2·|dx| for a flick).
+- FL3 A tap with a few dp of jitter, or a slow vertical slide (> 300 ms), switches the language.
+- FL4 Long-press space no longer opens the picker (G5/G6), or a flick that is held afterwards also
+  opens it (the vertical move cancels the long press).
+- FL5 The switch is per profile/tema instead of phone-wide, or doesn't reach the system subtype
+  (the next field reverts it).
+
+### Bilingual suggestions (`BiLang`)
+- BL1 With nothing typed (or only unknown words) the detected language is not the keyboard's.
+- BL2 Three clearly English words on the Spanish keyboard ("I think the") keep Spanish
+  completions/corrections, or three Spanish words on the English keyboard keep English ones.
+- BL3 One English word inside a Spanish sentence ("voy al meeting") flips the whole sentence to
+  English: the window is the last 3 words and a margin is required.
+- BL4 A word that exists in the other language ("meeting", "okay" typed on ES; "casa" on EN) is
+  "corrected" by space into the keyboard language.
+- BL5 The other-language guard blocks real typo fixes: Spanish thumb-typo quality (LexiconEval Q1/Q2)
+  drops below the r8 gates.
+- BL6 "Sugerencias en dos idiomas" off must be exactly the r9 behavior (one lexicon, no guard).
+- BL7 Personal learning moves to the detected language or leaks into the secret/incognito gate.
+
+### Regional Spanish (`Regional`, assets/lexicon/es-419.txt + es-CL.txt)
+- RG1 A re-rank rule deletes a word: a demoted word ("vosotros", "ordenador") typed exactly is then
+  "corrected" to something else. Demoted words stay in the lexicon, at the tail.
+- RG2 A promoted word is duplicated (two ranks), or the re-ranked list loses / adds words other than
+  the rule's insertions.
+- RG3 Chile/LatAm still prefers peninsular forms (coche over auto/carro, ordenador over computador,
+  vosotros forms in completions) or misses everyday Chilean words (cachai, bacán, fome, altiro,
+  pololo): those must be known (never corrected away) and completable.
+- RG4 España (ES) changes anything: the r8 list must load unchanged.
+- RG5 Malformed rule lines crash the load instead of being skipped; region setting is per tema, does
+  not round-trip, or has no control.
+- RG6 The re-ranked Spanish lexicon breaks the r8 typo gates (Q1–Q4) — promoted words become wrong
+  correction targets.

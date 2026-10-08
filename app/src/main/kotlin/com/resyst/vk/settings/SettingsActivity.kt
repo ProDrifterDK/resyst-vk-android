@@ -43,6 +43,7 @@ import com.resyst.vk.core.KeyFont
 import com.resyst.vk.core.KeyShape
 import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Lang
+import com.resyst.vk.core.Region
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Mode
@@ -403,6 +404,8 @@ class SettingsActivity : Activity() {
 
             Ctl.LANG -> choice(ctl.label, listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
             Ctl.SYSTEM_LANGS -> link("${ctl.label} ›") { SubtypeSync(this).openSubtypeSettings() }
+            Ctl.BILINGUAL -> toggle(ctl.label, "Escribe en español o inglés: el teclado sigue tus últimas palabras · desliza el espacio hacia arriba para cambiar de idioma", s.bilingual) { v -> commit { it.copy(bilingual = v) } }
+            Ctl.REGION -> choice(ctl.label, Region.values().map { it to it.label }, s.region) { v -> commit { it.copy(region = v) } }
             Ctl.HIDE_TOP_ROW -> toggle(ctl.label, "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
             Ctl.TOP_ROW -> choice(ctl.label, listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
             Ctl.EMOJI_KEY -> toggle(ctl.label, "Junto a la coma · abre el panel de emojis con recientes", s.emojiKey) { v -> commit { it.copy(emojiKey = v) } }

@@ -55,6 +55,10 @@ data class KbSettings(
     val oneHanded: OneHand = OneHand.OFF,
     /** r10 (UX-8): closing a Spanish sentence with ?/! offers the missing ¿/¡ in the bar. */
     val autoOpeners: Boolean = true,
+    /** r10 (bet 4): suggest + correct in the language of the last words (ES ⇄ EN), see [BiLang]. */
+    val bilingual: Boolean = true,
+    /** r10 (bet 4): which Spanish the lexicon is ranked for ([Regional]). */
+    val region: Region = Region.ES_CL,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -259,6 +263,8 @@ object ProfileCodec {
         "profanityFilter" to s.profanityFilter.toString(),
         "oneHanded" to s.oneHanded.name,
         "autoOpeners" to s.autoOpeners.toString(),
+        "bilingual" to s.bilingual.toString(),
+        "region" to s.region.name,
     )
 
     fun decode(raw: Map<String, *>): ProfileStore {
@@ -397,6 +403,8 @@ object ProfileCodec {
             profanityFilter = bool("profanityFilter", d.profanityFilter),
             oneHanded = enumOr(str("oneHanded"), d.oneHanded),
             autoOpeners = bool("autoOpeners", d.autoOpeners),
+            bilingual = bool("bilingual", d.bilingual),
+            region = enumOr(str("region"), d.region),
         )
     }
 

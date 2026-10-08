@@ -38,6 +38,10 @@ enum class Ctl(
     // keys & language (phone)
     LANG("phone.lang", Scope.DEVICE, "Idioma"),
     SYSTEM_LANGS(null, Scope.DEVICE, "Idiomas que ofrece Android"),
+    /** r10 (bet 4): ES ⇄ EN by the last words typed; flick space up/down switches the keyboard. */
+    BILINGUAL("phone.bilingual", Scope.DEVICE, "Sugerencias en dos idiomas"),
+    /** r10 (bet 4): Chile / Latinoamérica / España ranking of the Spanish lexicon. */
+    REGION("phone.region", Scope.DEVICE, "Variante del español"),
     HIDE_TOP_ROW("phone.hideTopRow", Scope.DEVICE, "Ocultar fila de caracteres especiales"),
     TOP_ROW("phone.topRow", Scope.DEVICE, "Fila superior", dependsOn = HIDE_TOP_ROW),
     EMOJI_KEY("phone.emojiKey", Scope.DEVICE, "Tecla de emojis"),
@@ -119,7 +123,7 @@ object SettingsIA {
             Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.SHAPE, Ctl.CAP, Ctl.FONT, Ctl.DENSITY, Ctl.HEIGHT, Ctl.SUB_LEGENDS,
         ), preview = true, summary = "Colores, acento, forma, fuente y altura del tema activo"),
         SettingsPage("teclas", "Teclas e idioma", Scope.DEVICE, listOf(
-            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
+            Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.BILINGUAL, Ctl.REGION, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
         SettingsPage("escritura", "Escritura", Scope.DEVICE, listOf(
             Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE, Ctl.AUTO_OPENERS,

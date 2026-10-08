@@ -28,6 +28,28 @@ class Suggest(words: List<String>, lang: Lang? = null) {
         }
     }
 
+    /** Frequency rank (0 = most frequent) of the exact lowercase [word], or null if not in the list. */
+    fun rank(word: String): Int? = rankOf[word]
+
+    val size: Int get() = words.size
+
+    /**
+     * r10 bilingual guard (BL4): the other language's lexicon. A typed word that is NOT in this
+     * lexicon but is a common word over there ([FOREIGN_RANK]) is never re-spelled into this
+     * language — "meeting" typed in Spanish stays "meeting". null = r9 behavior (BL6).
+     */
+    var foreign: Suggest? = null
+        set(v) {
+            if (v === field) return
+            field = v
+            lastQuery = null; lastBest = null
+        }
+
+    private fun isForeign(typed: String): Boolean {
+        val f = foreign ?: return false
+        return rankOf[typed] == null && (f.rank(typed) ?: Int.MAX_VALUE) < FOREIGN_RANK
+    }
+
     /** A close lexicon word for a typed one; [confident] = safe to apply without asking. */
     data class Candidate(val word: String, val confident: Boolean)
 
@@ -87,6 +109,7 @@ class Suggest(words: List<String>, lang: Lang? = null) {
 
     private fun compute(typed: String): Candidate? {
         if (typed.length < MIN_LEN || typed.length > MAX_FUZZY_LEN || !typed.all { it.isLetter() }) return null
+        if (isForeign(typed)) return null // BL4: a word of the other language is meant as typed
         val ft = fold(typed)
         rankOf[typed]?.let { own ->
             // r8: the 25k list carries subtitle spellings without ñ ("manana" at 17k): an ñ twin
@@ -197,6 +220,8 @@ class Suggest(words: List<String>, lang: Lang? = null) {
         const val ADJACENT_COST = 0.5f
         const val ENYE_COST = 0.2f
         const val FIRST_LETTER_PENALTY = 0.6f
+        /** r10: an other-language word this frequent (top N there) is never corrected (BL4). */
+        const val FOREIGN_RANK = 8000
 
         private val MARKS = Regex("\\p{Mn}+")
 

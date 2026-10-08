@@ -1,0 +1,100 @@
+# ✦ es-CL re-rank rules (hand-curated, applied after es-419) — see core/Regional.kt
+# "w N": w at rank N (inserted if missing; never moves a word down) · "a = b": a at b's rank · "-w": tail
+# es-419 runs first: never "=" a word it demoted (its rank is the tail by then) — use a number.
+# Chilean everyday + digital Spanish. Curated in the repo; nothing here comes from users.
+
+# — muletillas y conversación
+po 400
+cachai 900
+cachar 2500
+cachó 4000
+altiro 1500
+harto 900
+harta 1800
+bacán 1500
+bacanes 6000
+fome 2000
+fomes 8000
+pucha 3000
+chuta 4000
+cuático 6000
+cuática 8000
+filo 4000
+sipo 6000
+ya 40
+dale 600
+pololo 2500
+polola 2500
+pololos 6000
+pololear 6000
+pololeo 6000
+carrete 3000
+carretear 6000
+pega 3000
+pituto 8000
+flaite 6000
+cuico 6000
+cuica 8000
+choro 6000
+bkn 6000
+weón 3000
+weona 6000
+weá 3000
+weás 6000
+huevón 3500
+hueón 6000
+cabros 4000
+cabro 6000
+cabra 6000
+querís 6000
+sabís 6000
+estái 6000
+erís 8000
+tenís 8000
+
+# — cosas
+guagua 2500
+guaguas 6000
+palta 3000
+paltas 8000
+frutilla = fresa
+frutillas = fresas
+choclo 5000
+poroto 6000
+porotos 6000
+completo 3000
+sopaipilla 8000
+marraqueta 8000
+once 1500
+luca 6000
+lucas 6000
+polera 3000
+poleras 8000
+micro 4000
+colectivo 5000
+liceo 3000
+depto 5000
+computador 3000
+computadores 9000
+auto 400
+celu 6000
+taco 4000
+
+# — digital
+jaja 300
+jajaja 400
+jajajaja 1500
+jeje 1500
+porfa 1200
+oki 4000
+xd 3000
+wn 1500
+wsp 5000
+whatsapp 2000
+tqm 6000
+tkm 8000
+
+# — formas peninsulares que en Chile casi no se escriben (siguen conocidas)
+-fresa
+-fresas
+-aguacate
