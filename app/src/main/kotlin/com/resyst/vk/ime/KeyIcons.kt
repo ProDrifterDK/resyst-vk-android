@@ -19,6 +19,8 @@ enum class Icon {
     GEAR, SUN, MOON, CLIPBOARD, PALETTE, MODE, ONE_HAND, HEIGHT, EDIT,
     // r10: the one-handed rail
     ARROW_LEFT, ARROW_RIGHT, EXPAND,
+    // r10: the edit panel's d-pad
+    ARROW_UP, ARROW_DOWN,
 }
 
 object KeyIcons {
@@ -195,6 +197,11 @@ object KeyIcons {
                 val d = if (icon == Icon.ARROW_LEFT) -1f else 1f
                 c.drawLine(cx - d * h * 0.75f, cy, cx + d * h * 0.7f, cy, stroke)
                 arrowHead(c, cx + d * h * 0.8f, cy, d, 0f, h * 0.55f, stroke)
+            }
+            Icon.ARROW_UP, Icon.ARROW_DOWN -> {
+                val d = if (icon == Icon.ARROW_UP) -1f else 1f
+                c.drawLine(cx, cy - d * h * 0.75f, cx, cy + d * h * 0.7f, stroke)
+                arrowHead(c, cx, cy + d * h * 0.8f, 0f, d, h * 0.55f, stroke)
             }
             Icon.EXPAND -> {
                 // two outward arrows: back to the full width

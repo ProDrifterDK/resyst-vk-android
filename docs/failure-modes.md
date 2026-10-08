@@ -515,3 +515,14 @@ other control moves to a panel opened by ⚙, drawn with one vector icon family.
   not round-trip, or has no control.
 - RG6 The re-ranked Spanish lexicon breaks the r8 typo gates (Q1–Q4) — promoted words become wrong
   correction targets.
+
+
+### Edit panel + ⌫ swipe (`EditPad`, `DeleteSwipe`) — the UI half of bet 5
+- QE1 An `EditOp` has no button, or a button sends another op (the panel drifts from the core).
+- QE2 Copiar / Cortar are actionable in a secret field (a password ends up on the clipboard).
+- QE3 Holding ←/→/Borrar palabra does nothing (a 40-character walk needs 40 taps), or holding a
+  one-shot op (Copiar, Pegar, Todo, Seleccionar) repeats it.
+- QE4 Seleccionar's state is invisible: the user can't tell whether the arrows move or extend.
+- QE5 A button is under 48 dp or not a TalkBack node with its name + state.
+- QE6 The ⌫ swipe fires on a tap or a tiny wobble (under 24 dp), on a mostly vertical drag, or
+  rightwards; or the char repeat keeps deleting after the swipe took over.

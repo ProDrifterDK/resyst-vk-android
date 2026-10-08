@@ -29,6 +29,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.DeleteSwipe
+import com.resyst.vk.core.EditOp
+import com.resyst.vk.core.EditPad
 import com.resyst.vk.core.ImeSwitcher
 import com.resyst.vk.core.Key
 import com.resyst.vk.core.KeyCap
@@ -103,6 +106,10 @@ class KeyboardView(context: Context) : View(context) {
         fun onNoMemory() = Unit
         /** r10 (bet 4): a quick vertical flick on space — switch ES ⇄ EN ([SpaceGesture]). */
         fun onSpaceFlick() = Unit
+        /** r10 (bet 5): an edit-panel button. */
+        fun onEditOp(op: EditOp) = Unit
+        /** r10 (bet 5): a leftward swipe on ⌫ — delete the word before the cursor. */
+        fun onDeleteWord() = Unit
     }
 
     var listener: Listener? = null
@@ -147,12 +154,39 @@ class KeyboardView(context: Context) : View(context) {
     var quickOpen = false
         private set
     private var mode = Mode.NONE
-    private val panelOpen get() = clipboardOpen || emojiOpen || quickOpen
+    /** r10 (bet 5): the edit panel, opened from the quick panel's «Edición». */
+    val editPanel = EditPanel(resources.displayMetrics.density)
+    var editOpen = false
+        private set
+    private val panelOpen get() = clipboardOpen || emojiOpen || quickOpen || editOpen
+
+    /** The edit panel; [selecting] = the arrows extend the selection; [secret] closes Copiar/Cortar. */
+    fun showEdit(selecting: Boolean) {
+        cancelPointers()
+        hideClipboard(); hideEmoji(); hideQuick()
+        editOpen = true
+        layoutPanel()
+        editPanel.set(selecting, secretField)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun setEditSelecting(selecting: Boolean) {
+        if (!editOpen || selecting == editPanel.selecting) return
+        editPanel.set(selecting, secretField)
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    fun hideEdit() {
+        if (!editOpen) return
+        cancelPointers()
+        editOpen = false
+        invalidate(); a11y.invalidateRoot()
+    }
 
     /** The quick panel with [tiles]; [update] = the r9 notice line (null = none). */
     fun showQuick(tiles: List<Quick.Tile>, update: String?, mode: Mode) {
         cancelPointers()
-        hideClipboard(); hideEmoji()
+        hideClipboard(); hideEmoji(); hideEdit()
         this.mode = mode
         quickOpen = true
         layoutPanel()
@@ -286,6 +320,8 @@ class KeyboardView(context: Context) : View(context) {
 
     // ── touch ────────────────────────────────────────────────────────────
     private class Ptr(val id: Int, var box: Box?, val downX: Float) {
+        /** r10: this ⌫ touch became a word-delete swipe (no more repeats). */
+        var swiped = false
         var popup: VariantPopup? = null
         var popupItems: List<String> = emptyList()
         var popupTop = 0f
@@ -392,6 +428,7 @@ class KeyboardView(context: Context) : View(context) {
         clipPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
         emojiPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
         quickPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
+        editPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
     }
 
     // ── measure / layout ─────────────────────────────────────────────────
@@ -649,6 +686,7 @@ class KeyboardView(context: Context) : View(context) {
         if (clipboardOpen) { panelDown(id, x, y); return }
         if (emojiOpen) { emojiDown(id, x, y); return }
         if (quickOpen) { quickDown(id, x, y); return }
+        if (editOpen) { editDown(id, x, y); return }
         // Fast-typing roll-over: a new finger commits any char key still held without a popup.
         for (p in ptrs.values.toList()) {
             val b = p.box ?: continue
@@ -728,7 +766,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun move(id: Int, x: Float, y: Float) {
-        if (id == quickPtr) return
+        if (id == quickPtr || id == editPtr) return
         if (id == emojiPtr) { emojiMove(y); return }
         if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
@@ -737,6 +775,16 @@ class KeyboardView(context: Context) : View(context) {
         if (popup != null) {
             val s = popup.indexAt(x)
             if (s != p.sel) { p.sel = s; invalidate() }
+            return
+        }
+        if (b.key.type == KeyType.BACKSPACE && !p.swiped) {
+            // r10 (UX-6): a leftward swipe on ⌫ deletes the previous word (QE6), once per touch
+            if (DeleteSwipe.isSwipe(x - p.downX, y - p.downY, dp)) {
+                handler.removeCallbacksAndMessages(p)
+                p.swiped = true
+                listener?.onDeleteWord()
+                invalidate()
+            }
             return
         }
         if (b.key.type == KeyType.SPACE) {
@@ -777,6 +825,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun up(id: Int, x: Float, y: Float) {
         if (id == quickPtr) { quickUp(x, y); return }
+        if (id == editPtr) { editUp(x, y); return }
         if (id == emojiPtr) { emojiUp(x, y); return }
         if (id == panelPtr) { panelUp(x, y); return }
         val p = ptrs.remove(id) ?: return
@@ -842,6 +891,52 @@ class KeyboardView(context: Context) : View(context) {
             QuickPanel.Act.CLOSE -> hideQuick()
             QuickPanel.Act.UPDATE -> { hideQuick(); listener?.onUpdateChip() }
             QuickPanel.Act.TILE -> h.action?.let { listener?.onQuickAction(it) }
+        }
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    // ── edit panel touch: tap = op; hold a move / Borrar palabra = repeat (QE3) ──
+    private val editToken = Any()
+    private var editPtr = -1
+    private var editHit: EditPanel.Hit? = null
+
+    private fun editDown(id: Int, x: Float, y: Float) {
+        if (editPtr != -1) return
+        editPtr = id
+        val h = editPanel.hitAt(x, y)?.takeIf { it.enabled }
+        editHit = h
+        val op = h?.op
+        if (h != null && op != null && EditPad.repeats(op)) {
+            listener?.onEditOp(op)
+            scheduleEditRepeat(op, REPEAT_START_MS)
+        }
+        invalidate()
+    }
+
+    private fun scheduleEditRepeat(op: EditOp, delay: Long) {
+        handler.postAtTime({
+            if (editPtr != -1 && editHit?.op == op) {
+                listener?.onEditOp(op)
+                scheduleEditRepeat(op, EDIT_REPEAT_MS)
+            }
+        }, editToken, SystemClock.uptimeMillis() + delay)
+    }
+
+    private fun editUp(x: Float, y: Float) {
+        handler.removeCallbacksAndMessages(editToken)
+        editPtr = -1
+        val h = editHit
+        editHit = null
+        // repeating ops already fired on down; one-shots fire on a clean release
+        if (h != null && editPanel.hitAt(x, y) === h && (h.op == null || !EditPad.repeats(h.op))) editAct(h)
+        invalidate()
+    }
+
+    private fun editAct(h: EditPanel.Hit) {
+        if (!h.enabled) return
+        when (h.act) {
+            EditPanel.Act.CLOSE -> hideEdit()
+            EditPanel.Act.OP -> h.op?.let { listener?.onEditOp(it) }
         }
         invalidate(); a11y.invalidateRoot()
     }
@@ -967,6 +1062,9 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun cancelPointers() {
+        handler.removeCallbacksAndMessages(editToken)
+        editPtr = -1
+        editHit = null
         quickPtr = -1
         quickHit = null
         handler.removeCallbacksAndMessages(panelToken)
@@ -1004,6 +1102,10 @@ class KeyboardView(context: Context) : View(context) {
         }
         if (quickOpen) {
             quickPanel.draw(canvas, palette, radius(), ::typeface, quickHit, mode)
+            return
+        }
+        if (editOpen) {
+            editPanel.draw(canvas, palette, radius(), ::typeface, editHit)
             return
         }
         drawStrip(canvas)
@@ -1399,6 +1501,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (clipboardOpen) { clipPanel.hitAt(x, y)?.let { panelAct(it) }; return true }
                 if (emojiOpen) { emojiPanel.hitAt(x, y)?.let { emojiAct(it) }; return true }
                 if (quickOpen) { quickPanel.hitAt(x, y)?.let { quickAct(it) }; return true }
+                if (editOpen) { editPanel.hitAt(x, y)?.let { editAct(it) }; return true }
                 stripAt(x, y)?.let { stripTap(it); return true }
                 railAt(x, y)?.let { listener?.onOneHand(it); return true }
                 boxAt(x, y)?.let { activate(it); return true }
@@ -1446,6 +1549,7 @@ class KeyboardView(context: Context) : View(context) {
         private val emojiBase = 30_000
         private val quickBase = 40_000
         private val railBase = 50_000
+        private val editBase = 60_000
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             if (clipboardOpen) {
@@ -1460,6 +1564,10 @@ class KeyboardView(context: Context) : View(context) {
                 val h = quickPanel.hitAt(x, y) ?: return INVALID_ID
                 return quickBase + quickPanel.hits.indexOf(h)
             }
+            if (editOpen) {
+                val h = editPanel.hitAt(x, y) ?: return INVALID_ID
+                return editBase + editPanel.hits.indexOf(h)
+            }
             stripAt(x, y)?.let { return stripBase + stripItems.indexOf(it) }
             railAt(x, y)?.let { side -> return railBase + rail.indexOfFirst { it.first == side } }
             val b = boxAt(x, y) ?: return INVALID_ID
@@ -1470,6 +1578,7 @@ class KeyboardView(context: Context) : View(context) {
             if (clipboardOpen) { for (i in clipPanel.hits.indices) ids += panelBase + i; return }
             if (emojiOpen) { for (i in emojiPanel.hits.indices) ids += emojiBase + i; return }
             if (quickOpen) { for (i in quickPanel.hits.indices) ids += quickBase + i; return }
+            if (editOpen) { for (i in editPanel.hits.indices) ids += editBase + i; return }
             for (i in stripItems.indices) ids += stripBase + i
             for (i in rail.indices) ids += railBase + i
             for (i in boxes.indices) ids += i
@@ -1478,7 +1587,12 @@ class KeyboardView(context: Context) : View(context) {
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
             val r = RectF()
             val desc: String
-            if (id >= railBase) {
+            if (id >= editBase) {
+                val h = editPanel.hits.getOrNull(id - editBase)
+                desc = h?.desc ?: ""
+                h?.let { r.set(it.rect) }
+                node.isEnabled = h?.enabled ?: false
+            } else if (id >= railBase) {
                 val e = rail.getOrNull(id - railBase)
                 desc = when (e?.first) {
                     OneHand.LEFT -> "Mover el teclado a la izquierda"
@@ -1529,6 +1643,11 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id >= editBase) {
+                val h = editPanel.hits.getOrNull(id - editBase) ?: return false
+                if (action != AccessibilityNodeInfo.ACTION_CLICK || !h.enabled) return false
+                editAct(h); return true
+            }
             if (id >= railBase) {
                 if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
                 rail.getOrNull(id - railBase)?.let { listener?.onOneHand(it.first); return true }
@@ -1574,6 +1693,8 @@ class KeyboardView(context: Context) : View(context) {
         const val TAG = "ResystVK"
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L
+        /** Edit-panel moves repeat slower than ⌫: a caret walk you can follow. */
+        const val EDIT_REPEAT_MS = 70L
         /** r9 chip geometry (dp): icon lead-in, and the ✕ cell = a 48 dp wide hit target. */
         const val CHIP_ICON_W = 33f
         const val CHIP_X_W = 48f
