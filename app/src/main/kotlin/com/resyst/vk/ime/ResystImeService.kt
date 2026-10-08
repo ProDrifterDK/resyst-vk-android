@@ -311,7 +311,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         engine.doubleSpacePeriod = st.doubleSpace
         val lang = st.lang
         engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
-            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang) }
+            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang, clean = st.profanityFilter) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
         v.setProfile(if (store.mode == Mode.NONE) store.activeTema.icon else store.mode.icon, store.activeTema.name)
@@ -750,7 +750,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
-        val sugg = Bar.words(before, after, before.length >= WINDOW, st.lang, lexicon?.get(st.lang), personalWords(), engine.shift)
+        val sugg = Bar.words(before, after, before.length >= WINDOW, st.lang, lexicon?.get(st.lang), personalWords(), engine.shift, clean = st.profanityFilter)
         v.setSuggestions(sugg)
     }
 

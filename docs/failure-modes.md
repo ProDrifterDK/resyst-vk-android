@@ -370,3 +370,44 @@ inside the keyboard strip and the settings "Actualización" section — never th
   actionable with nothing learned.
 - P3 A page the activity renders is missing a control SettingsIA lists (the screen drifts from
   the IA: every `Ctl` must map to a widget tagged `ctl.name`).
+
+## Round 10 — visible privacy (`Profanity`, `ConnectionLog`, `MemoryNotice`, forget APIs)
+
+Bet 3 of `proposals/resyst-vk-vision.md`: what makes Resyst different must be visible on the
+keyboard and in settings, not a paragraph.
+
+### Offensive-word filter (`Profanity`, default ON)
+- V1 An offensive word is offered as a completion, a prediction, a seed, or applied by space as a
+  correction while the filter is on ("mier" → mierda, "fuc" → fuck, "puts" → puta, "shiit" → shit).
+- V2 The filter touches what the user types: a typed offensive word is "corrected" to something
+  else, deleted, or not learned. It only removes the keyboard's own proposals.
+- V3 A word the user has typed ≥ [Bar.HABIT] times stays blocked: then it is theirs and is offered
+  again (the personal model decides, not a moral list). The filter off restores r9 exactly.
+- V4 Over-blocking: a clean word that merely contains a bad one ("computadora" ⊃ "puta",
+  "escultura" ⊃ "culo", "shitake", "assistant") disappears. Matching is per whole word
+  (accent/case-insensitive), never substring.
+
+### Connection log (`ConnectionLog`, "Libro de conexiones")
+- V5 A request isn't logged: every release.json GET (manual or startup) and every APK download is
+  one entry with time, reason (tú / al iniciar), what (consulta / descarga) and outcome. Or an entry
+  is logged for something that never touched the network.
+- V6 The log grows without bound or a corrupt stored log crashes settings / the keyboard (cap 50
+  entries, total counter kept separately; junk entries dropped, never thrown).
+- V7 A second network path appears (still: only `Updater.kt` opens connections).
+
+### "Sin memoria" (`MemoryNotice`) + no key bubble on secrets
+- V8 The keyboard shows "memory on" (no dot) in a field where nothing is learned: password / PIN,
+  incognito (IME_FLAG_NO_PERSONALIZED_LEARNING), opted-out (NO_SUGGESTIONS), suggestions or
+  personal suggestions off, or a mode that disables learning — or shows the dot where it learns.
+- V9 The reason given is wrong or vague: the most specific one wins (secret > incognito > opt-out >
+  setting off).
+- V10 The key preview bubble shows the typed character in a secret field (shoulder-surfing), even
+  with "Vista previa de tecla" on.
+
+### "Lo que sé de ti" (forget APIs)
+- V11 Deleting a learned word leaves it alive anywhere: vocabulary, sentence starters, as a
+  continuation of another word, or as a previous word with its own continuations.
+- V12 Deleting a remembered email leaves it offered; deleting an emoji recent brings it back on
+  the next panel open; a delete of an unknown entry throws or changes anything else.
+- V13 The listing leaks across languages, is unbounded (shows every word at once without order),
+  or lists anything the keyboard does not actually keep.

@@ -92,6 +92,9 @@ class EmojiRecents(initial: List<String> = emptyList()) {
         return true
     }
 
+    /** r10 ("Lo que sé de ti", V12): drops one recent. True when it was there. */
+    fun remove(e: String): Boolean = items.remove(e)
+
     fun encode(): String = items.joinToString(SEP)
 
     companion object {

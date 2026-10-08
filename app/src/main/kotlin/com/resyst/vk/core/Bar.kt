@@ -19,21 +19,41 @@ object Bar {
     const val HABIT = 2
     private const val OPENERS = "¿¡([{\"«“‘"
 
-    /** The space-correction for [word]: the lexicon's, unless the user habitually types [word]. */
-    fun correction(word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang): String? {
+    /**
+     * The space-correction for [word]: the lexicon's, unless the user habitually types [word].
+     * r10 [clean] (V1): never a correction INTO an offensive word the user hasn't made theirs.
+     */
+    fun correction(word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang, clean: Boolean = false): String? {
         val fix = lexicon?.correction(word, sentenceStart) ?: return null
-        return if (personal?.knows(lang, word, HABIT) == true) null else fix
+        if (personal?.knows(lang, word, HABIT) == true) return null
+        return if (clean && !allowed(fix, lang, personal)) null else fix
     }
 
+    /**
+     * r10 [clean] ("Filtrar palabras ofensivas", V1–V4): the keyboard's own proposals skip
+     * [Profanity] words unless the user typed that word [HABIT] times. Only removes candidates,
+     * never reorders the rest; off = r9 exactly.
+     */
     fun words(
         before: CharSequence, after: CharSequence, windowFull: Boolean, lang: Lang,
         lexicon: Suggest?, personal: PersonalModel?, shift: ShiftState, limit: Int = LIMIT,
+        clean: Boolean = false,
     ): List<String> {
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return emptyList() // B6
         val word = Suggest.currentWord(before)
-        return if (word.isEmpty()) predictions(before, windowFull, lang, personal, shift, limit)
-        else completions(before, word, windowFull, lang, lexicon, personal, limit)
+        fun bar(n: Int) = if (word.isEmpty()) predictions(before, windowFull, lang, personal, shift, n)
+        else completions(before, word, windowFull, lang, lexicon, personal, n)
+        val raw = bar(limit)
+        if (!clean || raw.all { allowed(it, lang, personal) }) return raw // nothing to drop: identical to r9
+        // something was dropped: ask for a few more so the bar has no hole
+        return bar(limit + FILTER_SLACK).filter { allowed(it, lang, personal) }.take(limit)
     }
+
+    /** V3: an offensive word is only proposed once the user has made it theirs. */
+    private fun allowed(w: String, lang: Lang, personal: PersonalModel?): Boolean =
+        !Profanity.blocked(w, lang) || personal?.knows(lang, w, HABIT) == true
+
+    private const val FILTER_SLACK = 3
 
     private fun predictions(before: CharSequence, windowFull: Boolean, lang: Lang, personal: PersonalModel?, shift: ShiftState, limit: Int): List<String> {
         if (before.isNotEmpty()) {

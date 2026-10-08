@@ -42,6 +42,17 @@ class ValueMemory {
     fun countOf(kind: FieldKind, value: String): Int =
         kinds[kind]?.firstOrNull { it.text.equals(value, ignoreCase = true) }?.count ?: 0
 
+    /** r10 ("Lo que sé de ti", V12): every value of [kind], most used first. */
+    fun values(kind: FieldKind): List<String> = suggest(kind, "", Int.MAX_VALUE)
+
+    /** r10 (V12): forgets one remembered value (case-insensitive). True when it existed. */
+    fun forget(kind: FieldKind, value: String): Boolean {
+        val list = kinds[kind] ?: return false
+        val removed = list.removeAll { it.text.equals(value.trim(), ignoreCase = true) }
+        if (list.isEmpty()) kinds.remove(kind)
+        return removed
+    }
+
     fun clear() { kinds.clear(); clock = 0 }
 
     fun isEmpty(): Boolean = kinds.values.all { it.isEmpty() }

@@ -113,6 +113,39 @@ class PersonalModel {
     fun knows(lang: Lang, word: String, minCount: Int = 1): Boolean =
         (langs[lang]?.vocab?.get(Tokens.key(word))?.count ?: 0) >= minCount
 
+    /**
+     * r10 ("Lo que sé de ti", V11): forgets [word] in [lang] everywhere — its vocabulary entry,
+     * the sentence openers, every continuation that leads to it and the continuations it leads
+     * to. True when anything was removed.
+     */
+    fun forget(lang: Lang, word: String): Boolean {
+        val t = langs[lang] ?: return false
+        val k = Tokens.key(word)
+        var changed = t.vocab.remove(k) != null
+        changed = t.starters.removeAll { it.key == k } || changed
+        changed = (t.next.remove(k) != null) || changed
+        val it = t.next.entries.iterator()
+        while (it.hasNext()) {
+            val e = it.next()
+            if (e.value.removeAll { c -> c.key == k }) changed = true
+            if (e.value.isEmpty()) it.remove()
+        }
+        return changed
+    }
+
+    /** One learned word as "Lo que sé de ti" lists it: the user's spelling and how often. */
+    data class Learned(val key: String, val form: String, val count: Int)
+
+    /** The learned words of [lang], most used first (most recent among equals), at most [limit] (V13). */
+    fun words(lang: Lang, limit: Int): List<Learned> {
+        val t = langs[lang] ?: return emptyList()
+        return t.vocab.entries.asSequence()
+            .sortedWith(compareByDescending<Map.Entry<String, Word>> { it.value.count }.thenByDescending { it.value.stamp })
+            .take(limit.coerceAtLeast(0))
+            .map { (k, w) -> Learned(k, w.form, w.count) }
+            .toList()
+    }
+
     fun clear() { langs.clear(); clock = 0 }
 
     fun isEmpty(): Boolean = langs.values.all { it.vocab.isEmpty() && it.next.isEmpty() && it.starters.isEmpty() }

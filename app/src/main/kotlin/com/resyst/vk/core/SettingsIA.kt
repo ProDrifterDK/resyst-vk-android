@@ -51,6 +51,8 @@ enum class Ctl(
     PERSONAL("phone.personal", Scope.DEVICE, "Sugerencias personales", dependsOn = SUGGEST),
     AUTO_CAP("phone.autoCap", Scope.DEVICE, "Mayúscula automática"),
     DOUBLE_SPACE("phone.doubleSpace", Scope.DEVICE, "Doble espacio = punto"),
+    /** r10 (F-3): the keyboard never proposes offensive words (default on). */
+    PROFANITY_FILTER("phone.profanityFilter", Scope.DEVICE, "Filtrar palabras ofensivas", dependsOn = SUGGEST),
 
     // feedback (phone)
     HAPTICS("phone.haptics", Scope.DEVICE, "Vibración"),
@@ -65,10 +67,18 @@ enum class Ctl(
     CLEAR_CLIP(null, Scope.DEVICE, "Borrar historial del portapapeles", destructive = true),
     FORGET_LEARNED(null, Scope.DEVICE, "Borrar lo aprendido", destructive = true),
 
+    // r10 (F-4): "Lo que sé de ti" — see and delete, one by one, what the keyboard keeps
+    KNOW_WORDS(null, Scope.DEVICE, "Palabras aprendidas"),
+    KNOW_EMAILS(null, Scope.DEVICE, "Correos recordados"),
+    KNOW_EMOJI(null, Scope.DEVICE, "Emojis recientes"),
+    KNOW_CLIP(null, Scope.DEVICE, "Portapapeles guardado"),
+
     // about
     UPDATES(null, Scope.DEVICE, "Actualización"),
     /** r9: "Buscar actualizaciones al iniciar" — one release.json check per process start. */
     UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE, "Buscar actualizaciones al iniciar"),
+    /** r10 (F-5): every request the app ever made to the internet, counted and listed. */
+    CONNECTIONS(null, Scope.DEVICE, "Libro de conexiones"),
     RESET_ALL(null, Scope.DEVICE, "Restablecer ajustes y temas", destructive = true),
 }
 
@@ -108,17 +118,20 @@ object SettingsIA {
             Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
         SettingsPage("escritura", "Escritura", Scope.DEVICE, listOf(
-            Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE,
-        ), summary = "Sugerencias, corrección, mayúsculas, doble espacio"),
+            Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE,
+        ), summary = "Sugerencias, corrección, filtro de groserías, mayúsculas"),
         SettingsPage("respuesta", "Sonido y vibración", Scope.DEVICE, listOf(
             Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME,
         ), summary = "Vibración, intensidad, sonido y volumen"),
         SettingsPage("privacidad", "Portapapeles y privacidad", Scope.DEVICE, listOf(
             Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
         ), summary = "Historial del portapapeles y lo que el teclado aprendió"),
+        SettingsPage("datos", "Lo que sé de ti", Scope.DEVICE, listOf(
+            Ctl.KNOW_WORDS, Ctl.KNOW_EMAILS, Ctl.KNOW_EMOJI, Ctl.KNOW_CLIP,
+        ), summary = "Ver y borrar, una a una, las palabras, correos y emojis que guardo · solo en este teléfono"),
         SettingsPage("acerca", "Acerca de", Scope.DEVICE, listOf(
-            Ctl.UPDATES, Ctl.UPDATE_AUTO, Ctl.RESET_ALL,
-        ), summary = "Versión, actualizaciones, restablecer"),
+            Ctl.UPDATES, Ctl.UPDATE_AUTO, Ctl.CONNECTIONS, Ctl.RESET_ALL,
+        ), summary = "Versión, actualizaciones, libro de conexiones, restablecer"),
     )
 
     fun page(id: String?): SettingsPage? = PAGES.firstOrNull { it.id == id }

@@ -28,6 +28,9 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import com.resyst.vk.core.ClipSettings
 import com.resyst.vk.core.ClipboardHistory
+import com.resyst.vk.core.ConnectionLog
+import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.FieldKind
 import com.resyst.vk.core.Ctl
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.Density
@@ -301,6 +304,7 @@ class SettingsActivity : Activity() {
         pageHeader(pg)
         if (store.mode != Mode.NONE && pg.id in MODE_AFFECTED) modeBanner()
         if (pg.preview) livePreview()
+        if (pg.id == PAGE_KNOW) knowIntro()
         val hinted = HashSet<Ctl>()
         for (row in SettingsIA.rows(pg) { on(it) }) {
             val parent = row.ctl.dependsOn
@@ -410,6 +414,7 @@ class SettingsActivity : Activity() {
             Ctl.PERSONAL -> toggle(ctl.label, "Aprende tus palabras y correos frecuentes · solo en este teléfono", s.personal) { v -> commit { it.copy(personal = v) } }
             Ctl.AUTO_CAP -> toggle(ctl.label, "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
             Ctl.DOUBLE_SPACE -> toggle(ctl.label, "Dos espacios seguidos escriben «. »", s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
+            Ctl.PROFANITY_FILTER -> toggle(ctl.label, "El teclado no propone groserías · lo que tú escribes no se toca, y si una la usas seguido vuelve a aparecer", s.profanityFilter) { v -> commit { it.copy(profanityFilter = v) } }
 
             Ctl.HAPTICS -> toggle(ctl.label, null, s.haptics) { v -> commit { it.copy(haptics = v) } }
             Ctl.HAPTIC_STRENGTH -> choice(ctl.label, listOf(HapticStrength.LOW to "Suave", HapticStrength.MEDIUM to "Media", HapticStrength.HIGH to "Fuerte"), s.hapticStrength) { v ->
@@ -427,6 +432,11 @@ class SettingsActivity : Activity() {
             Ctl.CLEAR_CLIP -> clearClipRow()
             Ctl.FORGET_LEARNED -> forgetRow()
 
+            Ctl.KNOW_WORDS -> knowWords()
+            Ctl.KNOW_EMAILS -> knowEmails()
+            Ctl.KNOW_EMOJI -> knowEmoji()
+            Ctl.KNOW_CLIP -> knowClip()
+
             Ctl.UPDATES -> {
                 into.addView(label(ctl.label, 14f, t.textMod, 550), lp(top = 4f))
                 updateSection()
@@ -434,6 +444,7 @@ class SettingsActivity : Activity() {
             Ctl.UPDATE_AUTO -> toggle(ctl.label, "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
                 commitStore(store.copy(autoUpdateCheck = v))
             }
+            Ctl.CONNECTIONS -> connectionsBook()
             Ctl.RESET_ALL -> resetRow()
         }
         if (ctl == Ctl.UPDATES) updateAnchor = into
@@ -702,6 +713,156 @@ class SettingsActivity : Activity() {
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+    // ── r10 (F-4): "Lo que sé de ti" — everything the keyboard keeps, deletable one by one ──
+
+    /** How many learned words each language list shows before "Mostrar todas". */
+    private var wordsShown = KNOW_WORDS_STEP
+
+    private fun knowIntro() {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(t.bg2, t.edge, 12f)
+            setPadding(px(14f), px(12f), px(14f), px(12f))
+            tag = "know-intro"
+        }
+        card.addView(label("Esto es todo lo que Resyst VK guarda de ti.", 14f, t.text, 600))
+        card.addView(label("Vive solo en este teléfono, fuera de las copias de seguridad, y nunca se envía a ningún lado. Toca × para borrar una cosa; nada más cambia.", 12f, t.textMod), lp(top = 4f))
+        root.addView(card, lp(bottom = 10f))
+    }
+
+    /** A listed item with its own delete target (48 dp), named for TalkBack. */
+    private fun knowRow(text: String, meta: String?, desc: String, tagId: String, onDelete: () -> Unit) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = px(48f)
+            tag = "know.$tagId"
+        }
+        row.addView(label(text, 15f, t.text, 500).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (meta != null) row.addView(label(meta, 12f, t.muted, 500).apply { setPadding(px(8f), 0, px(4f), 0) })
+        row.addView(label("×", 22f, t.bad, 500).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            contentDescription = "Borrar $desc"
+            tag = "forget.$tagId"
+            setOnClickListener { onDelete() }
+        }, LinearLayout.LayoutParams(px(48f), px(48f)))
+        into.addView(row, lp())
+        into.addView(View(this).apply { setBackgroundColor(t.edge) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(1f)))
+    }
+
+    private fun knowHead(title: String, summary: String) {
+        into.addView(label(title, 14f, t.textMod, 600), lp(top = 10f))
+        into.addView(label(summary, 12f, t.muted).apply { tag = "know-summary" }, lp(bottom = 4f))
+    }
+
+    private fun knowWords() {
+        val w = PersonalStore.words
+        if (w == null) { knowHead(Ctl.KNOW_WORDS.label, "Cargando…"); return }
+        val total = Lang.values().sumOf { w.vocabCount(it) }
+        knowHead(Ctl.KNOW_WORDS.label, if (total == 0) "Ninguna todavía. Las aprende al escribir, solo en campos normales (nunca en contraseñas ni en modo incógnito)." else "$total palabras · con cuántas veces las usaste")
+        for (lang in Lang.values()) {
+            val n = w.vocabCount(lang)
+            if (n == 0) continue
+            into.addView(label(if (lang == Lang.ES) "Español · $n" else "English · $n", 12f, pal.accent, 650).apply { letterSpacing = 0.04f }, lp(top = 6f))
+            for (e in w.words(lang, wordsShown)) {
+                knowRow(e.form, "×${e.count}", "la palabra ${e.form}", "${lang.code}.${e.key}") {
+                    if (w.forget(lang, e.key)) { PersonalStore.changed(); rerender() }
+                }
+            }
+            if (n > wordsShown) link("Mostrar más (${n - wordsShown}) ›") { wordsShown += KNOW_WORDS_STEP * 4; rerender() }
+        }
+    }
+
+    private fun knowEmails() {
+        val v = PersonalStore.values
+        if (v == null) { knowHead(Ctl.KNOW_EMAILS.label, "Cargando…"); return }
+        val list = v.values(FieldKind.EMAIL)
+        knowHead(Ctl.KNOW_EMAILS.label, if (list.isEmpty()) "Ninguno. Recuerda una dirección cuando la escribes completa en un campo de correo." else "${list.size} · se ofrecen al escribir en campos de correo")
+        for (e in list) knowRow(e, null, "el correo $e", "email.$e") {
+            if (v.forget(FieldKind.EMAIL, e)) { PersonalStore.changed(); rerender() }
+        }
+    }
+
+    /** Same file the keyboard reads (files/personal/emoji_recents.txt); it re-reads on every panel open. */
+    private val emojiFile get() = java.io.File(java.io.File(filesDir, "personal"), "emoji_recents.txt")
+
+    private fun knowEmoji() {
+        val r = runCatching { EmojiRecents.decode(emojiFile.takeIf { it.exists() }?.readText()) }.getOrDefault(EmojiRecents())
+        val list = r.items()
+        knowHead(Ctl.KNOW_EMOJI.label, if (list.isEmpty()) "Ninguno. Nunca se guardan los de campos en modo incógnito." else "${list.size} · los últimos que usaste, para el panel de emojis")
+        if (list.isEmpty()) return
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (e in list) {
+            row.addView(label(e, 22f, t.text).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                background = rounded(t.key, t.edge, 12f)
+                contentDescription = "Borrar el emoji $e de recientes"
+                tag = "forget.emoji"
+                setOnClickListener {
+                    if (r.remove(e)) {
+                        runCatching { emojiFile.parentFile?.mkdirs(); emojiFile.writeText(r.encode()) }
+                        rerender()
+                    }
+                }
+            }, LinearLayout.LayoutParams(px(48f), px(48f)).apply { marginEnd = px(6f) })
+        }
+        hs.addView(row)
+        into.addView(hs, lp(top = 4f))
+        into.addView(label("Toca un emoji para quitarlo de recientes.", 11f, t.muted), lp(top = 4f, bottom = 4f))
+    }
+
+    private fun knowClip() {
+        val h = ClipStore.history
+        if (h == null) { knowHead(Ctl.KNOW_CLIP.label, "Cargando…"); return }
+        val items = h.items()
+        knowHead(Ctl.KNOW_CLIP.label, when {
+            !store.clip.history -> "El historial está apagado: no se guarda nada de lo que copias."
+            items.isEmpty() -> "Vacío. Nunca guarda lo que copias desde un campo de contraseña."
+            else -> "${items.size} elementos" + if (h.pinCount > 0) " · ${h.pinCount} fijados" else ""
+        })
+        val now = System.currentTimeMillis()
+        for (e in items) {
+            val meta = (if (e.pinned) "fijado · " else "") + com.resyst.vk.core.ClipRules.ago(now, e.at)
+            knowRow(com.resyst.vk.core.ClipRules.label(e.text, false), meta, "del portapapeles: ${com.resyst.vk.core.ClipRules.label(e.text, false)}", "clip.${e.id}") {
+                if (h.delete(e.id)) ClipStore.changed() // listeners → rerender
+            }
+        }
+    }
+
+    // ── r10 (F-5): "Libro de conexiones" — the promise, counted ──────────
+    private fun connectionsBook() {
+        val log = Updater.connections(this)
+        into.addView(label(Ctl.CONNECTIONS.label, 14f, t.textMod, 600), lp(top = 10f))
+        val head = when (log.total) {
+            0 -> "Ninguna conexión a internet desde la instalación."
+            1 -> "1 conexión a internet desde la instalación."
+            else -> "${log.total} conexiones a internet desde la instalación."
+        }
+        into.addView(label(head, 16f, t.text, 650).apply { tag = "connections-total" }, lp(top = 2f))
+        into.addView(label("Solo para comprobar o descargar actualizaciones de Resyst VK en kv.resyst.cl. Nunca se envía lo que escribes, lo que copias ni lo aprendido; ninguna otra parte de la app usa la red.", 12f, t.muted), lp(top = 2f, bottom = 6f))
+        val fmt = java.text.SimpleDateFormat("d MMM yyyy · HH:mm", java.util.Locale("es", "CL"))
+        for ((i, e) in log.recent().withIndex()) {
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                minimumHeight = px(48f)
+                gravity = Gravity.CENTER_VERTICAL
+                tag = "connection.$i"
+                isFocusable = true
+                contentDescription = "${e.what.label}, ${fmt.format(java.util.Date(e.at))}, ${e.why.label}. ${e.outcome}"
+            }
+            col.addView(label("${e.what.label} · ${e.why.label}", 14f, t.text, 550))
+            col.addView(label("${fmt.format(java.util.Date(e.at))} · ${e.outcome}", 12f, t.muted))
+            into.addView(col, lp())
+        }
+        if (log.total > log.recent().size) {
+            into.addView(label("Se muestran las ${log.recent().size} más recientes.", 11f, t.muted), lp(top = 4f))
+        }
     }
 
     // ── clipboard (device-wide) ─────────────────────────────────────────
@@ -1062,6 +1223,9 @@ class SettingsActivity : Activity() {
         /** r10: open on a [SettingsPage.id] (quick panel → "Ajustes", privacy surfaces…). */
         const val EXTRA_PAGE = "com.resyst.vk.page"
         private const val STATE_PAGE = "page"
+        /** r10 (F-4): the "Lo que sé de ti" page. */
+        const val PAGE_KNOW = "datos"
+        private const val KNOW_WORDS_STEP = 25
         /** Pages whose controls a mode can override (they get the "modo encendido" banner). */
         private val MODE_AFFECTED = setOf("apariencia", "teclas", "escritura")
     }

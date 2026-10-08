@@ -13,6 +13,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.resyst.vk.core.AutoCheckGate
+import com.resyst.vk.core.ConnectionLog
 import com.resyst.vk.core.Installed
 import com.resyst.vk.core.Release
 import com.resyst.vk.core.UpdateChecker
@@ -137,6 +138,7 @@ object Updater {
                 Log.w(TAG, "update check failed: ${e.javaClass.simpleName}")
                 error = e
             }
+            logConnection(app, ConnectionLog.What.CHECK, auto, checkOutcome(decision, error))
             val next: State = if (auto) {
                 // A5: a failed startup check never surfaces — back to Idle, log only
                 val kept = UpdateNotice.autoOutcome(decision)
@@ -150,6 +152,36 @@ object Updater {
                 state = next
             }
         }
+    }
+
+    // ── r10: the connection log ("Libro de conexiones", V5) ─────────────
+
+    private const val LOG_KEY = "connections"
+
+    /** Every request this app made, newest first ([ConnectionLog.CAP] kept, [ConnectionLog.total] counted). */
+    fun connections(context: Context): ConnectionLog =
+        ConnectionLog.decode(prefs(context.applicationContext).getString(LOG_KEY, null))
+
+    /**
+     * One entry per network request (V5): called from the request paths only ([check] after its
+     * GET, [download] when DownloadManager accepted the job). Any thread; synchronized because
+     * the GET finishes on [io] while a download is logged on main.
+     */
+    @Synchronized
+    private fun logConnection(app: Context, what: ConnectionLog.What, auto: Boolean, outcome: String) {
+        val why = if (auto) ConnectionLog.Why.STARTUP else ConnectionLog.Why.USER
+        val next = connections(app).add(ConnectionLog.Entry(System.currentTimeMillis(), what, why, outcome))
+        prefs(app).edit().putString(LOG_KEY, next.encode()).apply()
+        Log.i(TAG, "connection log: ${what.id} (${why.id}) → $outcome")
+    }
+
+    private fun checkOutcome(d: UpdateDecision?, e: Exception?): String = when (d) {
+        null -> networkMessage(e ?: IOException()).removeSuffix(".")
+        is UpdateDecision.Available -> "Hay versión nueva: ${d.release.version}"
+        is UpdateDecision.UpToDate -> "Ya al día (${d.latest})"
+        is UpdateDecision.Incompatible -> "Versión ${d.release.version}, no compatible"
+        UpdateDecision.NotPublished -> "Sin versión publicada"
+        is UpdateDecision.Error -> "Respuesta ilegible"
     }
 
     // ── r9: the keyboard's update chip ──────────────────────────────────
@@ -232,6 +264,7 @@ object Updater {
             return
         }
         prefs(app).edit().putLong("id", id).putString("manifest", manifest).apply()
+        logConnection(app, ConnectionLog.What.DOWNLOAD, auto = false, outcome = "${release.version}${release.size?.let { " · $it" } ?: ""}")
         state = State.Downloading(release)
     }
 

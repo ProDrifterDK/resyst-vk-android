@@ -46,6 +46,8 @@ data class KbSettings(
     val dayNightChip: Boolean = true,
     /** r8: the theme the last day/night flip left (null = never flipped). Part of the [Look]. */
     val altTheme: String? = null,
+    /** r10 (F-3): proposals (completions, predictions, corrections) skip offensive words. Phone-wide. */
+    val profanityFilter: Boolean = true,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -247,6 +249,7 @@ object ProfileCodec {
         "hideTopRow" to s.hideTopRow.toString(),
         "emojiKey" to s.emojiKey.toString(),
         "dayNightChip" to s.dayNightChip.toString(),
+        "profanityFilter" to s.profanityFilter.toString(),
     )
 
     fun decode(raw: Map<String, *>): ProfileStore {
@@ -380,6 +383,7 @@ object ProfileCodec {
             emojiKey = bool("emojiKey", d.emojiKey),
             dayNightChip = bool("dayNightChip", d.dayNightChip),
             altTheme = themeId(str("altTheme")) ?: d.altTheme,
+            profanityFilter = bool("profanityFilter", d.profanityFilter),
         )
     }
 
