@@ -296,10 +296,17 @@ def main():
         time.sleep(0.6)
         txt = e2e.field_text(dump())
         check('K1 keyboard types "hola" on the migrated store', (txt or '').lower().startswith('hola'), txt)
-        km = keys(dump())
-        chip = next((dd for dd in km if dd.startswith('Perfil ')), '')
-        check('K2 strip names the active tema (Mi noche)', 'Mi noche' in chip, chip)
         shot('r10-keyboard-after-migration.png')
+        # r10/bet 2: the strip has no tema chip any more; the quick panel under ⚙ names the tema
+        km = keys(dump())
+        gear = next((n for dd, n in km.items() if dd.startswith('Ajustes de Resyst VK')), None)
+        if gear is not None:
+            e2e.tap(gear)
+            time.sleep(0.6)
+        km = keys(dump())
+        tile = next((dd for dd in km if dd.startswith('Tema, ')), '')
+        check('K2 quick panel names the active tema (Tema, Mi noche)', tile.startswith('Tema, Mi noche'), tile or sorted(km)[:12])
+        sh('input keyevent KEYCODE_BACK')
     except Exception as ex:  # noqa: BLE001 — a missing key is a failed row, not a crash
         check('K1 keyboard types "hola" on the migrated store', False, repr(ex))
 
