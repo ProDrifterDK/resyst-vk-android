@@ -336,3 +336,37 @@ inside the keyboard strip and the settings "Actualización" section — never th
 - S1 The toggle is not ON for a fresh install / r8 storage, does not round-trip, is per profile
   (it is device-wide), or has no control on any settings page.
 - S2 The privacy copy still says the app never connects by itself while the startup check is on.
+
+## Round 10 — temas + modos (`Tema`, `Mode`, `ProfileCodec` v2) and the settings pages
+
+### Migration v1 → v2 (`ProfileCodec.migrateV1`)
+- T1 An r1–r9 store (`p.<id>.*`) loads as the seed: themes, accents, names or icons the user set
+  are lost (the vision's hard rule: never reset temas, never erase what was learned).
+- T2 The keyboard behaves differently right after the update: the active profile's behavior
+  (idioma, sugerencias, vibración, sonido…) is not what the phone runs with.
+- T3 The old "Juego" profile was active and the migrated keyboard is suddenly a full one (fila
+  superior, sugerencias) — or Juego's no-suggest behavior leaks into the phone settings as the
+  user's own choice, so turning the mode off keeps suggestions off forever.
+- T4 Partial / corrupt v1 storage (missing keys, junk values, unknown ids, no `order`) crashes or
+  is kept instead of falling back per field.
+- T5 After the first v2 save, stale `p.*` keys survive, so a later read could migrate again and
+  overwrite v2 edits (or an old build reads half-new data).
+
+### Temas + modos (`ProfileStore`)
+- T6 A look edit (tema, acento, forma, altura…) leaks into another tema, or a behavior edit
+  (vibración, idioma…) is lost when switching tema.
+- T7 A mode's overrides are written back into the stored settings (turning the mode off doesn't
+  restore the user's settings), or the settings screen edits the mode-overridden view.
+- T8 A mode turns on personal learning or suggestions where the user had them off (modes can only
+  restrict typing aids, never widen what is learned).
+- T9 Every stored key has no control / a control edits a key nobody stores (I1/I2 restated for
+  the v2 keys: `t.<id>.<look>`, `phone.*`, `mode`, `active`).
+
+### Settings pages (`SettingsIA.rows`, `SettingsActivity`)
+- P1 A dependent (Intensidad, Pack, Volumen, Fila superior, El espacio corrige, Sugerencias
+  personales, Purgar) is hidden or enabled while its parent is off (r7 capture: orphan chips).
+  It must stay visible, indented and disabled.
+- P2 A destructive action is not the last row of its page, or "Borrar lo aprendido" is
+  actionable with nothing learned.
+- P3 A page the activity renders is missing a control SettingsIA lists (the screen drifts from
+  the IA: every `Ctl` must map to a widget tagged `ctl.name`).

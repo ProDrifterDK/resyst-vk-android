@@ -200,12 +200,12 @@ class LearningTest {
     }
 
     @Test fun personalToggleDefaultsOnAndRoundTrips() { // X5
-        for (p in ProfileCodec.seed().profiles) assertTrue(p.id, p.settings.personal)
+        assertTrue(ProfileCodec.seed().settings.personal)
         val r3 = ProfileCodec.encode(ProfileCodec.seed()).filterKeys { !it.endsWith(".personal") }
-        assertTrue(ProfileCodec.decode(r3).byId("noche")!!.settings.personal)
-        val st = ProfileCodec.seed().update("dia") { it.copy(personal = false) }
+        assertTrue(ProfileCodec.decode(r3).settings.personal)
+        val st = ProfileCodec.seed().updatePhone { it.copy(personal = false) }
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
-        assertFalse(back.byId("dia")!!.settings.personal)
-        assertTrue(back.byId("noche")!!.settings.personal)
+        assertFalse(back.settings.personal)
+        assertFalse("phone-wide", back.withTema(back.nextTemaId()).settings.personal)
     }
 }

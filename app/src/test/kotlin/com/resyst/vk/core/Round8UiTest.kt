@@ -45,9 +45,9 @@ class Round8UiTest {
 
     @Test fun settingOffRestoresTheR7Row() { // E8-3
         assertEquals(listOf(KeyType.LAYER, KeyType.CHAR, KeyType.SPACE, KeyType.CHAR, KeyType.ENTER), bottom(emoji = false).map { it.type })
-        val s = ProfileCodec.decode(ProfileCodec.encode(ProfileCodec.seed().update("noche") { it.copy(emojiKey = false) }))
-        assertFalse(s.byId("noche")!!.settings.emojiKey)
-        assertTrue(s.byId("dia")!!.settings.emojiKey)
+        val s = ProfileCodec.decode(ProfileCodec.encode(ProfileCodec.seed().updatePhone { it.copy(emojiKey = false) }))
+        assertFalse(s.settings.emojiKey)
+        assertTrue(ProfileCodec.seed().settings.emojiKey)
     }
 
     @Test fun symbolLayersCarryItNumpadNever() { // E8-4
@@ -122,13 +122,13 @@ class Round8UiTest {
     }
 
     @Test fun flipSurvivesTheCodec() { // T8-4
-        val st = ProfileCodec.seed().update("noche") { DayNight.toggle(it) }
+        val st = ProfileCodec.seed().updateLook("resyst") { DayNight.toggle(it) }
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
-        assertEquals("paper", back.byId("noche")!!.settings.theme)
-        assertEquals("lab", back.byId("noche")!!.settings.altTheme)
-        val raw = ProfileCodec.encode(st).toMutableMap<String, Any?>().apply { put("p.noche.altTheme", "neon") }
-        assertEquals(null, ProfileCodec.decode(raw).byId("noche")!!.settings.altTheme)
-        assertTrue(ProfileCodec.decode(emptyMap<String, Any?>()).activeProfile.settings.dayNightChip)
+        assertEquals("paper", back.settings.theme)
+        assertEquals("lab", back.settings.altTheme)
+        val raw = ProfileCodec.encode(st).toMutableMap<String, Any?>().apply { put("t.resyst.altTheme", "neon") }
+        assertEquals(null, ProfileCodec.decode(raw).settings.altTheme)
+        assertTrue(ProfileCodec.decode(emptyMap<String, Any?>()).settings.dayNightChip)
     }
 
     @Test fun everyThemeHasAnOppositeTwin() { // T8-5

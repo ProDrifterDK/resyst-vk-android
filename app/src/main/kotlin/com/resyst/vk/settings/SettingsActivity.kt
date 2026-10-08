@@ -24,7 +24,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import com.resyst.vk.core.ClipSettings
+import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.Ctl
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.Density
 import com.resyst.vk.core.HapticEvent
@@ -38,16 +43,18 @@ import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Lang
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
+import com.resyst.vk.core.Mode
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
+import com.resyst.vk.core.Scope
+import com.resyst.vk.core.SettingsIA
+import com.resyst.vk.core.SettingsPage
 import com.resyst.vk.core.ShiftState
 import com.resyst.vk.core.SoundPack
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.TopRow
 import com.resyst.vk.core.UpdateDecision
 import com.resyst.vk.core.UpdateNotice
-import com.resyst.vk.core.ClipSettings
-import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.ime.ClipStore
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.HapticPlayer
@@ -58,15 +65,20 @@ import com.resyst.vk.ime.SubtypeSync
 import kotlin.math.roundToInt
 
 /**
- * Setup + profiles screen. Built in code (no XML layouts) so every color comes from the
- * same palette the keyboard uses: the screen re-skins itself with the profile being edited.
+ * Setup + settings screen (r10): a home and the pages of [SettingsIA], rendered from that data.
+ * Every control is one [Ctl] → one widget tagged with `ctl.name` (the E2E walks the tree by it).
+ * Built in code (no XML) so every color comes from the palette the keyboard uses: the screen
+ * re-skins itself with the active tema.
  */
 class SettingsActivity : Activity() {
 
     private lateinit var repo: SettingsRepo
     private lateinit var store: ProfileStore
-    private var editing = "noche"
+    /** null = home; otherwise a [SettingsPage.id]. */
+    private var page: String? = null
     private lateinit var root: LinearLayout
+    /** Where the widget helpers add their views: [root], or a control's own box while it renders. */
+    private lateinit var into: LinearLayout
     private lateinit var scroll: ScrollView
     private var preview: KeyboardView? = null
     private var haptics: HapticPlayer? = null
@@ -78,7 +90,6 @@ class SettingsActivity : Activity() {
         super.onCreate(savedInstanceState)
         repo = SettingsRepo(this)
         store = repo.load()
-        editing = store.active
         PersonalStore.init(this)
         ClipStore.init(this)
         scroll = ScrollView(this).apply { isFillViewport = true }
@@ -86,28 +97,79 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(px(18f), px(22f), px(18f), px(28f))
         }
+        into = root
         scroll.addView(root)
         setContentView(scroll)
         fitSystemBars()
+        page = savedInstanceState?.getString(STATE_PAGE)?.takeIf { SettingsIA.page(it) != null }
+        route(intent)
         render()
-        if (intent?.getStringExtra(EXTRA_SECTION) == SECTION_UPDATE) revealUpdates()
+        syncBack()
+        if (revealUpdate) revealUpdates()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getStringExtra(EXTRA_SECTION) == SECTION_UPDATE) revealUpdates()
+        route(intent)
+        render()
+        syncBack()
+        if (revealUpdate) revealUpdates()
     }
 
-    /** Index in [root] of the "Actualización" header, set by [render]. */
-    private var updateHeaderIndex = -1
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_PAGE, page)
+    }
 
-    /** The keyboard's update chip opened us: land on the update section (r9). */
+    private var revealUpdate = false
+
+    /** The keyboard's update chip (r9) lands on "Acerca de"; other surfaces may name a page. */
+    private fun route(i: Intent?) {
+        revealUpdate = false
+        if (i?.getStringExtra(EXTRA_SECTION) == SECTION_UPDATE) {
+            page = SettingsIA.pageOf(Ctl.UPDATES)?.id
+            revealUpdate = true
+        } else {
+            i?.getStringExtra(EXTRA_PAGE)?.takeIf { SettingsIA.page(it) != null }?.let { page = it }
+        }
+    }
+
+    /** The "Actualización" block, set by [render] when the page shows it. */
+    private var updateAnchor: View? = null
+
     private fun revealUpdates() {
+        revealUpdate = false
         scroll.post {
-            val v = root.getChildAt(updateHeaderIndex) ?: return@post
+            val v = updateAnchor ?: return@post
             scroll.smoothScrollTo(0, (v.top - px(8f)).coerceAtLeast(0))
         }
+    }
+
+    // ── navigation ──────────────────────────────────────────────────────
+    private fun go(id: String?) {
+        page = id?.takeIf { SettingsIA.page(it) != null }
+        render()
+        scroll.scrollTo(0, 0)
+        syncBack()
+    }
+
+    private var backCallback: Any? = null
+    private var backRegistered = false
+
+    /** API 33+ (predictive back, default on for targetSdk 36): a page goes back to home. */
+    private fun syncBack() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val cb = (backCallback as? OnBackInvokedCallback) ?: OnBackInvokedCallback { go(null) }.also { backCallback = it }
+        val want = page != null
+        if (want && !backRegistered) onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+        if (!want && backRegistered) onBackInvokedDispatcher.unregisterOnBackInvokedCallback(cb)
+        backRegistered = want
+    }
+
+    @Deprecated("API < 33 path; 33+ uses syncBack()")
+    override fun onBackPressed() {
+        if (page != null) go(null) else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     /**
@@ -153,17 +215,11 @@ class SettingsActivity : Activity() {
     }
 
     private val updaterListener: () -> Unit = {
-        val y = scroll.scrollY
-        render()
-        scroll.post { scroll.scrollTo(0, y) }
+        rerender()
         maybeAutoInstall()
     }
 
-    private val clipListener: () -> Unit = {
-        val y = scroll.scrollY
-        render()
-        scroll.post { scroll.scrollTo(0, y) }
-    }
+    private val clipListener: () -> Unit = { rerender() }
 
     override fun onPause() {
         ClipStore.listeners -= clipListener
@@ -179,12 +235,23 @@ class SettingsActivity : Activity() {
         }
     }
 
-    private val pal get() = Palette.of(store.byId(editing)?.settings?.theme, store.byId(editing)?.settings?.accent)
+    private val pal get() = store.settings.let { Palette.of(it.theme, it.accent) }
     private val t get() = pal.theme
 
-    private fun commit(f: (KbSettings) -> KbSettings) {
-        store = store.update(editing, f)
+    /** What the user edits: phone behavior + active tema look, never the mode-overridden view. */
+    private val b get() = store.base
+
+    /** Edits through [ProfileStore.edit]: look fields land in the active tema, the rest phone-wide. */
+    private fun commit(f: (KbSettings) -> KbSettings) = commitStore(store.edit(f))
+
+    private fun commitStore(next: ProfileStore) {
+        store = next
         repo.save(store)
+        rerender()
+    }
+
+    /** Re-render in place (same page, same scroll position). */
+    private fun rerender() {
         val y = scroll.scrollY
         render()
         scroll.post { scroll.scrollTo(0, y) }
@@ -202,77 +269,226 @@ class SettingsActivity : Activity() {
             window.insetsController?.setSystemBarsAppearance(if (p.theme.dark) 0 else light, light)
         }
         root.removeAllViews()
+        into = root
+        updateAnchor = null
+        val pg = SettingsIA.page(page)
+        if (pg == null) {
+            page = null
+            renderHome()
+        } else {
+            renderPage(pg)
+        }
+    }
 
+    /** Home: setup, tema + mode, live preview, the daily essentials, then one row per page. */
+    private fun renderHome() {
         header()
         setupCard()
-        profileTabs()
-        val s = store.byId(editing)?.settings ?: KbSettings()
-        livePreview(s)
-        section("Apariencia")
-        choice("Tema", Themes.ALL.map { it.id to it.label }, s.theme) { v -> commit { it.copy(theme = v) } }
-        val dark = Themes.byId(s.theme).dark
-        val toLabel = Themes.byId(DayNight.toggle(s).theme).label
-        root.addView(pill(if (dark) "☀  Modo día · $toLabel" else "☾  Modo noche · $toLabel") { commit { DayNight.toggle(it) } }
-            .apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f))
-        toggle("Botón día / noche en el teclado", "Sol / luna en la barra superior: un toque cambia el tema", s.dayNightChip) { v -> commit { it.copy(dayNightChip = v) } }
-        accentRow(s)
-        choice("Forma", listOf(KeyShape.SQUARE to "Recta", KeyShape.SOFT to "Suave", KeyShape.ROUND to "Redonda"), s.shape) { v -> commit { it.copy(shape = v) } }
-        choice("Tecla", listOf(KeyCap.RAISED to "Relieve", KeyCap.FLAT to "Plana", KeyCap.OUTLINE to "Contorno"), s.cap) { v -> commit { it.copy(cap = v) } }
-        choice("Fuente", listOf(KeyFont.BRAND to "DM Sans", KeyFont.TECH to "Mono", KeyFont.HUMAN to "Serif"), s.font) { v -> commit { it.copy(font = v) } }
-        choice("Densidad", listOf(Density.TIGHT to "Compacta", Density.NORMAL to "Normal", Density.AIRY to "Aireada"), s.density) { v -> commit { it.copy(density = v) } }
-        slider("Altura", 80, 130, (s.heightScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(heightScale = v / 100f) } }
-        toggle("Leyendas secundarias", "Dígitos sobre la fila superior y punto de variantes", s.subLegends) { v -> commit { it.copy(subLegends = v) } }
+        section("Tema y modo")
+        ctl(Ctl.TEMA)
+        ctl(Ctl.MODE)
+        livePreview()
+        section("Ajustes rápidos")
+        for (c in SettingsIA.HOME) if (c != Ctl.TEMA && c != Ctl.MODE) ctl(c)
+        section("Todos los ajustes")
+        for (pg in SettingsIA.PAGES) navRow(pg)
+        section("Probar")
+        tryField()
+        footer()
+    }
 
-        section("Escritura")
-        choice("Idioma", listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
-        link("Idiomas en el selector de Android…") { SubtypeSync(this).openSubtypeSettings() }
-        toggle("Ocultar fila de caracteres especiales", "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
-        if (!s.hideTopRow) {
-            choice("Fila superior", listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
+    private fun renderPage(pg: SettingsPage) {
+        pageHeader(pg)
+        if (store.mode != Mode.NONE && pg.id in MODE_AFFECTED) modeBanner()
+        if (pg.preview) livePreview()
+        val hinted = HashSet<Ctl>()
+        for (row in SettingsIA.rows(pg) { on(it) }) {
+            val parent = row.ctl.dependsOn
+            val hint = if (!row.enabled && parent != null && hinted.add(parent)) parent else null
+            ctl(row.ctl, row.enabled, row.indent, hint)
         }
-        toggle("Tecla de emojis", "Junto a la coma · abre el panel de emojis con recientes", s.emojiKey) { v -> commit { it.copy(emojiKey = v) } }
-        toggle("Sugerencias", "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
-        if (s.suggest) {
-            toggle("El espacio aplica la corrección", "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
-            toggle("Sugerencias personales", "Aprende tus palabras y correos frecuentes · solo en este teléfono", s.personal) { v -> commit { it.copy(personal = v) } }
+        root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
+    }
+
+    /** Value of a switch control, for [SettingsIA.rows] (dependents follow their switch). */
+    private fun on(c: Ctl): Boolean = when (c) {
+        Ctl.HIDE_TOP_ROW -> b.hideTopRow
+        Ctl.SUGGEST -> b.suggest
+        Ctl.HAPTICS -> b.haptics
+        Ctl.SOUND -> b.sound
+        Ctl.CLIP_HISTORY -> store.clip.history
+        else -> true
+    }
+
+    /**
+     * Renders one control into its own box tagged `ctl.name`. A disabled dependent stays
+     * visible (the user sees what its switch unlocks), dimmed and not actionable; [hint] adds
+     * one "Activa «X» para…" line under the first one of a group.
+     */
+    private fun ctl(ctl: Ctl, enabled: Boolean = true, indent: Int = 0, hint: Ctl? = null) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = ctl.name }
+        val prev = into
+        into = box
+        try {
+            widget(ctl)
+        } finally {
+            into = prev
         }
-        forgetRow()
-        toggle("Mayúscula automática", "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
-        toggle("Doble espacio = punto", null, s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
-        toggle("Vista previa de tecla", "Burbuja sobre la tecla al pulsar", s.popups) { v -> commit { it.copy(popups = v) } }
-        slider("Pulsación larga", 150, 900, s.longPressMs, { "$it ms" }, step = 25) { v -> commit { it.copy(longPressMs = v) } }
+        if (box.childCount == 0) return
+        if (!enabled) {
+            box.alpha = 0.42f
+            disable(box, ctl)
+        }
+        if (indent > 0) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(View(this).apply { setBackgroundColor(t.edgeHi) }, LinearLayout.LayoutParams(px(2f), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                marginStart = px(6f + 14f * (indent - 1)); marginEnd = px(12f)
+            })
+            row.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            into.addView(row, lp())
+        } else {
+            into.addView(box, lp())
+        }
+        if (hint != null) {
+            val what = if (hint == Ctl.HIDE_TOP_ROW) "Desactiva «${hint.label}»" else "Activa «${hint.label}»"
+            into.addView(label("$what para cambiar esto.", 12f, t.muted).apply { tag = "hint.${ctl.name}" }, lp(bottom = 4f).apply { marginStart = px(20f) })
+        }
+    }
 
-        section("Portapapeles")
-        clipboardSection()
+    private fun disable(v: View, ctl: Ctl) {
+        v.isEnabled = false
+        if (v.isClickable) {
+            v.isClickable = false
+            v.contentDescription = (v.contentDescription ?: ctl.label).toString() + ", no disponible"
+        }
+        if (v is ViewGroup) for (i in 0 until v.childCount) disable(v.getChildAt(i), ctl)
+    }
 
-        section("Respuesta")
-        toggle("Vibración", null, s.haptics) { v -> commit { it.copy(haptics = v) } }
-        if (s.haptics) {
-            choice("Intensidad", listOf(HapticStrength.LOW to "Suave", HapticStrength.MEDIUM to "Media", HapticStrength.HIGH to "Fuerte"), s.hapticStrength) { v ->
+    /** One widget per control. Exhaustive: a new [Ctl] without a widget does not compile. */
+    private fun widget(ctl: Ctl) {
+        val s = b
+        when (ctl) {
+            Ctl.TEMA -> temaPicker()
+            Ctl.MODE -> modePicker()
+            Ctl.THEME -> choice(ctl.label, Themes.ALL.map { it.id to it.label }, s.theme) { v -> commit { it.copy(theme = v) } }
+            Ctl.DAY_NIGHT -> dayNightPill(s)
+            Ctl.ACCENT -> accentRow(s)
+            Ctl.SHAPE -> choice(ctl.label, listOf(KeyShape.SQUARE to "Recta", KeyShape.SOFT to "Suave", KeyShape.ROUND to "Redonda"), s.shape) { v -> commit { it.copy(shape = v) } }
+            Ctl.CAP -> choice(ctl.label, listOf(KeyCap.RAISED to "Relieve", KeyCap.FLAT to "Plana", KeyCap.OUTLINE to "Contorno"), s.cap) { v -> commit { it.copy(cap = v) } }
+            Ctl.FONT -> choice(ctl.label, listOf(KeyFont.BRAND to "DM Sans", KeyFont.TECH to "Mono", KeyFont.HUMAN to "Serif"), s.font) { v -> commit { it.copy(font = v) } }
+            Ctl.DENSITY -> choice(ctl.label, listOf(Density.TIGHT to "Compacta", Density.NORMAL to "Normal", Density.AIRY to "Aireada"), s.density) { v -> commit { it.copy(density = v) } }
+            Ctl.HEIGHT -> slider(ctl.label, 80, 130, (s.heightScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(heightScale = v / 100f) } }
+            Ctl.SUB_LEGENDS -> toggle(ctl.label, "Dígitos sobre la fila superior y punto de variantes", s.subLegends) { v -> commit { it.copy(subLegends = v) } }
+
+            Ctl.LANG -> choice(ctl.label, listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
+            Ctl.SYSTEM_LANGS -> link("${ctl.label} ›") { SubtypeSync(this).openSubtypeSettings() }
+            Ctl.HIDE_TOP_ROW -> toggle(ctl.label, "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
+            Ctl.TOP_ROW -> choice(ctl.label, listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }
+            Ctl.EMOJI_KEY -> toggle(ctl.label, "Junto a la coma · abre el panel de emojis con recientes", s.emojiKey) { v -> commit { it.copy(emojiKey = v) } }
+            Ctl.DAY_NIGHT_CHIP -> toggle(ctl.label, "Un toque en el teclado cambia entre el tema claro y el oscuro", s.dayNightChip) { v -> commit { it.copy(dayNightChip = v) } }
+            Ctl.POPUPS -> toggle(ctl.label, "Burbuja sobre la tecla al pulsar · nunca en contraseñas", s.popups) { v -> commit { it.copy(popups = v) } }
+            Ctl.LONG_PRESS -> slider(ctl.label, 150, 900, s.longPressMs, { "$it ms" }, step = 25) { v -> commit { it.copy(longPressMs = v) } }
+
+            Ctl.SUGGEST -> toggle(ctl.label, "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
+            Ctl.SPACE_CORRECTS -> toggle(ctl.label, "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
+            Ctl.PERSONAL -> toggle(ctl.label, "Aprende tus palabras y correos frecuentes · solo en este teléfono", s.personal) { v -> commit { it.copy(personal = v) } }
+            Ctl.AUTO_CAP -> toggle(ctl.label, "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
+            Ctl.DOUBLE_SPACE -> toggle(ctl.label, "Dos espacios seguidos escriben «. »", s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
+
+            Ctl.HAPTICS -> toggle(ctl.label, null, s.haptics) { v -> commit { it.copy(haptics = v) } }
+            Ctl.HAPTIC_STRENGTH -> choice(ctl.label, listOf(HapticStrength.LOW to "Suave", HapticStrength.MEDIUM to "Media", HapticStrength.HIGH to "Fuerte"), s.hapticStrength) { v ->
                 commit { it.copy(hapticStrength = v) }
                 previewHaptic(v)
             }
-        }
-        toggle("Sonido de tecla", "Sintetizado en el dispositivo, sin archivos", s.sound) { v -> commit { it.copy(sound = v) } }
-        if (s.sound) {
-            choice("Pack", listOf(SoundPack.CLICK to "Click", SoundPack.THOCK to "Thock", SoundPack.TYPE to "Máquina", SoundPack.BUBBLE to "Burbuja"), s.soundPack) { v -> commit { it.copy(soundPack = v) } }
-            slider("Volumen", 0, 100, (s.volume * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(volume = v / 100f) } }
-        }
+            Ctl.SOUND -> toggle(ctl.label, "Sintetizado en el dispositivo, sin archivos", s.sound) { v -> commit { it.copy(sound = v) } }
+            Ctl.SOUND_PACK -> choice(ctl.label, listOf(SoundPack.CLICK to "Click", SoundPack.THOCK to "Thock", SoundPack.TYPE to "Máquina", SoundPack.BUBBLE to "Burbuja"), s.soundPack) { v -> commit { it.copy(soundPack = v) } }
+            Ctl.VOLUME -> slider(ctl.label, 0, 100, (s.volume * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(volume = v / 100f) } }
 
-        section("Probar")
-        tryField()
+            Ctl.CLIP_HISTORY -> toggle(ctl.label, "Guarda lo que copias (hasta ${ClipboardHistory.MAX_ITEMS}) · nunca en campos de contraseña · solo en este teléfono", store.clip.history) { v ->
+                commitClip { it.copy(history = v) }
+            }
+            Ctl.CLIP_PURGE -> toggle(ctl.label, "Borra solo lo no fijado que copiaste hace más de una hora", store.clip.purgeHour) { v -> commitClip { it.copy(purgeHour = v) } }
+            Ctl.CLEAR_CLIP -> clearClipRow()
+            Ctl.FORGET_LEARNED -> forgetRow()
 
-        updateHeaderIndex = root.childCount
-        section("Actualización")
-        updateSection()
-        toggle("Buscar actualizaciones al iniciar", "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
-            store = store.copy(autoUpdateCheck = v)
-            repo.save(store)
-            val y = scroll.scrollY
-            render()
-            scroll.post { scroll.scrollTo(0, y) }
+            Ctl.UPDATES -> {
+                into.addView(label("Versión y actualización", 14f, t.textMod, 550), lp(top = 4f))
+                updateSection()
+            }
+            Ctl.UPDATE_AUTO -> toggle(ctl.label, "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
+                commitStore(store.copy(autoUpdateCheck = v))
+            }
+            Ctl.RESET_ALL -> resetRow()
         }
-        footer()
+        if (ctl == Ctl.UPDATES) updateAnchor = into
+    }
+
+    // ── temas + modos ───────────────────────────────────────────────────
+
+    /** The temas as cards in their own colors; tapping one puts it in use right away. */
+    private fun temaPicker() {
+        into.addView(label("TEMA", 11f, t.muted, 700).apply { letterSpacing = 0.12f }, lp(top = 4f, bottom = 8f))
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (tm in store.temas) {
+            val sel = tm.id == store.active
+            val pp = Palette.of(tm.look.theme, tm.look.accent)
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                minimumHeight = px(72f)
+                minimumWidth = px(92f)
+                background = rounded(pp.theme.bg2, if (sel) pp.accent else pp.theme.edge, 12f).apply { if (sel) setStroke(px(2f), pp.accent) }
+                setPadding(px(10f), px(8f), px(10f), px(8f))
+                isClickable = true
+                tag = "tema.${tm.id}"
+                setOnClickListener { if (!sel) commitStore(store.withTema(tm.id)) }
+                contentDescription = "Tema ${tm.name}, ${Themes.byId(tm.look.theme).label}" + if (sel) ", en uso" else ""
+            }
+            card.addView(label(tm.icon, 18f, pp.accent, 500).apply { gravity = Gravity.CENTER })
+            card.addView(label(tm.name, 13f, pp.theme.text, if (sel) 700 else 500).apply { gravity = Gravity.CENTER })
+            card.addView(label(if (sel) "● en uso" else Themes.byId(tm.look.theme).label, 10f, if (sel) pp.accent else pp.theme.muted, 600).apply { gravity = Gravity.CENTER; maxLines = 1 })
+            row.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+        }
+        hs.addView(row)
+        into.addView(hs, lp(bottom = 4f))
+        into.addView(label("Un tema es solo la apariencia. Idioma, sugerencias, vibración y sonido valen para todos los temas.", 12f, t.muted), lp(bottom = 6f))
+    }
+
+    /** "Modo": off, Código or Juego, each with its fixed, spelled-out effect. */
+    private fun modePicker() {
+        choice("Modo", Mode.values().map { it to (if (it == Mode.NONE) "Ninguno" else "${it.icon}  ${it.label}") }, store.mode) { m ->
+            commitStore(store.withMode(m))
+        }
+        into.addView(label(store.mode.summary, 12f, if (store.mode == Mode.NONE) t.muted else pal.accent, 500).apply { tag = "mode-summary" }, lp(bottom = 6f))
+    }
+
+    /** On a page the mode overrides: say so, and offer the way out, instead of silently ignoring edits. */
+    private fun modeBanner() {
+        val m = store.mode
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(pal.accentSoft, pal.accentGlow, 12f)
+            setPadding(px(14f), px(10f), px(14f), px(6f))
+            tag = "mode-banner"
+        }
+        card.addView(label("${m.icon}  Modo ${m.label} encendido", 14f, t.text, 650))
+        card.addView(label("${m.summary} Lo que cambies aquí se aplica al apagarlo.", 12f, t.textMod), lp(top = 2f))
+        card.addView(label("Apagar el modo", 13f, pal.accent, 650).apply {
+            minHeight = px(44f)
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            setOnClickListener { commitStore(store.withMode(Mode.NONE)) }
+        })
+        root.addView(card, lp(bottom = 12f))
+    }
+
+    private fun dayNightPill(s: KbSettings) {
+        val dark = Themes.byId(s.theme).dark
+        val toLabel = Themes.byId(DayNight.toggle(s).theme).label
+        into.addView(pill(if (dark) "☀  Modo día · $toLabel" else "☾  Modo noche · $toLabel") {
+            commitStore(store.updateLook(store.activeTema.id) { DayNight.toggle(it) })
+        }.apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f, bottom = 4f))
     }
 
     // ── updates (the app's only network use: these buttons + one check at keyboard start) ──
@@ -283,8 +499,8 @@ class SettingsActivity : Activity() {
         // r9: an available update reads as a card (amber edge, ✦) — the same mark as the keyboard chip
         val available = ((st as? Updater.State.Checked)?.decision as? UpdateDecision.Available)?.release
         if (available != null) updateCard(available, inst.versionName)
-        root.addView(label("Versión instalada: ${inst.versionName}", 14f, t.textMod, 550).apply { tag = "update-installed" }, lp(top = 4f))
-        root.addView(label(UpdateNotice.promise(store.autoUpdateCheck), 12f, t.muted).apply { tag = "update-promise" }, lp(top = 2f, bottom = 10f))
+        into.addView(label("Versión instalada: ${inst.versionName}", 14f, t.textMod, 550).apply { tag = "update-installed" }, lp(top = 4f))
+        into.addView(label(UpdateNotice.promise(store.autoUpdateCheck), 12f, t.muted).apply { tag = "update-promise" }, lp(top = 2f, bottom = 10f))
         when (st) {
             Updater.State.Idle -> checkButton("Buscar actualizaciones")
             Updater.State.Checking -> status("Buscando actualizaciones…")
@@ -316,7 +532,7 @@ class SettingsActivity : Activity() {
             is Updater.State.Verifying -> status("Comprobando la huella SHA-256…")
             is Updater.State.Ready -> {
                 status("✓ ${st.release.version} descargada y verificada (SHA-256 coincide).", t.ok)
-                root.addView(pill("Instalar ${st.release.version}") { install(st) }.apply { tag = "update-install" }, lp(top = 8f))
+                into.addView(pill("Instalar ${st.release.version}") { install(st) }.apply { tag = "update-install" }, lp(top = 8f))
             }
             is Updater.State.Failed -> {
                 status(st.message, t.bad)
@@ -373,16 +589,16 @@ class SettingsActivity : Activity() {
             contentDescription = "Ahora no. El teclado no volverá a avisar de la versión ${r.version}"
             setOnClickListener { Updater.dismissNotice(this@SettingsActivity, r.version); Updater.dismiss() }
         }, lp(top = 2f))
-        root.addView(card, lp(top = 4f, bottom = 12f))
+        into.addView(card, lp(top = 4f, bottom = 12f))
     }
 
     private fun status(text: String, color: Int = t.text, size: Float = 14f) {
-        root.addView(label(text, size, color, 500).apply { tag = "update-status" }, lp(top = 4f))
+        into.addView(label(text, size, color, 500).apply { tag = "update-status" }, lp(top = 4f))
     }
 
     private fun checkButton(text: String, quiet: Boolean = false) {
         if (quiet) link(text) { Updater.check(this) }
-        else root.addView(pill(text) { Updater.check(this) }.apply { tag = "update-check" }, lp(top = 4f))
+        else into.addView(pill(text) { Updater.check(this) }.apply { tag = "update-check" }, lp(top = 4f))
     }
 
     private fun confirmDownload(r: com.resyst.vk.core.Release) {
@@ -426,79 +642,62 @@ class SettingsActivity : Activity() {
         }
     }
 
-    /** Wipes the learned words + remembered values (shared by all profiles), after a confirm. */
-    private fun forgetRow() {
-        val w = PersonalStore.words
-        val v = PersonalStore.values
-        val summary = if (w == null || v == null) "Cargando…" else {
-            val words = com.resyst.vk.core.Lang.values().sumOf { w.vocabCount(it) }
-            val emails = v.suggest(com.resyst.vk.core.FieldKind.EMAIL, "", Int.MAX_VALUE).size
-            "$words palabras · $emails correos aprendidos · nada sale del teléfono"
-        }
+    // ── destructive rows (always last on their page, confirmed, off when there is nothing to erase) ──
+
+    private fun dangerRow(title: String, summary: String, enabled: Boolean, onClick: () -> Unit, summaryTag: String? = null) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             minimumHeight = px(52f)
             gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            contentDescription = "Borrar lo aprendido. $summary"
-            setOnClickListener { confirmForget() }
+            isClickable = enabled
+            isEnabled = enabled
+            contentDescription = "$title. $summary" + if (enabled) "" else ", no disponible"
+            if (enabled) setOnClickListener { onClick() }
         }
-        row.addView(label("Borrar lo aprendido", 15f, t.bad, 600))
-        row.addView(label(summary, 12f, t.muted))
-        root.addView(row, lp())
+        row.addView(label(title, 15f, if (enabled) t.bad else t.muted, 600))
+        row.addView(label(summary, 12f, t.muted).apply { if (summaryTag != null) tag = summaryTag })
+        into.addView(row, lp(top = 6f))
+    }
+
+    /** Wipes the learned words + remembered values (shared by every tema), after a confirm. */
+    private fun forgetRow() {
+        val w = PersonalStore.words
+        val v = PersonalStore.values
+        if (w == null || v == null) {
+            dangerRow(Ctl.FORGET_LEARNED.label, "Cargando…", enabled = false, onClick = {})
+            return
+        }
+        val words = Lang.values().sumOf { w.vocabCount(it) }
+        val emails = v.suggest(com.resyst.vk.core.FieldKind.EMAIL, "", Int.MAX_VALUE).size
+        val empty = words == 0 && emails == 0
+        val summary = if (empty) "Nada aprendido todavía · nada sale del teléfono" else "$words palabras · $emails correos aprendidos · nada sale del teléfono"
+        dangerRow(Ctl.FORGET_LEARNED.label, summary, enabled = !empty, onClick = { confirmForget() })
     }
 
     private fun confirmForget() {
         AlertDialog.Builder(this)
             .setTitle("¿Borrar lo aprendido?")
-            .setMessage("Se olvidan las palabras y los correos que el teclado aprendió de ti, en todos los perfiles. No se puede deshacer.")
+            .setMessage("Se olvidan las palabras y los correos que el teclado aprendió de ti, en todos los temas. No se puede deshacer.")
             .setPositiveButton("Borrar") { _, _ ->
                 PersonalStore.clear(this)
-                val y = scroll.scrollY
-                render()
-                scroll.post { scroll.scrollTo(0, y) }
+                rerender()
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 
-    // ── clipboard (device-wide, not per profile) ────────────────────────
-    private fun commitClip(f: (ClipSettings) -> ClipSettings) {
-        store = store.copy(clip = f(store.clip))
-        repo.save(store)
-        val y = scroll.scrollY
-        render()
-        scroll.post { scroll.scrollTo(0, y) }
-    }
+    // ── clipboard (device-wide) ─────────────────────────────────────────
+    private fun commitClip(f: (ClipSettings) -> ClipSettings) = commitStore(store.copy(clip = f(store.clip)))
 
-    private fun clipboardSection() {
-        val c = store.clip
-        toggle("Historial del portapapeles", "Guarda lo que copias (hasta ${ClipboardHistory.MAX_ITEMS}) · nunca en campos de contraseña · solo en este teléfono", c.history) { v ->
-            commitClip { it.copy(history = v) }
-        }
-        if (c.history) {
-            toggle("Purgar tras 1 hora", "Borra solo lo no fijado que copiaste hace más de una hora", c.purgeHour) { v ->
-                commitClip { it.copy(purgeHour = v) }
-            }
-        }
+    private fun clearClipRow() {
         val h = ClipStore.history
         val summary = when {
             h == null -> "Cargando…"
             h.isEmpty() -> "Vacío · nada sale del teléfono"
             else -> "${h.size} elementos" + (if (h.pinCount > 0) " · ${h.pinCount} fijados" else "") + " · nada sale del teléfono"
         }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            minimumHeight = px(52f)
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            contentDescription = "Borrar historial del portapapeles. $summary"
-            setOnClickListener { confirmClearClipboard() }
-        }
-        row.addView(label("Borrar historial del portapapeles", 15f, t.bad, 600))
-        row.addView(label(summary, 12f, t.muted).apply { tag = "clip-summary" })
-        root.addView(row, lp())
-        root.addView(label("En el teclado: toca el portapapeles junto a ⚙ para ver el historial; «Pegar» aparece al copiar algo. Android solo avisa al teclado de lo que copias mientras está activo.", 12f, t.muted), lp(top = 2f, bottom = 4f))
+        dangerRow(Ctl.CLEAR_CLIP.label, summary, enabled = h != null && !h.isEmpty(), onClick = { confirmClearClipboard() }, summaryTag = "clip-summary")
+        into.addView(label("«Pegar» aparece en la barra del teclado al copiar algo. Android solo avisa al teclado de lo que copias mientras está activo.", 12f, t.muted), lp(top = 2f, bottom = 4f))
     }
 
     private fun confirmClearClipboard() {
@@ -510,12 +709,24 @@ class SettingsActivity : Activity() {
             .show()
     }
 
+    private fun resetRow() {
+        dangerRow(Ctl.RESET_ALL.label, "Vuelven los temas de fábrica y los ajustes por defecto · lo aprendido y el portapapeles no se tocan", enabled = true, onClick = {
+            AlertDialog.Builder(this)
+                .setTitle("¿Restablecer ajustes y temas?")
+                .setMessage("Los temas, el modo y todos los ajustes vuelven a como venían. Lo aprendido y el historial del portapapeles se conservan.")
+                .setPositiveButton("Restablecer") { _, _ -> repo.reset(); store = repo.load(); go(null) }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        })
+    }
+
     /** Picking a level plays one key click at that level, so the choice is felt, not guessed. */
     private fun previewHaptic(strength: HapticStrength) {
         val player = haptics ?: HapticPlayer(this).also { haptics = it }
         Haptics.pulseFor(HapticEvent.KEY, enabled = true)?.let { player.play(it, strength) }
     }
 
+    // ── chrome ──────────────────────────────────────────────────────────
     private fun typeface(w: Int) = Fonts.get(this, KeyFont.BRAND, w)
 
     private fun label(text: String, sizeSp: Float, color: Int, weight: Int = 400): TextView = TextView(this).apply {
@@ -540,9 +751,49 @@ class SettingsActivity : Activity() {
         row.addView(label("✦", 30f, pal.accent, 500).apply { setPadding(0, 0, px(12f), 0) })
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(label("Resyst VK", 26f, t.text, 700))
-        col.addView(label("Teclado de sistema · Midnight Laboratory", 13f, t.muted, 450))
+        col.addView(label("Teclado de sistema · lo que escribes no sale del teléfono", 13f, t.muted, 450))
         row.addView(col)
         root.addView(row, lp(bottom = 18f))
+    }
+
+    /** A page: back to home, its title, and where its settings are stored. */
+    private fun pageHeader(pg: SettingsPage) {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        row.addView(label("‹", 28f, pal.accent, 500).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            tag = "nav-back"
+            contentDescription = "Volver a Ajustes"
+            setOnClickListener { go(null) }
+        }, LinearLayout.LayoutParams(px(48f), px(48f)))
+        row.addView(label(pg.title, 22f, t.text, 700).apply { tag = "page-title" }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(row, lp(bottom = 4f))
+        val where = if (pg.scope == Scope.TEMA) {
+            "Solo para el tema «${store.activeTema.name}». Los otros temas tienen su propia apariencia."
+        } else {
+            "Vale para todo el teclado, con cualquier tema."
+        }
+        root.addView(label(where, 12f, t.muted).apply { tag = "page-scope" }, lp(bottom = 12f).apply { marginStart = px(48f) })
+    }
+
+    /** One home row per page: title, what it holds, chevron. */
+    private fun navRow(pg: SettingsPage) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = px(56f)
+            isClickable = true
+            tag = "page.${pg.id}"
+            contentDescription = "${pg.title}. ${pg.summary}"
+            setOnClickListener { go(pg.id) }
+        }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(label(pg.title, 15f, t.text, 550))
+        if (pg.summary.isNotEmpty()) col.addView(label(pg.summary, 12f, t.muted))
+        row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(label("›", 22f, pal.accent, 500).apply { setPadding(px(12f), 0, px(4f), 0) })
+        root.addView(row, lp())
+        root.addView(View(this).apply { setBackgroundColor(t.edge) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(1f)))
     }
 
     private fun imeState(): Pair<Boolean, Boolean> {
@@ -554,23 +805,26 @@ class SettingsActivity : Activity() {
         return enabled to selected
     }
 
+    /** Setup: the two steps while pending; once active, one quiet line (UI-6: done ≠ a button). */
     private fun setupCard() {
         val (enabled, selected) = imeState()
+        if (selected) {
+            root.addView(label("✓ Resyst VK está activo", 14f, t.ok, 600).apply { tag = "setup-done" }, lp(bottom = 14f))
+            return
+        }
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = rounded(t.bg2, if (selected) t.edge else pal.accent, 14f)
+            background = rounded(t.bg2, pal.accent, 14f)
             setPadding(px(16f), px(14f), px(16f), px(14f))
         }
-        card.addView(label(if (selected) "✓ Resyst VK está activo" else "Activa el teclado en dos pasos", 16f, if (selected) t.ok else t.text, 650))
+        card.addView(label("Activa el teclado en dos pasos", 16f, t.text, 650))
         card.addView(step(1, "Habilitar Resyst VK en Ajustes → Teclados", enabled) {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         }, lp(top = 10f))
         card.addView(step(2, "Elegirlo como teclado actual", selected) {
             getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
         }, lp(top = 8f))
-        if (!selected) {
-            card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
-        }
+        card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
         root.addView(card, lp(bottom = 20f))
     }
 
@@ -579,10 +833,10 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = px(48f)
-            background = rounded(if (done) t.bg2 else t.key, if (done) t.edge else t.edgeHi, 10f)
+            background = if (done) null else rounded(t.key, t.edgeHi, 10f)
             setPadding(px(12f), px(8f), px(12f), px(8f))
-            isClickable = true
-            setOnClickListener { onClick() }
+            isClickable = !done
+            if (!done) setOnClickListener { onClick() }
             contentDescription = "Paso $n: $text. ${if (done) "Completado" else "Pendiente"}"
         }
         row.addView(label(if (done) "✓" else "$n", 15f, if (done) t.ok else pal.accent, 700).apply {
@@ -595,43 +849,12 @@ class SettingsActivity : Activity() {
         return row
     }
 
-    private fun profileTabs() {
-        root.addView(label("PERFILES", 11f, t.muted, 700).apply { letterSpacing = 0.12f }, lp(bottom = 8f))
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (p in store.profiles) {
-            val sel = p.id == editing
-            val pp = Palette.of(p.settings.theme, p.settings.accent)
-            val chip = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                minimumHeight = px(64f)
-                background = rounded(pp.theme.bg2, if (sel) pp.accent else pp.theme.edge, 12f)
-                setPadding(px(4f), px(8f), px(4f), px(8f))
-                isClickable = true
-                setOnClickListener { editing = p.id; render() }
-                contentDescription = "Perfil ${p.name}" + (if (p.id == store.active) ", activo" else "") + (if (sel) ", editando" else "")
-            }
-            chip.addView(label(p.icon, 18f, pp.accent, 500).apply { gravity = Gravity.CENTER })
-            chip.addView(label(p.name, 13f, pp.theme.text, if (sel) 700 else 500).apply { gravity = Gravity.CENTER })
-            chip.addView(label(if (p.id == store.active) "● activo" else " ", 10f, pp.accent, 600).apply { gravity = Gravity.CENTER })
-            row.addView(chip, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginStart = px(3f); marginEnd = px(3f)
-            })
-        }
-        root.addView(row, lp(bottom = 10f))
-        if (editing != store.active) {
-            root.addView(pill("Usar «${store.byId(editing)?.name}» como perfil activo") {
-                store = store.withActive(editing); repo.save(store); render()
-            }, lp(bottom = 10f))
-        } else {
-            root.addView(label("En el teclado: toca ✦ para pasar al siguiente perfil; mantén ✦ para abrir esta pantalla.", 12f, t.muted), lp(bottom = 10f))
-        }
-    }
-
-    private fun livePreview(s: KbSettings) {
+    /** The live keyboard with exactly what the keyboard runs: tema look + phone + mode. */
+    private fun livePreview() {
+        val s = store.settings
         val kv = KeyboardView(this)
         kv.setStyle(s, Palette.of(s.theme, s.accent))
-        kv.setProfile(store.byId(editing)?.icon ?: "✦", store.byId(editing)?.name ?: "")
+        kv.setProfile(if (store.mode == Mode.NONE) store.activeTema.icon else store.mode.icon, store.activeTema.name)
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
         val spec = LayoutSpec(s.lang, s.effectiveTopRow, emojiKey = s.emojiKey)
         kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)
@@ -645,8 +868,12 @@ class SettingsActivity : Activity() {
         }
         frame.addView(kv)
         preview = kv
-        root.addView(frame, lp(bottom = 6f))
-        root.addView(label("Vista previa · ${Themes.byId(s.theme).label}", 11f, t.muted, 500).apply { gravity = Gravity.END }, lp(bottom = 6f))
+        root.addView(frame, lp(top = 6f, bottom = 6f))
+        val mode = if (store.mode == Mode.NONE) "" else " · modo ${store.mode.label}"
+        root.addView(label("Vista previa · ${store.activeTema.name} (${Themes.byId(s.theme).label})$mode", 11f, t.muted, 500).apply {
+            gravity = Gravity.END
+            tag = "preview-caption"
+        }, lp(bottom = 6f))
     }
 
     private fun section(title: String) {
@@ -658,7 +885,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun <T> choice(title: String, options: List<Pair<T, String>>, current: T, onPick: (T) -> Unit) {
-        root.addView(label(title, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
+        into.addView(label(title, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for ((value, name) in options) {
@@ -674,11 +901,11 @@ class SettingsActivity : Activity() {
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
         }
         hs.addView(row)
-        root.addView(hs, lp(bottom = 4f))
+        into.addView(hs, lp(bottom = 4f))
     }
 
     private fun accentRow(s: KbSettings) {
-        root.addView(label("Acento", 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
+        into.addView(label(Ctl.ACCENT.label, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val options = listOf<Pair<Int?, String>>(null to "Del tema") + Themes.ACCENTS.map { it.first to it.second }
@@ -699,11 +926,11 @@ class SettingsActivity : Activity() {
                 setOnClickListener { if (!sel) commit { it.copy(accent = c) } }
                 contentDescription = "Acento $name" + if (sel) ", seleccionado" else ""
             }
-            row.addView(sw, LinearLayout.LayoutParams(px(40f), px(40f)).apply { marginEnd = px(10f) })
+            row.addView(sw, LinearLayout.LayoutParams(px(44f), px(44f)).apply { marginEnd = px(8f) })
         }
         hs.addView(row)
-        root.addView(hs, lp(bottom = 4f))
-        root.addView(label("El acento se corrige automáticamente a contraste ≥ 4.5:1 (${ColorMath.toHex(pal.accent)}).", 11f, t.muted), lp(bottom = 4f))
+        into.addView(hs, lp(bottom = 4f))
+        into.addView(label("El acento se corrige automáticamente a contraste ≥ 4.5:1 (${ColorMath.toHex(Palette.of(s.theme, s.accent).accent)}).", 11f, t.muted), lp(bottom = 4f))
     }
 
     private fun toggle(title: String, sub: String?, value: Boolean, onChange: (Boolean) -> Unit) {
@@ -718,7 +945,7 @@ class SettingsActivity : Activity() {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(label(title, 15f, t.text, 500))
         if (sub != null) col.addView(label(sub, 12f, t.muted))
-        row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = px(12f) })
         // custom switch: track + knob, theme colored
         val track = FrameLayout(this).apply {
             background = rounded(if (value) pal.accent else t.keyMod, if (value) pal.accent else t.edgeHi, 14f)
@@ -731,7 +958,7 @@ class SettingsActivity : Activity() {
             marginStart = px(4f); marginEnd = px(4f)
         })
         row.addView(track, LinearLayout.LayoutParams(px(48f), px(28f)))
-        root.addView(row, lp())
+        into.addView(row, lp())
     }
 
     private fun slider(title: String, min: Int, max: Int, value: Int, fmt: (Int) -> String, step: Int = 5, onChange: (Int) -> Unit) {
@@ -739,7 +966,7 @@ class SettingsActivity : Activity() {
         head.addView(label(title, 14f, t.textMod, 550), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val valueLabel = label(fmt(value), 14f, pal.accent, 650)
         head.addView(valueLabel)
-        root.addView(head, lp(top = 10f))
+        into.addView(head, lp(top = 10f))
         val bar = SeekBar(this).apply {
             this.max = (max - min) / step
             progress = (value - min) / step
@@ -753,11 +980,16 @@ class SettingsActivity : Activity() {
                 override fun onStopTrackingTouch(sb: SeekBar?) { onChange(min + (sb?.progress ?: 0) * step) }
             })
         }
-        root.addView(bar, lp(bottom = 4f).apply { height = px(44f) })
+        into.addView(bar, lp().apply { height = px(44f) })
+        // UI-6: the range is visible, not guessed
+        val ends = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        ends.addView(label(fmt(min), 11f, t.muted), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        ends.addView(label(fmt(max), 11f, t.muted))
+        into.addView(ends, lp(bottom = 4f))
     }
 
     private fun link(text: String, onClick: () -> Unit) {
-        root.addView(label(text, 13f, pal.accent, 600).apply {
+        into.addView(label(text, 13f, pal.accent, 600).apply {
             minHeight = px(44f)
             gravity = Gravity.CENTER_VERTICAL
             isClickable = true
@@ -792,21 +1024,18 @@ class SettingsActivity : Activity() {
     }
 
     private fun footer() {
-        val reset = label("Restablecer los 4 perfiles", 13f, t.bad, 600).apply {
-            gravity = Gravity.CENTER
-            minHeight = px(44f)
-            isClickable = true
-            setOnClickListener { repo.reset(); store = repo.load(); editing = store.active; render() }
-        }
-        root.addView(reset, lp(top = 18f))
-        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (MIT)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 8f))
+        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (MIT)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
         root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
     }
-
 
     companion object {
         /** r9: open on a section (the keyboard's update chip). */
         const val EXTRA_SECTION = "com.resyst.vk.section"
         const val SECTION_UPDATE = "update"
+        /** r10: open on a [SettingsPage.id] (quick panel → "Ajustes", privacy surfaces…). */
+        const val EXTRA_PAGE = "com.resyst.vk.page"
+        private const val STATE_PAGE = "page"
+        /** Pages whose controls a mode can override (they get the "modo encendido" banner). */
+        private val MODE_AFFECTED = setOf("apariencia", "teclas", "escritura")
     }
 }

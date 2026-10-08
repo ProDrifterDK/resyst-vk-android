@@ -61,9 +61,7 @@ class Round2Test {
         val rows = KeyboardLayouts.rows(Layer.LETTERS, LayoutSpec(d.lang, d.effectiveTopRow))
         assertEquals(5, rows.size)
         assertEquals("á", rows[0][0].text)
-        for (p in listOf("noche", "dia", "escritura")) {
-            assertFalse(p, ProfileCodec.seed().byId(p)!!.settings.hideTopRow)
-        }
+        assertFalse(ProfileCodec.seed().settings.hideTopRow) // r10: phone-wide
     }
 
     @Test fun hidingRemovesExactlyTheTopRow() { // H2
@@ -84,23 +82,22 @@ class Round2Test {
     }
 
     @Test fun r1StorageWithNoRowBecomesHidden() { // H4
-        val map = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>()
-        map.keys.filter { it.endsWith(".hideTopRow") }.forEach { map.remove(it) } // r1 had no such key
-        map["p.noche.topRow"] = "NONE"
-        val s = ProfileCodec.decode(map).byId("noche")!!.settings
+        // r1 had no hideTopRow key and stored topRow = NONE per profile
+        val map = mutableMapOf<String, Any?>("v" to "1", "active" to "noche", "order" to "noche,dia", "p.noche.topRow" to "NONE")
+        val s = ProfileCodec.decode(map).settings
         assertTrue(s.hideTopRow)
         assertEquals(TopRow.ACCENTS, s.topRow)
         assertEquals(TopRow.NONE, s.effectiveTopRow)
         // r1 storage with a visible row stays visible
-        assertFalse(ProfileCodec.decode(map).byId("dia")!!.settings.hideTopRow)
+        assertFalse(ProfileCodec.decode(map + ("active" to "dia")).settings.hideTopRow)
     }
 
-    @Test fun hideFlagRoundTripsAndStaysPerProfile() { // H5
-        val st = ProfileCodec.seed().update("dia") { it.copy(hideTopRow = true, topRow = TopRow.NUMBERS) }
+    @Test fun hideFlagRoundTripsAndIsPhoneWide() { // H5 (r10: phone-wide)
+        val st = ProfileCodec.seed().updatePhone { it.copy(hideTopRow = true, topRow = TopRow.NUMBERS) }
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
         assertEquals(st, back)
-        assertTrue(back.byId("dia")!!.settings.hideTopRow)
-        assertFalse(back.byId("noche")!!.settings.hideTopRow)
+        assertTrue(back.settings.hideTopRow)
+        assertTrue(back.withTema(back.nextTemaId()).settings.hideTopRow)
     }
 
     @Test fun otherLayersIgnoreTheFlag() { // H6

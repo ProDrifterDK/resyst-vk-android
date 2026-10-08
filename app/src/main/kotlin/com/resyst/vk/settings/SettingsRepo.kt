@@ -11,9 +11,16 @@ class SettingsRepo(context: Context) {
 
     fun load(): ProfileStore = ProfileCodec.decode(prefs.all)
 
+    /**
+     * Writes the whole store. Keys the current codec no longer writes (r1–r9 `p.*`, a deleted
+     * tema's `t.<id>.*`) are dropped, so a migrated v1 store is rewritten once as v2.
+     * Keys other subsystems keep in this file and the codec doesn't own are left alone.
+     */
     fun save(store: ProfileStore) {
+        val enc = ProfileCodec.encode(store)
         val e = prefs.edit()
-        for ((k, v) in ProfileCodec.encode(store)) e.putString(k, v)
+        for (k in prefs.all.keys) if (k !in enc && ProfileCodec.owns(k)) e.remove(k)
+        for ((k, v) in enc) e.putString(k, v)
         e.apply()
     }
 

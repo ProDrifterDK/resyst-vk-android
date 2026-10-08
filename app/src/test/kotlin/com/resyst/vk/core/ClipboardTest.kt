@@ -328,7 +328,7 @@ class ClipboardTest {
         val bad = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>()
         bad["clip.history"] = "maybe"; bad["clip.purge"] = 3
         assertEquals(ClipSettings(), ProfileCodec.decode(bad).clip)
-        // device-wide: switching profiles doesn't change it
-        assertEquals(st.clip, back.withActive("juego").clip)
+        // device-wide: switching tema or mode doesn't change it
+        assertEquals(st.clip, back.withTema("arcade").withMode(Mode.GAME).clip)
     }
 }

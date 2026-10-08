@@ -170,12 +170,12 @@ class Round9Test {
         assertFalse(ProfileCodec.decode(ProfileCodec.encode(off)).autoUpdateCheck)
         val junk = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>().apply { put(ProfileCodec.UPDATE_AUTO_KEY, "maybe") }
         assertTrue(ProfileCodec.decode(junk).autoUpdateCheck)
-        assertFalse("not per profile", ProfileCodec.encode(off).keys.any { it.startsWith("p.") && it.endsWith(".auto") })
+        assertFalse("not per tema", ProfileCodec.encode(off).keys.any { (it.startsWith("p.") || it.startsWith("t.")) && it.endsWith(".auto") })
         assertEquals(Scope.DEVICE, Ctl.UPDATE_AUTO.scope)
         assertEquals("acerca", SettingsIA.pageOf(Ctl.UPDATE_AUTO)?.id)
         assertFalse(Ctl.UPDATE_AUTO in SettingsIA.HOME)
-        // switching profiles keeps it
-        assertFalse(ProfileCodec.decode(ProfileCodec.encode(off.withActive(off.nextId()))).autoUpdateCheck)
+        // switching tema keeps it
+        assertFalse(ProfileCodec.decode(ProfileCodec.encode(off.withTema(off.nextTemaId()))).autoUpdateCheck)
     }
 
     @Test fun privacyCopyMatchesTheToggle() { // S2

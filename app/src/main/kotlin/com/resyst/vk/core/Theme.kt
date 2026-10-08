@@ -143,6 +143,10 @@ object DayNight {
         val to = remembered?.takeIf { it.dark != from.dark } ?: Themes.byId(Themes.twin(from.id))
         return s.copy(theme = to.id, altTheme = from.id)
     }
+
+    /** r10: the same flip on a tema's [Look]. */
+    fun toggle(l: Look): Look = Look.of(toggle(l.applyTo(KbSettings())))
+
 }
 
 /** Effective colors: theme + optional custom accent with guaranteed ≥ 4.5:1 contrast over keys. */

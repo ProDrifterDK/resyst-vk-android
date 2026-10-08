@@ -46,6 +46,7 @@ import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Learner
+import com.resyst.vk.core.Mode
 import com.resyst.vk.core.Out
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.ProfileStore
@@ -151,7 +152,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         refreshClip()
     }
 
-    private val s get() = store.activeProfile.settings
+    /** r10: effective settings = phone behavior + active tema look + mode overrides. */
+    private val s get() = store.settings
 
     // ── languages ⇄ IME subtypes ────────────────────────────────────────
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
@@ -175,7 +177,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 val lang = system ?: return
                 Log.i(TAG, "subtype: pull $lang (app=$app last=$last)")
                 subtypes.lastSynced = lang
-                store = store.update(store.active) { it.copy(lang = lang) }
+                store = store.updatePhone { it.copy(lang = lang) }
                 repo.save(store) // listener → sync sees agreement → NONE
                 applySettings()
             }
@@ -312,7 +314,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexicon?.get(lang), personalWords(), lang) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
-        v.setProfile(store.activeProfile.icon, store.activeProfile.name)
+        v.setProfile(if (store.mode == Mode.NONE) store.activeTema.icon else store.mode.icon, store.activeTema.name)
         sound?.configure(st.sound, st.soundPack)
         if (st.suggest) lexicon?.warm(st.lang)
         rebuildLayout()
@@ -414,7 +416,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onProfileTap() {
-        val next = store.withActive(store.nextId())
+        val next = store.withTema(store.nextTemaId())
         store = next
         repo.save(next) // listener reloads + re-applies
         applySettings()
@@ -661,7 +663,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onDayNight() {
-        val next = store.update(store.active) { DayNight.toggle(it) }
+        val next = store.updateLook(store.activeTema.id) { DayNight.toggle(it) }
         store = next
         repo.save(next) // listener reloads + re-applies
         applySettings()

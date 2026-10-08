@@ -42,35 +42,36 @@ class PaletteProfilesTest {
         assertEquals(Themes.byId("lab").accent, Palette.of("nope", null).accent)
     }
 
-    // R1
-    @Test fun seedHasFourProfiles() {
+    // R1 (r10: temas + modos; the mode is off on a fresh install)
+    @Test fun seedHasThreeTemasAndNoMode() {
         val st = ProfileCodec.seed()
-        assertEquals(listOf("noche", "dia", "juego", "escritura"), st.profiles.map { it.id })
-        assertEquals(listOf("lab", "paper", "arcade", "slate"), st.profiles.map { it.settings.theme })
-        assertEquals("noche", st.active)
-        val juego = st.byId("juego")!!.settings
-        assertEquals(TopRow.NONE, juego.effectiveTopRow) // r2: hidden via hideTopRow
-        assertTrue(juego.hideTopRow)
+        assertEquals(listOf("resyst", "arcade", "pizarra"), st.temas.map { it.id })
+        assertEquals(listOf("lab", "arcade", "slate"), st.temas.map { it.look.theme })
+        assertEquals("resyst", st.active)
+        assertEquals(Mode.NONE, st.mode)
+        assertEquals(KbSettings(), st.settings) // fresh install = the r1 defaults
+        val juego = st.withMode(Mode.GAME).settings
+        assertEquals(TopRow.NONE, juego.effectiveTopRow)
         assertEquals(false, juego.suggest)
         assertTrue(juego.heightScale < 1f)
-        val esc = st.byId("escritura")!!.settings
-        assertEquals(true, esc.sound)
-        assertEquals(SoundPack.THOCK, esc.soundPack)
+        assertEquals(KeyFont.HUMAN, st.withTema("pizarra").settings.font)
     }
 
     // R2 + R4
     @Test fun corruptValuesAreSanitized() {
         val map = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>()
         map["active"] = "ghost"
-        map["p.noche.theme"] = "neon"
-        map["p.noche.heightScale"] = "9.5"
-        map["p.noche.shape"] = "TRIANGLE"
-        map["p.noche.volume"] = "abc"
-        map["p.noche.accent"] = "#zzz"
-        map["p.noche.longPressMs"] = "5"
+        map["mode"] = "turbo"
+        map["t.resyst.theme"] = "neon"
+        map["t.resyst.heightScale"] = "9.5"
+        map["t.resyst.shape"] = "TRIANGLE"
+        map["phone.volume"] = "abc"
+        map["t.resyst.accent"] = "#zzz"
+        map["phone.longPressMs"] = "5"
         val st = ProfileCodec.decode(map)
-        assertEquals("noche", st.active)
-        val s = st.byId("noche")!!.settings
+        assertEquals("resyst", st.active)
+        assertEquals(Mode.NONE, st.mode)
+        val s = st.settings
         assertEquals("lab", s.theme)
         assertEquals(1.3f, s.heightScale, 0.0001f)
         assertEquals(KeyShape.SOFT, s.shape)
@@ -83,21 +84,22 @@ class PaletteProfilesTest {
         assertEquals(ProfileCodec.seed(), ProfileCodec.decode(emptyMap<String, Any?>()))
     }
 
-    // R3 + R5
+    // R3 + R5: a look edit stays in its tema, a behavior edit is phone-wide; both round-trip
     @Test fun editsAreIsolatedAndRoundTrip() {
-        val st = ProfileCodec.seed()
-            .update("dia") { it.copy(accent = ColorMath.parseHex("#e2735a"), shape = KeyShape.ROUND, sound = true) }
-            .withActive("dia")
-        assertEquals(ProfileCodec.seed().byId("noche"), st.byId("noche"))
+        val st = ProfileCodec.seed().withTema("arcade")
+            .edit { it.copy(accent = ColorMath.parseHex("#e2735a"), shape = KeyShape.ROUND, sound = true) }
+        assertEquals(ProfileCodec.seed().byId("resyst"), st.byId("resyst"))
+        assertEquals(KeyShape.ROUND, st.byId("arcade")!!.look.shape)
+        assertTrue("behavior is phone-wide", st.withTema("resyst").settings.sound)
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
         assertEquals(st, back)
-        assertEquals("dia", back.active)
-        assertEquals(KeyShape.ROUND, back.activeProfile.settings.shape)
+        assertEquals("arcade", back.active)
+        assertEquals(KeyShape.ROUND, back.settings.shape)
     }
 
-    @Test fun nextProfileCycles() {
+    @Test fun nextTemaCycles() {
         val st = ProfileCodec.seed()
-        assertEquals("dia", st.nextId())
-        assertEquals("noche", st.withActive("escritura").nextId())
+        assertEquals("arcade", st.nextTemaId())
+        assertEquals("resyst", st.withTema("pizarra").nextTemaId())
     }
 }

@@ -6,26 +6,28 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Failure modes I1–I9 (docs/failure-modes.md, round 7). */
+/** Failure modes I1–I9 (docs/failure-modes.md, round 7), on the r10 tema/phone keys. */
 class SettingsIATest {
 
     private val pages = SettingsIA.PAGES
     private val placed = pages.flatMap { it.controls }
+    private val enc = ProfileCodec.encode(ProfileCodec.seed())
 
-    /** Per-profile fields the codec stores (minus the profile's own identity). */
-    private val storedProfileKeys = ProfileCodec.encode(ProfileCodec.seed()).keys
-        .filter { it.startsWith("p.noche.") }
-        .map { it.removePrefix("p.noche.") }
+    /** Fields every tema stores (minus the tema's own identity). */
+    private val storedTemaKeys = enc.keys
+        .filter { it.startsWith("t.resyst.") }
+        .map { it.removePrefix("t.resyst.") }
         .filter { it !in setOf("name", "icon") }
         .toSet()
 
-    private val storedDeviceKeys = ProfileCodec.encode(ProfileCodec.seed()).keys
-        .filter { it.startsWith("clip.") || it.startsWith("update.") }.toSet()
+    /** Phone-wide keys, stored under their full name. `v` and `order` are bookkeeping, not settings. */
+    private val storedDeviceKeys = enc.keys
+        .filter { !it.startsWith(ProfileCodec.TEMA) && it !in setOf("v", "order") }.toSet()
 
-    @Test fun everyStoredSettingHasAControl() { // I1
-        val profileKeys = Ctl.values().filter { it.scope == Scope.PROFILE }.mapNotNull { it.key }.toSet()
+    @Test fun everyStoredSettingHasAControl() { // I1 / T9
+        val temaKeys = Ctl.values().filter { it.scope == Scope.TEMA }.mapNotNull { it.key }.toSet()
         val deviceKeys = Ctl.values().filter { it.scope == Scope.DEVICE }.mapNotNull { it.key }.toSet()
-        assertEquals(storedProfileKeys, profileKeys)
+        assertEquals(storedTemaKeys, temaKeys)
         assertEquals(storedDeviceKeys, deviceKeys)
     }
 
@@ -36,7 +38,7 @@ class SettingsIATest {
     @Test fun everyKeyedControlIsARealStoredField() { // I2
         for (c in Ctl.values()) {
             val k = c.key ?: continue
-            val known = if (c.scope == Scope.PROFILE) k in storedProfileKeys else k in storedDeviceKeys
+            val known = if (c.scope == Scope.TEMA) k in storedTemaKeys else k in storedDeviceKeys
             assertTrue("$c → $k is not stored by ProfileCodec", known)
         }
     }
@@ -61,7 +63,7 @@ class SettingsIATest {
 
     @Test fun homeStaysSmallAndHoldsTheDailySettings() { // I5
         assertTrue(SettingsIA.HOME.size <= SettingsIA.MAX_HOME)
-        for (c in listOf(Ctl.HAPTICS, Ctl.SOUND, Ctl.THEME, Ctl.ACCENT, Ctl.HIDE_TOP_ROW, Ctl.SUGGEST, Ctl.LANG)) {
+        for (c in listOf(Ctl.TEMA, Ctl.MODE, Ctl.HAPTICS, Ctl.SOUND, Ctl.HIDE_TOP_ROW, Ctl.SUGGEST, Ctl.LANG)) {
             assertTrue("$c must be on home", c in SettingsIA.HOME)
         }
         for (c in listOf(Ctl.SUB_LEGENDS, Ctl.POPUPS, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE, Ctl.LONG_PRESS)) {
@@ -81,16 +83,21 @@ class SettingsIATest {
 
     @Test fun scopesAreNotMixed() { // I7
         for (p in pages) for (c in p.controls) assertEquals("${p.id}: $c", p.scope, c.scope)
-        for (c in SettingsIA.HOME) assertEquals("$c", Scope.PROFILE, c.scope)
+        // the only per-tema page is the appearance one; everything else is phone-wide
+        assertEquals(listOf("apariencia"), pages.filter { it.scope == Scope.TEMA }.map { it.id })
     }
 
     @Test fun pagesAreWellFormed() { // I8
         assertEquals(pages.size, pages.map { it.id }.toSet().size)
         assertEquals(pages.size, pages.map { it.title }.toSet().size)
-        for (p in pages) assertTrue(p.id, p.controls.isNotEmpty())
+        for (p in pages) {
+            assertTrue(p.id, p.controls.isNotEmpty())
+            assertTrue("${p.id} summary", p.summary.isNotBlank())
+        }
         assertEquals(pages.first(), SettingsIA.page(pages.first().id))
         assertEquals(null, SettingsIA.page("nope"))
         assertEquals(null, SettingsIA.page(null))
+        assertEquals(Ctl.values().size, Ctl.values().map { it.label }.toSet().size)
     }
 
     @Test fun destructiveActionsStayOffHome() { // I9

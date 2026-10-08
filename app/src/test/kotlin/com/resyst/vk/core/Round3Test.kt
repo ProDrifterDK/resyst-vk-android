@@ -49,17 +49,17 @@ class Round3Test {
     }
 
     @Test fun strengthDefaultsToMediumAndRoundTrips() { // K9
-        for (p in ProfileCodec.seed().profiles) assertEquals(p.id, HapticStrength.MEDIUM, p.settings.hapticStrength)
-        // r2 storage (no key) and garbage both fall back to MEDIUM
+        assertEquals(HapticStrength.MEDIUM, ProfileCodec.seed().settings.hapticStrength)
+        // storage without the key and garbage both fall back to MEDIUM
         val r2 = ProfileCodec.encode(ProfileCodec.seed()).filterKeys { !it.endsWith(".hapticStrength") }
-        assertEquals(HapticStrength.MEDIUM, ProfileCodec.decode(r2).byId("noche")!!.settings.hapticStrength)
-        val junk = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>().apply { put("p.noche.hapticStrength", "MAX") }
-        assertEquals(HapticStrength.MEDIUM, ProfileCodec.decode(junk).byId("noche")!!.settings.hapticStrength)
-        // save → load, without leaking into another profile
-        val st = ProfileCodec.seed().update("dia") { it.copy(hapticStrength = HapticStrength.HIGH) }
+        assertEquals(HapticStrength.MEDIUM, ProfileCodec.decode(r2).settings.hapticStrength)
+        val junk = ProfileCodec.encode(ProfileCodec.seed()).toMutableMap<String, Any?>().apply { put("phone.hapticStrength", "MAX") }
+        assertEquals(HapticStrength.MEDIUM, ProfileCodec.decode(junk).settings.hapticStrength)
+        // save → load; r10: phone-wide, so switching tema keeps it
+        val st = ProfileCodec.seed().updatePhone { it.copy(hapticStrength = HapticStrength.HIGH) }
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
-        assertEquals(HapticStrength.HIGH, back.byId("dia")!!.settings.hapticStrength)
-        assertEquals(HapticStrength.MEDIUM, back.byId("noche")!!.settings.hapticStrength)
+        assertEquals(HapticStrength.HIGH, back.settings.hapticStrength)
+        assertEquals(HapticStrength.HIGH, back.withTema(back.nextTemaId()).settings.hapticStrength)
     }
 
     @Test fun mechanismFollowsMotorCapabilities() { // K10
@@ -211,12 +211,12 @@ class Round3Test {
     }
 
     @Test fun spaceCorrectsDefaultsOnAndRoundTrips() { // A7 storage
-        for (p in ProfileCodec.seed().profiles) assertTrue(p.id, p.settings.spaceCorrects)
+        assertTrue(ProfileCodec.seed().settings.spaceCorrects)
         val r2 = ProfileCodec.encode(ProfileCodec.seed()).filterKeys { !it.endsWith(".spaceCorrects") }
-        assertTrue(ProfileCodec.decode(r2).byId("noche")!!.settings.spaceCorrects)
-        val st = ProfileCodec.seed().update("noche") { it.copy(spaceCorrects = false) }
+        assertTrue(ProfileCodec.decode(r2).settings.spaceCorrects)
+        val st = ProfileCodec.seed().updatePhone { it.copy(spaceCorrects = false) }
         val back = ProfileCodec.decode(ProfileCodec.encode(st))
-        assertFalse(back.byId("noche")!!.settings.spaceCorrects)
-        assertTrue(back.byId("dia")!!.settings.spaceCorrects)
+        assertFalse(back.settings.spaceCorrects)
+        assertFalse(back.withTema(back.nextTemaId()).settings.spaceCorrects)
     }
 }
