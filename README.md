@@ -26,7 +26,7 @@ Then on the device:
 1. **Settings → System → Languages & input → On-screen keyboard → Manage keyboards** → enable **Resyst VK**
 2. Open any app with a text field, switch keyboards (🌐 or long-press space) → pick **Resyst VK**
 
-No permissions. No network. No analytics. A keyboard that reads your keystrokes should earn trust by shipping none of those.
+No analytics, no telemetry, nothing you type ever leaves the phone. The only network use is the updater: one small `release.json` check when the keyboard process starts (toggle "Buscar actualizaciones al iniciar", default on) and the download you ask for in Settings. Its result shows only inside the keyboard strip and Settings, never as a status-bar notification.
 
 ## Verify on a device/emulator
 

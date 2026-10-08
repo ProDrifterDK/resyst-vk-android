@@ -45,6 +45,7 @@ import com.resyst.vk.core.SoundPack
 import com.resyst.vk.core.Themes
 import com.resyst.vk.core.TopRow
 import com.resyst.vk.core.UpdateDecision
+import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.ClipSettings
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.ime.ClipStore
@@ -89,6 +90,24 @@ class SettingsActivity : Activity() {
         setContentView(scroll)
         fitSystemBars()
         render()
+        if (intent?.getStringExtra(EXTRA_SECTION) == SECTION_UPDATE) revealUpdates()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getStringExtra(EXTRA_SECTION) == SECTION_UPDATE) revealUpdates()
+    }
+
+    /** Index in [root] of the "Actualización" header, set by [render]. */
+    private var updateHeaderIndex = -1
+
+    /** The keyboard's update chip opened us: land on the update section (r9). */
+    private fun revealUpdates() {
+        scroll.post {
+            val v = root.getChildAt(updateHeaderIndex) ?: return@post
+            scroll.smoothScrollTo(0, (v.top - px(8f)).coerceAtLeast(0))
+        }
     }
 
     /**
@@ -126,15 +145,17 @@ class SettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         store = repo.load()
-        Updater.onChange = {
-            val y = scroll.scrollY
-            render()
-            scroll.post { scroll.scrollTo(0, y) }
-            maybeAutoInstall()
-        }
+        Updater.listeners += updaterListener
         Updater.resume(this)
         ClipStore.listeners += clipListener
         render()
+        maybeAutoInstall()
+    }
+
+    private val updaterListener: () -> Unit = {
+        val y = scroll.scrollY
+        render()
+        scroll.post { scroll.scrollTo(0, y) }
         maybeAutoInstall()
     }
 
@@ -146,7 +167,7 @@ class SettingsActivity : Activity() {
 
     override fun onPause() {
         ClipStore.listeners -= clipListener
-        Updater.onChange = null
+        Updater.listeners -= updaterListener
         super.onPause()
     }
 
@@ -241,33 +262,40 @@ class SettingsActivity : Activity() {
         section("Probar")
         tryField()
 
+        updateHeaderIndex = root.childCount
         section("Actualización")
         updateSection()
+        toggle("Buscar actualizaciones al iniciar", "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
+            store = store.copy(autoUpdateCheck = v)
+            repo.save(store)
+            val y = scroll.scrollY
+            render()
+            scroll.post { scroll.scrollTo(0, y) }
+        }
         footer()
     }
 
-    // ── updates (the app's only network use, and only from these buttons) ──
+    // ── updates (the app's only network use: these buttons + one check at keyboard start) ──
 
     private fun updateSection() {
         val inst = Updater.installed(this)
+        val st = Updater.state
+        // r9: an available update reads as a card (amber edge, ✦) — the same mark as the keyboard chip
+        val available = ((st as? Updater.State.Checked)?.decision as? UpdateDecision.Available)?.release
+        if (available != null) updateCard(available, inst.versionName)
         root.addView(label("Versión instalada: ${inst.versionName}", 14f, t.textMod, 550).apply { tag = "update-installed" }, lp(top = 4f))
-        root.addView(label(PROMISE, 12f, t.muted), lp(top = 2f, bottom = 10f))
-        when (val st = Updater.state) {
+        root.addView(label(UpdateNotice.promise(store.autoUpdateCheck), 12f, t.muted).apply { tag = "update-promise" }, lp(top = 2f, bottom = 10f))
+        when (st) {
             Updater.State.Idle -> checkButton("Buscar actualizaciones")
             Updater.State.Checking -> status("Buscando actualizaciones…")
             is Updater.State.Checked -> when (val d = st.decision) {
                 is UpdateDecision.UpToDate -> {
                     status("✓ Ya tienes la última versión (${d.latest}).", t.ok)
+                    status(checkedWhen(), t.muted, 12f)
                     checkButton("Buscar de nuevo", quiet = true)
                 }
-                is UpdateDecision.Available -> {
-                    val r = d.release
-                    status("Nueva versión disponible: ${r.version}", pal.accent)
-                    val facts = listOfNotNull(r.size, r.date?.take(10), r.minAndroid?.let { "Android $it o superior" })
-                    if (facts.isNotEmpty()) status(facts.joinToString(" · "), t.muted, 12f)
-                    root.addView(pill("Descargar e instalar ${r.version}") { confirmDownload(r) }.apply { tag = "update-download" }, lp(top = 8f))
-                    link("Ahora no") { Updater.dismiss() }
-                }
+                is UpdateDecision.Available -> Unit // the card above
+
                 is UpdateDecision.Incompatible -> {
                     status("La versión ${d.release.version} requiere Android ${d.release.minAndroid ?: "API ${d.minSdk}"} o superior; este teléfono no puede instalarla.", t.bad)
                     checkButton("Buscar de nuevo", quiet = true)
@@ -295,6 +323,57 @@ class SettingsActivity : Activity() {
                 checkButton("Reintentar", quiet = true)
             }
         }
+    }
+
+    /** "Comprobado al iniciar el teclado · hace 3 min" — where the shown state came from. */
+    private fun checkedWhen(): String {
+        val mins = ((System.currentTimeMillis() - Updater.checkedAt) / 60_000).coerceAtLeast(0)
+        val ago = when {
+            mins < 1 -> "ahora mismo"
+            mins < 60 -> "hace $mins min"
+            mins < 48 * 60 -> "hace ${mins / 60} h"
+            else -> "hace ${mins / (24 * 60)} días"
+        }
+        return (if (Updater.checkedAuto) "Comprobado al iniciar el teclado" else "Comprobado") + " · $ago"
+    }
+
+    /**
+     * r9: the update-available card. Amber edge + ✦ badge on the surface color, the version as the
+     * headline, facts in muted, one primary pill and a quiet "Ahora no" (which also silences the
+     * keyboard chip for this version).
+     */
+    private fun updateCard(r: com.resyst.vk.core.Release, installed: String) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(t.bg2, pal.accent, 14f)
+            setPadding(px(16f), px(14f), px(16f), px(10f))
+            tag = "update-card"
+        }
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(label("✦", 15f, pal.accentInk, 700).apply {
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(pal.accent) }
+        }, LinearLayout.LayoutParams(px(30f), px(30f)).apply { marginEnd = px(12f) })
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(label("Nueva versión disponible: ${r.version}", 16f, t.text, 650).apply { tag = "update-status" })
+        col.addView(label(checkedWhen() + " · tienes $installed", 12f, t.muted, 450))
+        head.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(head)
+        val facts = listOfNotNull(r.size, r.date?.take(10), r.minAndroid?.let { "Android $it o superior" })
+        if (facts.isNotEmpty()) card.addView(label(facts.joinToString(" · "), 12f, t.textMod, 500), lp(top = 10f))
+        card.addView(pill("Descargar e instalar ${r.version}") { confirmDownload(r) }.apply {
+            tag = "update-download"
+            contentDescription = "Descargar e instalar Resyst VK ${r.version}"
+        }, lp(top = 12f))
+        card.addView(label("Ahora no", 13f, pal.accent, 600).apply {
+            gravity = Gravity.CENTER
+            minHeight = px(44f)
+            isClickable = true
+            tag = "update-later"
+            contentDescription = "Ahora no. El teclado no volverá a avisar de la versión ${r.version}"
+            setOnClickListener { Updater.dismissNotice(this@SettingsActivity, r.version); Updater.dismiss() }
+        }, lp(top = 2f))
+        root.addView(card, lp(top = 4f, bottom = 12f))
     }
 
     private fun status(text: String, color: Int = t.text, size: Float = 14f) {
@@ -490,7 +569,7 @@ class SettingsActivity : Activity() {
             getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
         }, lp(top = 8f))
         if (!selected) {
-            card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. $PROMISE", 12f, t.muted, 400), lp(top = 10f))
+            card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
         }
         root.addView(card, lp(bottom = 20f))
     }
@@ -724,7 +803,10 @@ class SettingsActivity : Activity() {
         root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
     }
 
-    private companion object {
-        const val PROMISE = "No se conecta a internet por sí solo. Descarga actualizaciones solo cuando tú se lo pides."
+
+    companion object {
+        /** r9: open on a section (the keyboard's update chip). */
+        const val EXTRA_SECTION = "com.resyst.vk.section"
+        const val SECTION_UPDATE = "update"
     }
 }

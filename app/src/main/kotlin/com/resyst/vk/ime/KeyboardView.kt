@@ -1,5 +1,8 @@
 package com.resyst.vk.ime
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
@@ -21,6 +24,7 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.animation.DecelerateInterpolator
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
@@ -36,6 +40,8 @@ import com.resyst.vk.core.NavInsets
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.PopupGeometry
 import com.resyst.vk.core.ShiftState
+import com.resyst.vk.core.UpdateNotice
+import com.resyst.vk.core.UpdateSurface
 import com.resyst.vk.core.VariantPopup
 import com.resyst.vk.core.Variants
 import kotlin.math.abs
@@ -73,6 +79,10 @@ class KeyboardView(context: Context) : View(context) {
         fun onEmojiPanel(act: EmojiPanel.Act, text: String)
         /** The day/night chip in the strip (r8). */
         fun onDayNight()
+        /** r9: the update chip — open the settings' update section. */
+        fun onUpdateChip() = Unit
+        /** r9: the update chip's ✕ — quiet until a newer version. */
+        fun onUpdateDismiss() = Unit
     }
 
     var listener: Listener? = null
@@ -124,6 +134,65 @@ class KeyboardView(context: Context) : View(context) {
         layoutStrip(); invalidate(); a11y.invalidateRoot()
     }
 
+    // ── r9: update notice (chip on a fresh field, amber dot on ⚙ otherwise) ──
+    /** The announced version (null = none) and where the service wants it. */
+    private var updateVersion: String? = null
+    private var updateSurface = UpdateSurface.NONE
+    /** The chip is laid out, showing [chipVersion] (kept while it fades out after a dismiss). */
+    private var chipShown = false
+    private var chipVersion: String? = null
+    private var chipExiting = false
+    /** 0 = hidden … 1 = fully shown; drives alpha + an 8 dp slide. */
+    private var chipAnim = 0f
+    private var chipAnimator: ValueAnimator? = null
+    private var updateLabel: UpdateNotice.Label? = null
+    /** ⚙ carries the amber dot (update announced but the chip is not in the strip). */
+    private var gearDot = false
+
+    /**
+     * [version] = the announced release (null = nothing to announce). The strip height never
+     * changes, so the keys never move when the chip comes or goes (N5). Appearing fades + slides
+     * in; a dismiss fades out; typing swaps it for the ⚙ dot at once (the strip is needed now).
+     */
+    fun setUpdate(version: String?, surface: UpdateSurface) {
+        val sf = if (version == null) UpdateSurface.NONE else surface
+        if (version == updateVersion && sf == updateSurface) return
+        updateVersion = version
+        updateSurface = sf
+        when {
+            sf == UpdateSurface.CHIP -> {
+                chipVersion = version
+                if (!chipShown || chipExiting) animateChip(show = true)
+            }
+            chipShown && sf == UpdateSurface.NONE && !chipExiting -> animateChip(show = false)
+            chipShown && sf == UpdateSurface.BADGE -> {
+                chipAnimator?.cancel(); chipShown = false; chipExiting = false; chipAnim = 0f
+            }
+        }
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
+
+    private fun animateChip(show: Boolean) {
+        chipAnimator?.cancel()
+        chipExiting = !show
+        chipShown = true
+        val a = ValueAnimator.ofFloat(chipAnim, if (show) 1f else 0f)
+        a.duration = if (show) 260L else 160L
+        a.interpolator = DecelerateInterpolator(if (show) 1.6f else 1f)
+        a.addUpdateListener { chipAnim = it.animatedValue as Float; invalidate() }
+        a.addListener(object : AnimatorListenerAdapter() {
+            private var cancelled = false
+            override fun onAnimationCancel(animation: Animator) { cancelled = true }
+            override fun onAnimationEnd(animation: Animator) {
+                if (cancelled || show) return
+                chipShown = false; chipExiting = false
+                layoutStrip(); invalidate(); a11y.invalidateRoot()
+            }
+        })
+        chipAnimator = a
+        a.start()
+    }
+
     fun showEmoji(recents: List<String>) {
         cancelPointers()
         hideClipboard()
@@ -153,7 +222,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS, DAYNIGHT }
+    private enum class StripKind { PROFILE, PASTE, SUGGESTION, CLIP, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -402,7 +471,7 @@ class KeyboardView(context: Context) : View(context) {
         val h = stripH
         text.textSize = 15 * dp
         text.typeface = typeface(600)
-        val compact = suggestions.isNotEmpty() || pasteLabel != null
+        val compact = suggestions.isNotEmpty() || pasteLabel != null || chipShown
         val chipLabel = if (!compact) "✦  $profileIcon $profileName" else "✦ $profileIcon"
         val chipW = text.measureText(chipLabel) + 24 * dp
         stripItems += StripItem(StripKind.PROFILE, chipLabel, RectF(6 * dp, 6 * dp, 6 * dp + chipW, h - 6 * dp))
@@ -420,6 +489,28 @@ class KeyboardView(context: Context) : View(context) {
             r -= cw
         }
         var l = 6 * dp + chipW + 4 * dp
+        // r9: the update chip leads (a fresh field only — the service decides, UpdateNotice.surface)
+        val upd = chipVersion
+        updateLabel = null
+        var chipRoomLeft = Float.MAX_VALUE
+        if (chipShown && upd != null) {
+            l += 2 * dp // 6 dp from the profile pill, like the strip's outer margin
+            val room = r - l - 2 * dp
+            val label = UpdateNotice.fit(upd, room - CHIP_ICON_W * dp - CHIP_X_W * dp - CHIP_TEXT_END * dp,
+                { t, two -> chipTitlePaint(two).measureText(t) }, { t, two -> chipActionPaint(two).measureText(t) })
+            if (label != null) {
+                val textW = if (label.twoLine) max(chipTitlePaint(true).measureText(label.title), chipActionPaint(true).measureText(label.action))
+                else chipTitlePaint(false).measureText(label.title) + chipActionPaint(false).measureText(label.action)
+                val w = min(room, CHIP_ICON_W * dp + textW + CHIP_TEXT_END * dp + CHIP_X_W * dp)
+                // ✕ first: stripAt() returns the first match, so the dismiss target wins its 48 dp
+                stripItems += StripItem(StripKind.UPDATE_X, upd, RectF(l + w - CHIP_X_W * dp, 0f, l + w, h))
+                stripItems += StripItem(StripKind.UPDATE, upd, RectF(l, 0f, l + w - CHIP_X_W * dp, h))
+                updateLabel = label
+                l += w + 4 * dp
+                chipRoomLeft = r - l
+            }
+        }
+        gearDot = updateVersion != null && updateSurface != UpdateSurface.NONE && updateLabel == null
         val paste = pasteLabel
         if (paste != null) {
             text.textSize = 14 * dp
@@ -432,7 +523,9 @@ class KeyboardView(context: Context) : View(context) {
             l += w + 4 * dp
         }
         if (suggestions.isNotEmpty() && r - l > 40 * dp) {
-            val shown = if (paste != null) suggestions.take(2) else suggestions
+            var shown = if (paste != null) suggestions.take(2) else suggestions
+            if (updateLabel != null) shown = shown.take((chipRoomLeft / (96 * dp)).toInt())
+            if (shown.isEmpty()) return
             val cw = (r - l) / shown.size
             shown.forEachIndexed { i, s ->
                 stripItems += StripItem(StripKind.SUGGESTION, s, RectF(l + i * cw, 0f, l + (i + 1) * cw, h))
@@ -441,6 +534,20 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun typeface(weight: Int): Typeface = Fonts.get(context, settings.font, weight)
+
+    // r9 chip text: brand face (DM Sans) whatever the key font, so the notice reads as Resyst's own voice
+    private val chipTitle = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val chipAction = Paint(Paint.ANTI_ALIAS_FLAG)
+    private fun chipTitlePaint(twoLine: Boolean) = chipTitle.apply {
+        textSize = (if (twoLine) 12f else 13.5f) * dp
+        typeface = Fonts.get(context, com.resyst.vk.core.KeyFont.BRAND, 650)
+        textAlign = Paint.Align.LEFT
+    }
+    private fun chipActionPaint(twoLine: Boolean) = chipAction.apply {
+        textSize = (if (twoLine) 10f else 13f) * dp
+        typeface = Fonts.get(context, com.resyst.vk.core.KeyFont.BRAND, 500)
+        textAlign = Paint.Align.LEFT
+    }
 
     // ── hit testing ──────────────────────────────────────────────────────
     private fun boxAt(x: Float, y: Float): Box? {
@@ -616,6 +723,8 @@ class KeyboardView(context: Context) : View(context) {
             StripKind.PASTE -> listener?.onPasteOffer()
             StripKind.CLIP -> listener?.onClipboardButton()
             StripKind.DAYNIGHT -> listener?.onDayNight()
+            StripKind.UPDATE -> if (!chipExiting) listener?.onUpdateChip()
+            StripKind.UPDATE_X -> if (!chipExiting) listener?.onUpdateDismiss()
         }
     }
 
@@ -752,6 +861,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        chipAnimator?.cancel()
         cancelPointers()
         handler.removeCallbacksAndMessages(null)
         super.onDetachedFromWindow()
@@ -838,11 +948,19 @@ class KeyboardView(context: Context) : View(context) {
                     drawDayNight(c, r.centerX(), r.centerY(), 15 * dp, dayNight == true, if (pressed) palette.accent else t.muted)
                 }
                 StripKind.SETTINGS -> {
-                    text.color = if (s in pressedStrip) palette.accent else t.muted
+                    text.color = if (s in pressedStrip || gearDot) palette.accent else t.muted
                     text.textSize = 18 * dp
                     text.typeface = Typeface.DEFAULT
                     drawCentered(c, s.text, r.centerX(), r.centerY())
+                    if (gearDot) { // r9: an update waits — amber dot, ringed in the strip color
+                        fill.color = t.bg
+                        c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 5 * dp, fill)
+                        fill.color = palette.accent
+                        c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 3.5f * dp, fill)
+                    }
                 }
+                StripKind.UPDATE_X -> Unit // drawn with its chip
+                StripKind.UPDATE -> drawUpdateChip(c, s, pressedStrip)
                 StripKind.SUGGESTION -> {
                     if (s in pressedStrip) {
                         fill.color = t.keyHi
@@ -862,6 +980,78 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
         }
+    }
+
+    /**
+     * r9 update chip: accent-soft pill with an amber hairline, a filled amber disc holding a
+     * download arrow, the version line in the accent and the action quieter, then a ✕ cell behind
+     * a hairline divider. Fades + slides 8 dp in; fades out.
+     */
+    private fun drawUpdateChip(c: Canvas, s: StripItem, pressedStrip: Set<StripItem>) {
+        val label = updateLabel ?: return
+        val x = stripItems.firstOrNull { it.kind == StripKind.UPDATE_X } ?: return
+        val t = palette.theme
+        val a = chipAnim.coerceIn(0f, 1f)
+        if (a <= 0f) return
+        val dx = (1f - a) * 8 * dp
+        // same 6 dp inset as the profile + paste pills: one height across the strip
+        val body = RectF(s.rect.left + dx, 6 * dp, x.rect.right + dx, stripH - 6 * dp)
+        val save = c.saveLayerAlpha(body.left - 2 * dp, 0f, body.right + 2 * dp, stripH, (a * 255).toInt())
+        val rad = body.height() / 2
+        fill.shader = null
+        fill.color = if (s in pressedStrip) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
+        c.drawRoundRect(body, rad, rad, fill)
+        // the paste chip's hairline: amber, but the disc alone carries full strength (Enter stays the hero)
+        stroke.color = palette.accentGlow
+        stroke.strokeWidth = 1 * dp
+        stroke.strokeCap = Paint.Cap.BUTT
+        c.drawRoundRect(body, rad, rad, stroke)
+        // icon: amber disc + download arrow in the accent's ink
+        val cx = body.left + 16 * dp
+        val cy = body.centerY()
+        fill.color = palette.accent
+        c.drawCircle(cx, cy, 10 * dp, fill)
+        stroke.color = palette.accentInk
+        stroke.strokeWidth = 1.6f * dp
+        stroke.strokeCap = Paint.Cap.ROUND
+        c.drawLine(cx, cy - 4.8f * dp, cx, cy + 2.2f * dp, stroke)
+        c.drawLine(cx - 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
+        c.drawLine(cx + 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
+        c.drawLine(cx - 4.2f * dp, cy + 5.2f * dp, cx + 4.2f * dp, cy + 5.2f * dp, stroke)
+        // text
+        val tx = body.left + CHIP_ICON_W * dp
+        val tp = chipTitlePaint(label.twoLine).apply { color = palette.accent }
+        val ap = chipActionPaint(label.twoLine).apply { color = t.textMod }
+        if (label.twoLine) {
+            val tf = tp.fontMetrics
+            val af = ap.fontMetrics
+            val th = tf.descent - tf.ascent
+            val ah = af.descent - af.ascent
+            val gap = 0f // DM Sans' own ascent/descent already leave the pair a comfortable lead
+            val top = cy - (th + ah + gap) / 2
+            c.drawText(label.title, tx, top - tf.ascent, tp)
+            c.drawText(label.action, tx, top + th + gap - af.ascent, ap)
+        } else {
+            val fm = tp.fontMetrics
+            val base = cy - (fm.ascent + fm.descent) / 2
+            c.drawText(label.title, tx, base, tp)
+            c.drawText(label.action, tx + tp.measureText(label.title), base, ap)
+        }
+        // ✕ cell
+        val xr = RectF(x.rect.left + dx, body.top, x.rect.right + dx, body.bottom)
+        if (x in pressedStrip) {
+            fill.color = ColorMath.withAlpha(palette.accent, 0.22f)
+            c.drawCircle(xr.centerX(), xr.centerY(), 13 * dp, fill)
+        }
+        fill.color = ColorMath.withAlpha(palette.accent, 0.3f)
+        c.drawRect(xr.left, body.top + body.height() * 0.24f, xr.left + dp, body.bottom - body.height() * 0.24f, fill)
+        stroke.color = if (x in pressedStrip) palette.accent else t.textMod
+        stroke.strokeWidth = 1.6f * dp
+        val k = 4.2f * dp
+        c.drawLine(xr.centerX() - k, xr.centerY() - k, xr.centerX() + k, xr.centerY() + k, stroke)
+        c.drawLine(xr.centerX() + k, xr.centerY() - k, xr.centerX() - k, xr.centerY() + k, stroke)
+        stroke.strokeCap = Paint.Cap.BUTT
+        c.restoreToCount(save)
     }
 
     /** Sun (switch to the light twin, [sun] = current theme is dark) or crescent moon, as paths. */
@@ -1168,7 +1358,9 @@ class KeyboardView(context: Context) : View(context) {
                 val s = stripItems.getOrNull(id - stripBase)
                 desc = when (s?.kind) {
                     StripKind.PROFILE -> "Perfil $profileName. Toca para cambiar de perfil"
-                    StripKind.SETTINGS -> "Ajustes de Resyst VK"
+                    StripKind.SETTINGS -> if (gearDot) "Ajustes de Resyst VK. Actualización ${updateVersion} disponible" else "Ajustes de Resyst VK"
+                    StripKind.UPDATE -> "Resyst VK ${s.text} disponible. Toca para actualizar"
+                    StripKind.UPDATE_X -> "Descartar el aviso de la versión ${s.text}"
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
                     StripKind.CLIP -> "Historial del portapapeles"
@@ -1226,5 +1418,10 @@ class KeyboardView(context: Context) : View(context) {
         const val TAG = "ResystVK"
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L
+        /** r9 chip geometry (dp): icon lead-in, and the ✕ cell = a 48 dp wide hit target. */
+        const val CHIP_ICON_W = 33f
+        const val CHIP_X_W = 48f
+        /** Text → ✕ divider breathing room (dp). */
+        const val CHIP_TEXT_END = 10f
     }
 }

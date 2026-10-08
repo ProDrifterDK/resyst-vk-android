@@ -52,9 +52,11 @@ import com.resyst.vk.core.ProfileStore
 import com.resyst.vk.core.SoundKind
 import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
+import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.ValueMemory
 import com.resyst.vk.settings.SettingsActivity
 import com.resyst.vk.settings.SettingsRepo
+import com.resyst.vk.settings.Updater
 
 /**
  * The system keyboard. Android binds this service (BIND_INPUT_METHOD) whenever any app
@@ -100,6 +102,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener { onClipChanged() }
     private val clipStoreListener: () -> Unit = { view?.updateClipboard(historyItems(), System.currentTimeMillis()) }
 
+    // ── update notice (r9) ──────────────────────────────────────────────
+    /** A character was typed in this field: the update chip steps down to the ⚙ dot (N4). */
+    private var typedForUpdate = false
+    private val updaterListener: () -> Unit = { refreshUpdate() }
+
     override fun onCreate() {
         super.onCreate()
         repo = SettingsRepo(this)
@@ -118,10 +125,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // its process lives (ClipboardService.isDefaultIme), with no "pasted" toast.
         clipboard = getSystemService(ClipboardManager::class.java)
         clipboard?.addPrimaryClipChangedListener(clipListener)
+        // r9: the one automatic update check of this process (AutoCheckGate: once, toggle on,
+        // updater idle). Background thread inside Updater; a failure stays silent (A5).
+        Updater.listeners += updaterListener
+        runCatching { Updater.autoCheck(this, store.autoUpdateCheck) }.onFailure { Log.w(TAG, "update auto-check not started", it) }
     }
 
     override fun onDestroy() {
         repo.prefs.unregisterOnSharedPreferenceChangeListener(this)
+        Updater.listeners -= updaterListener
         clipboard?.removePrimaryClipChangedListener(clipListener)
         ClipStore.listeners -= clipStoreListener
         ClipStore.flush()
@@ -242,7 +254,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         learner.reset()
         view?.hideClipboard()
         view?.hideEmoji()
-        if (!restarting) typedSinceStart = false
+        if (!restarting) { typedSinceStart = false; typedForUpdate = false }
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val rawAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
@@ -342,6 +354,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val layerBefore = engine.layer
         val outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
         if (key.type == KeyType.CHAR && offer != null) { typedSinceStart = true; refreshClip() }
+        if (key.type == KeyType.CHAR && !typedForUpdate) { typedForUpdate = true; refreshUpdate() }
         // delete + commit (correction, undo, double-space) must land as one edit
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
@@ -478,6 +491,28 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             is ClipOffer.Image -> v.setPasteOffer("Pegar imagen", image = true)
             null -> v.setPasteOffer(null, image = false)
         }
+        refreshUpdate()
+    }
+
+    /** r9: the update chip (fresh field) or the ⚙ dot, from the process-wide Updater state. */
+    private fun refreshUpdate() {
+        val v = view ?: return
+        val r = runCatching { Updater.announced(this) }.getOrNull()
+        v.setUpdate(r?.version, UpdateNotice.surface(r != null, typedForUpdate, offer != null, policy.secret))
+    }
+
+    override fun onUpdateChip() {
+        feedback(null)
+        val i = Intent(this, SettingsActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(SettingsActivity.EXTRA_SECTION, SettingsActivity.SECTION_UPDATE)
+        startActivity(i)
+    }
+
+    override fun onUpdateDismiss() {
+        val r = Updater.announced(this) ?: return
+        feedback(null)
+        Updater.dismissNotice(this, r.version) // listeners → refreshUpdate → chip fades out
     }
 
     private fun snapshot(): ClipSnapshot? {

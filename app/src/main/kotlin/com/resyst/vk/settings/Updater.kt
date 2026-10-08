@@ -12,10 +12,12 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.resyst.vk.core.AutoCheckGate
 import com.resyst.vk.core.Installed
 import com.resyst.vk.core.Release
 import com.resyst.vk.core.UpdateChecker
 import com.resyst.vk.core.UpdateDecision
+import com.resyst.vk.core.UpdateNotice
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -27,9 +29,10 @@ import java.util.concurrent.Executors
 import javax.net.ssl.HttpsURLConnection
 
 /**
- * The app's only network code, and it runs only from the "Buscar actualizaciones" /
- * "Descargar e instalar" buttons in Settings. Nothing here is scheduled, polled or started
- * by the keyboard service.
+ * The app's only network code. It runs from the "Buscar actualizaciones" / "Descargar e instalar"
+ * buttons in Settings and, when "Buscar actualizaciones al iniciar" is on (r9), ONE [check] per
+ * process start ([autoCheck], claimed through [AutoCheckGate]): the same single GET, nothing
+ * scheduled, polled, or sent. Nothing else in the app opens a connection.
  *
  * check()    → one HTTPS GET of release.json → [UpdateChecker.decide]
  * download() → DownloadManager (system progress notification) into the app's external files dir
@@ -39,8 +42,10 @@ import javax.net.ssl.HttpsURLConnection
  * install()  → ACTION_VIEW on a FileProvider URI of the verified copy; Android's installer asks
  *              the user and re-verifies the signature against the installed app.
  *
- * State lives in this process-wide object so re-rendering the screen never loses it; the
- * pending download id + manifest are also in prefs so a download survives the process dying.
+ * State lives in this process-wide object so re-rendering the screen never loses it and the
+ * keyboard + settings read the same result (A4); the pending download id + manifest are also in
+ * prefs so a download survives the process dying. An automatic check that fails stays silent:
+ * the state returns to Idle and only the log knows (A5).
  */
 object Updater {
     private const val TAG = "ResystVK"
@@ -65,11 +70,20 @@ object Updater {
     var state: State = State.Idle
         private set(v) {
             field = v
-            onChange?.invoke()
+            for (l in listeners.toList()) l()
         }
 
-    /** Set by the settings screen while it is visible. Always called on the main thread. */
-    var onChange: (() -> Unit)? = null
+    /**
+     * The settings screen (while visible) and the keyboard service (while alive) listen here.
+     * Always called on the main thread.
+     */
+    val listeners = LinkedHashSet<() -> Unit>()
+
+    /** When the current [State.Checked] result arrived, and whether the startup check made it. */
+    var checkedAt = 0L
+        private set
+    var checkedAuto = false
+        private set
 
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -84,22 +98,73 @@ object Updater {
 
     // ── check ───────────────────────────────────────────────────────────
 
-    fun check(context: Context) {
+    /** The user's "Buscar actualizaciones": errors are shown. */
+    fun check(context: Context) = check(context, auto = false)
+
+    private val autoGate = AutoCheckGate()
+
+    /** The startup check already ran (or was claimed) in this process: never fetch again for it. */
+    val autoCheckedThisProcess: Boolean get() = autoGate.ran
+
+    /**
+     * r9: called when the keyboard service (or the settings screen) comes alive. Runs [check] at
+     * most once per process ([AutoCheckGate]); records `autoAt` in prefs. Returns whether it ran.
+     */
+    fun autoCheck(context: Context, enabled: Boolean): Boolean {
+        val app = context.applicationContext
+        val pending = prefs(app).getLong("id", -1) >= 0
+        if (!autoGate.claim(enabled, idle = state is State.Idle, pendingDownload = pending)) return false
+        prefs(app).edit().putLong("autoAt", System.currentTimeMillis()).apply()
+        Log.i(TAG, "update auto-check: start")
+        check(app, auto = true)
+        return true
+    }
+
+    private fun check(context: Context, auto: Boolean) {
         if (state is State.Checking || state is State.Downloading || state is State.Verifying) return
         val app = context.applicationContext
         val installed = installed(app)
         state = State.Checking
+        Log.i(TAG, "update check: GET release.json (auto=$auto)") // E2E counts these: one GET per check
         io.execute {
-            val next = try {
+            var decision: UpdateDecision? = null
+            var error: Exception? = null
+            try {
                 val json = fetchManifest()
                 lastManifest = json
-                State.Checked(UpdateChecker.decide(json, installed))
+                decision = UpdateChecker.decide(json, installed)
             } catch (e: Exception) {
                 Log.w(TAG, "update check failed: ${e.javaClass.simpleName}")
-                State.Failed(networkMessage(e))
+                error = e
             }
-            main.post { state = next }
+            val next: State = if (auto) {
+                // A5: a failed startup check never surfaces — back to Idle, log only
+                val kept = UpdateNotice.autoOutcome(decision)
+                Log.i(TAG, "update auto-check: " + (kept?.let { it::class.simpleName } ?: "silent (${error?.javaClass?.simpleName ?: "bad manifest"})"))
+                kept?.let { State.Checked(it) } ?: State.Idle
+            } else {
+                decision?.let { State.Checked(it) } ?: State.Failed(networkMessage(error ?: IOException()))
+            }
+            main.post {
+                if (next is State.Checked) { checkedAt = System.currentTimeMillis(); checkedAuto = auto }
+                state = next
+            }
         }
+    }
+
+    // ── r9: the keyboard's update chip ──────────────────────────────────
+
+    /** The release the keyboard announces now (available and not dismissed), or null. */
+    fun announced(context: Context): Release? =
+        UpdateNotice.announce((state as? State.Checked)?.decision, dismissedVersion(context))
+
+    fun dismissedVersion(context: Context): String? = prefs(context.applicationContext).getString("dismissed", null)
+
+    /** The chip's ✕ (or settings' "Ahora no"): quiet until a newer version than [version]. */
+    fun dismissNotice(context: Context, version: String) {
+        prefs(context.applicationContext).edit().putString("dismissed", version).apply()
+        Log.i(TAG, "update notice dismissed for $version")
+        for (l in listeners.toList()) l()
     }
 
     /** The manifest text that produced the current decision (stored with a pending download). */
