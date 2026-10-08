@@ -35,6 +35,12 @@ def km():
     return keys(dump())
 
 
+def space(k):
+    """Space is "Espacio" alone only when there is nothing to switch to (emulator); on a phone with
+    other keyboards it reads "Espacio. Mantén pulsado para cambiar de teclado"."""
+    return next(n for d, n in k.items() if d.startswith('Espacio'))
+
+
 def text():
     return field_text(dump())
 
@@ -94,7 +100,7 @@ def main():
     # 1 — the Edición tile is live and opens the panel
     tree, k = open_host('text')
     e2e.type_word('hola', k)
-    e2e.tap(km()['Espacio'])
+    e2e.tap(space(km()))
     e2e.type_word('mundo')
     time.sleep(0.4)
     check('typed "Hola mundo"', text() == 'Hola mundo', repr(text()))
@@ -160,7 +166,7 @@ def main():
     # 6 — ⌫ swipe left deletes the previous word
     tree, k = open_host('text')
     e2e.type_word('uno', k)
-    e2e.tap(km()['Espacio'])
+    e2e.tap(space(km()))
     e2e.type_word('dos')
     time.sleep(0.3)
     bs = km()['Borrar']

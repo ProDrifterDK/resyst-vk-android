@@ -188,7 +188,7 @@ def main():
         km = keys(dump())
         e2e.type_word(w, km)
         km = keys(dump())
-        e2e.tap(km['Espacio'])
+        e2e.tap(next(n for d, n in km.items() if d.startswith('Espacio')))  # long label on phones
     time.sleep(2.5)  # PersonalStore debounce (1.5 s) → words.json
     sh('input keyevent KEYCODE_BACK')
     time.sleep(0.6)

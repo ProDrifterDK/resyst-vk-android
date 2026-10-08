@@ -279,8 +279,12 @@ def main():
     check('X3 Escritura shows the "Modo Código encendido" banner', any('Modo Código encendido' in s for s in texts(t)), [s for s in texts(t) if 'Modo' in s])
     check('X3b overridden rows say they are paused (Sugerencias)', any(dd.startswith('Sugerencias: en pausa por el modo Código') for dd in descs(t)),
           [dd for dd in descs(t) if 'pausa' in dd])
-    check('X3c a row the mode does not touch is not paused (Vibración lives on another page; Escritura has none untouched → check count)',
-          sum('en pausa' in dd for dd in descs(t)) == 5, sum('en pausa' in dd for dd in descs(t)))
+    # Código overrides suggest/spaceCorrects/personal/autoCap/doubleSpace/autoOpeners (Mode.CODE);
+    # the offensive-word filter (r10 bet 3) shares the page and is NOT touched by the mode.
+    paused = [dd for dd in descs(t) if 'en pausa' in dd]
+    filt = [dd for dd in descs(t) if dd.startswith('Filtrar palabras ofensivas')]
+    check('X3c only the rows Código overrides are paused (6) and the untouched filter row is not',
+          len(paused) == 6 and filt and not any('en pausa' in dd for dd in filt), str((len(paused), filt)))
     shot('r10-escritura-mode-banner.png')
     off = find(t, lambda dd, tt: tt == 'Apagar el modo')
     tap(off)
