@@ -116,7 +116,7 @@ def uid_bytes():
 
 
 def logcat():
-    return adb('logcat', '-d', '-v', 'brief', check=False)
+    return adb('logcat', '-d', '-v', 'threadtime', check=False)
 
 
 def klipy_lines(log=None):
@@ -529,14 +529,15 @@ def main():
             key_scan('\n'.join(captured))
         except Exception as ex:
             check('G13 logcat scan ran', False, repr(ex))
-        api = [ln for ln in '\n'.join(captured).splitlines() if 'klipy: GET https' in ln or 'klipy: POST https' in ln]
+        # the captures overlap (logcat is not cleared before every step): count each timestamped line once
+        api = sorted({ln for ln in '\n'.join(captured).splitlines() if 'klipy: GET https' in ln or 'klipy: POST https' in ln})
         b = book()
         if previous and previous != 'null' and previous != IME:
             sh(f'ime set {previous}', check=False)
         passed = sum(r['ok'] for r in rows)
         out = {'device': model, 'api': sdk, 'package': PKG, 'version': version.group(1) if version else None,
                'passed': passed, 'total': len(rows), 'seconds': round(time.time() - started, 1),
-               'klipy_api_calls': len(api), 'book_total_before': t0, 'book_total_after': b['total'],
+               'klipy_api_calls': len(api), 'klipy_api_lines': [ln.split('klipy: ', 1)[1] for ln in api], 'book_total_before': t0, 'book_total_after': b['total'],
                'search_request': facts.get('search_line'), 'rows': rows}
         json.dump(out, open(os.path.join(OUT, 'r11b-e2e.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
         print(f'✦ {passed}/{len(rows)} · KLIPY API calls this run: {len(api)} → build/e2e-r11b/r11b-e2e.json', flush=True)
