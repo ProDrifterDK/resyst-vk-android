@@ -30,6 +30,8 @@ import com.resyst.vk.core.ClipSettings
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.ConnectionLog
 import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.EmojiTones
+import com.resyst.vk.core.PersonalSummary
 import com.resyst.vk.core.FieldKind
 import com.resyst.vk.core.Ctl
 import com.resyst.vk.core.DayNight
@@ -61,6 +63,7 @@ import com.resyst.vk.core.TopRow
 import com.resyst.vk.core.UpdateDecision
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.ime.ClipStore
+import com.resyst.vk.ime.EmojiAsset
 import com.resyst.vk.ime.Fonts
 import com.resyst.vk.ime.HapticPlayer
 import com.resyst.vk.ime.KeyboardView
@@ -215,6 +218,7 @@ class SettingsActivity : Activity() {
         Updater.listeners += updaterListener
         Updater.resume(this)
         ClipStore.listeners += clipListener
+        PersonalStore.wiped += personalListener
         render()
         maybeAutoInstall()
     }
@@ -226,8 +230,12 @@ class SettingsActivity : Activity() {
 
     private val clipListener: () -> Unit = { rerender() }
 
+    /** r11a-fix (F2): the wipe finished on disk: re-count what files/personal/ still holds. */
+    private val personalListener: () -> Unit = { rerender() }
+
     override fun onPause() {
         ClipStore.listeners -= clipListener
+        PersonalStore.wiped -= personalListener
         Updater.listeners -= updaterListener
         super.onPause()
     }
@@ -694,7 +702,10 @@ class SettingsActivity : Activity() {
         into.addView(row, lp(top = 6f))
     }
 
-    /** Wipes the learned words + remembered values (shared by every tema), after a confirm. */
+    /**
+     * Wipes everything files/personal/ keeps (shared by every tema), after a confirm: learned words,
+     * remembered emails, emoji recents and chosen skin tones (r11a-fix F1: each one alone enables it).
+     */
     private fun forgetRow() {
         val w = PersonalStore.words
         val v = PersonalStore.values
@@ -702,19 +713,21 @@ class SettingsActivity : Activity() {
             dangerRow(Ctl.FORGET_LEARNED.label, "Cargando…", enabled = false, onClick = {})
             return
         }
-        val words = Lang.values().sumOf { w.vocabCount(it) }
-        val emails = v.suggest(com.resyst.vk.core.FieldKind.EMAIL, "", Int.MAX_VALUE).size
-        val empty = words == 0 && emails == 0
-        val summary = if (empty) "Nada aprendido todavía · nada sale del teléfono" else "$words palabras · $emails correos aprendidos · nada sale del teléfono"
-        dangerRow(Ctl.FORGET_LEARNED.label, summary, enabled = !empty, onClick = { confirmForget() })
+        val counts = PersonalSummary.Counts(
+            words = Lang.values().sumOf { w.vocabCount(it) },
+            emails = v.values(FieldKind.EMAIL).size,
+            emojiRecents = emojiRecents().items().size,
+            tones = emojiTones().size(),
+        )
+        dangerRow(Ctl.FORGET_LEARNED.label, PersonalSummary.text(counts), enabled = !counts.empty, onClick = { confirmForget() })
     }
 
     private fun confirmForget() {
         AlertDialog.Builder(this)
             .setTitle("¿Borrar lo aprendido?")
-            .setMessage("Se olvidan las palabras y los correos que el teclado aprendió de ti, en todos los temas. No se puede deshacer.")
+            .setMessage("Se olvidan las palabras, los correos, los emojis recientes y los tonos de piel que el teclado guardó de ti, en todos los temas. No se puede deshacer.")
             .setPositiveButton("Borrar") { _, _ ->
-                PersonalStore.clear(this)
+                PersonalStore.clear(this) // the row re-counts when the files are gone (personalListener)
                 rerender()
             }
             .setNegativeButton("Cancelar", null)
@@ -800,11 +813,15 @@ class SettingsActivity : Activity() {
     /** Same file the keyboard reads (files/personal/emoji_recents.txt); it re-reads on every panel open. */
     private val emojiFile get() = java.io.File(java.io.File(filesDir, "personal"), "emoji_recents.txt")
 
+    /** Read like the keyboard reads it (junk entries dropped). */
+    private fun emojiRecents(): EmojiRecents =
+        runCatching { EmojiRecents.decode(emojiFile.takeIf { it.exists() }?.readText()) }.getOrDefault(EmojiRecents())
+
     private fun knowEmoji() {
-        val r = runCatching { EmojiRecents.decode(emojiFile.takeIf { it.exists() }?.readText()) }.getOrDefault(EmojiRecents())
+        val r = emojiRecents()
         val list = r.items()
         knowHead(Ctl.KNOW_EMOJI.label, if (list.isEmpty()) "Ninguno. Nunca se guardan los de campos en modo incógnito." else "${list.size} · los últimos que usaste, para el panel de emojis")
-        if (list.isEmpty()) return
+        if (list.isEmpty()) { knowTones(); return } // F3: tones are listed even with no recents
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (e in list) {
@@ -831,23 +848,30 @@ class SettingsActivity : Activity() {
     /** r11 (ET2): the skin tones chosen by long-press are kept too (files/personal/emoji_tones.txt): listed, tap to forget one. */
     private val tonesFile get() = java.io.File(java.io.File(filesDir, "personal"), "emoji_tones.txt")
 
+    /**
+     * r11a-fix (F3 / m1): decoded exactly like the keyboard does ([EmojiTones.decode] against the
+     * catalog), so a stale or junk line is neither listed nor counted; forgetting one rewrites the
+     * file with the remaining valid pairs only.
+     */
+    private fun emojiTones(): EmojiTones =
+        runCatching { EmojiTones.decode(tonesFile.takeIf { it.exists() }?.readText(), EmojiAsset.catalog(this)) }.getOrDefault(EmojiTones())
+
     private fun knowTones() {
-        val pairs = runCatching { tonesFile.takeIf { it.exists() }?.readLines() }.getOrNull().orEmpty()
-            .map { it.split('\t') }.filter { it.size == 2 && it[0].isNotEmpty() && it[1].isNotEmpty() }
+        val tones = emojiTones()
+        val pairs = tones.entries()
         if (pairs.isEmpty()) return
         into.addView(label("Tonos de piel elegidos · ${pairs.size}", 12f, t.muted, 600), lp(top = 10f))
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (p in pairs) {
-            row.addView(label(p[1], 22f, t.text).apply {
+        for ((base, tone) in pairs) {
+            row.addView(label(tone, 22f, t.text).apply {
                 gravity = Gravity.CENTER
                 isClickable = true
                 background = rounded(t.key, t.edge, 12f)
-                contentDescription = "Olvidar el tono elegido para ${p[0]}"
+                contentDescription = "Olvidar el tono elegido para $base"
                 tag = "forget.tone"
                 setOnClickListener {
-                    val rest = pairs.filter { it !== p }.joinToString("\n") { "${it[0]}\t${it[1]}" }
-                    runCatching { tonesFile.writeText(rest) }
+                    if (tones.forget(base)) runCatching { tonesFile.writeText(tones.encode()) }
                     rerender()
                 }
             }, LinearLayout.LayoutParams(px(48f), px(48f)).apply { marginEnd = px(6f) })

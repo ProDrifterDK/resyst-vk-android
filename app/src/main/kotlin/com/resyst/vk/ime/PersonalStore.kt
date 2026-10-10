@@ -77,7 +77,16 @@ object PersonalStore {
         }
     }
 
-    /** Wipes both stores, in memory and on disk; a load still in flight is discarded (X4). */
+    /**
+     * r11a-fix (F2): told on the main thread once a wipe is done on disk. The keyboard drops the
+     * emoji recents + tone defaults it holds in memory; settings re-count what is left.
+     */
+    val wiped = LinkedHashSet<() -> Unit>()
+
+    /**
+     * Wipes everything under filesDir/personal (words, values, emoji recents, tone defaults), in
+     * memory and on disk; a load still in flight is discarded (X4). [wiped] runs after the delete.
+     */
     fun clear(context: Context) {
         generation++
         dirty = false
@@ -85,7 +94,10 @@ object PersonalStore {
         words = PersonalModel()
         values = ValueMemory()
         val d = dir ?: File(context.applicationContext.filesDir, DIR).also { dir = it }
-        io.execute { d.listFiles()?.forEach { it.delete() } }
+        io.execute {
+            d.listFiles()?.forEach { it.delete() }
+            main.post { for (l in wiped.toList()) l() }
+        }
     }
 
     private fun read(f: File): String? = runCatching {

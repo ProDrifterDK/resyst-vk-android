@@ -229,7 +229,10 @@ def main():
         if 'Borrar lo aprendido' in found:
             st = dump()
             row = next(n for n in st.iter('node') if n.get('text') == 'Borrar lo aprendido')
-            summary = [n.get('text') for n in st.iter('node') if 'aprendidos' in n.get('text', '')]
+            # r11a-fix (F1): the summary names each kind kept ("N palabras · 1 correo · … · nada sale
+            # del teléfono"), no longer "N palabras · M correos aprendidos"
+            summary = [n.get('text') for n in st.iter('node') if 'palabra' in n.get('text', '') and
+                       'nada sale del teléfono' in n.get('text', '') and not n.get('text', '').startswith('Nada aprendido')]
             record('settings shows what is stored', bool(summary), repr(summary))
             shot('06-settings-personal')
             tap(row)

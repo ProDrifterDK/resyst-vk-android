@@ -130,6 +130,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         sound = KeySoundPlayer(this)
         lexicon = Lexicon(this)
         PersonalStore.init(this)
+        PersonalStore.wiped += personalWiped
         haptics = HapticPlayer(this)
         subtypes = SubtypeSync(this)
         subtypes.enableAllOnce()
@@ -151,6 +152,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         Updater.listeners -= updaterListener
         clipboard?.removePrimaryClipChangedListener(clipListener)
         ClipStore.listeners -= clipStoreListener
+        PersonalStore.wiped -= personalWiped
         ClipStore.flush()
         PersonalStore.flush()
         sound?.release()
@@ -784,10 +786,23 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         EmojiTones.decode(tonesFile.takeIf { it.exists() }?.readText(), emojiCatalog())
     }.getOrDefault(EmojiTones()).also { emojiTones = it }
 
-    /** r11: the Unicode 18.0 catalog (assets/emoji/emoji.txt), parsed once per process (EC4: junk lines skipped). */
-    private fun emojiCatalog(): EmojiCatalog = catalogCache ?: runCatching {
-        EmojiCatalog.parse(assets.open("emoji/emoji.txt").bufferedReader(Charsets.UTF_8).use { it.readText() })
-    }.onFailure { Log.w(TAG, "emoji catalog not loaded", it) }.getOrDefault(EmojiCatalog.EMPTY).also { if (it.groups.isNotEmpty()) catalogCache = it }
+    /** r11: the Unicode 18.0 catalog, parsed once per process and shared with settings (r11a-fix F3). */
+    private fun emojiCatalog(): EmojiCatalog = EmojiAsset.catalog(this)
+
+    /**
+     * r11a-fix (F2): "Borrar lo aprendido" emptied files/personal/: forget the recents + tone
+     * defaults held in memory (a later pick must not write the old list back), and redraw the
+     * panel if it is open right now.
+     */
+    private val personalWiped: () -> Unit = {
+        emojiRecents = EmojiRecents()
+        emojiTones = EmojiTones()
+        view?.let { v ->
+            v.emojiPanel.tones = tones()
+            if (v.emojiOpen) v.emojiPanel.relayout()
+            v.updateEmojiRecents(emptyList()) // re-lays out the recents tab, redraws when open
+        }
+    }
 
     override fun onEmojiKey() {
         if (policy.secret) return
@@ -1019,8 +1034,6 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     private companion object {
-        /** r11: the emoji catalog is the same for every service instance of the process. */
-        var catalogCache: EmojiCatalog? = null
         const val TAG = "ResystVK"
         /** Chars read before the cursor; a full read may start mid-word (see Tokens). */
         const val WINDOW = 64

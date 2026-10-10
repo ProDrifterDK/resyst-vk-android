@@ -89,6 +89,12 @@ class EmojiTones {
 
     fun size(): Int = chosen.size
 
+    /** The chosen (base, tone) pairs, oldest first: what "Lo que sé de ti" lists (r11a-fix F3). */
+    fun entries(): List<Pair<String, String>> = chosen.entries.map { it.key to it.value }
+
+    /** Drops the default of [base] (back to the plain emoji). True when there was one. */
+    fun forget(base: String): Boolean = chosen.remove(base) != null
+
     fun encode(): String = chosen.entries.joinToString("\n") { "${it.key}$SEP${it.value}" }
 
     companion object {
