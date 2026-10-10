@@ -190,7 +190,7 @@ def main():
         time.sleep(0.8)
     texts, t = settings_texts()
     check('toggle turns off', any(s.startswith('Buscar actualizaciones al iniciar, desactivado') for s in texts))
-    check('privacy line follows the toggle', any(s.startswith('No se conecta a internet por sí solo') for s in texts))
+    check('privacy line follows the toggle', any(s.startswith('No busca actualizaciones por sí solo') for s in texts))
     shot('r9-settings-toggle-off.png')
     fresh_process()
     e2e.open_host('text')

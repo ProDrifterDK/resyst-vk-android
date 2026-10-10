@@ -75,10 +75,10 @@ object UpdateNotice {
 
     /** The privacy line under "Versión instalada", true to what the app does (S2, OC14). */
     fun promise(autoCheck: Boolean): String = if (autoCheck) {
-        "Su única conexión: al abrir el teclado consulta en kv.resyst.cl si hay una versión nueva, " +
+        "Para las actualizaciones, al abrir el teclado consulta en kv.resyst.cl si hay una versión nueva, " +
             "como mucho una vez cada ${OpenCheck.OK_HOURS} horas, sin enviar nada de lo que escribes. " +
             "Descarga actualizaciones solo cuando tú se lo pides."
     } else {
-        "No se conecta a internet por sí solo. Descarga actualizaciones solo cuando tú se lo pides."
+        "No busca actualizaciones por sí solo. Descarga actualizaciones solo cuando tú se lo pides."
     }
 }

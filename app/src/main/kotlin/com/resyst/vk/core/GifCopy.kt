@@ -12,7 +12,7 @@ object GifCopy {
 
     /** The OFF explainer in the GIF tab. */
     const val OFF_LINE1 = "Busca y envía GIF sin salir del teclado."
-    const val OFF_LINE2 = "Está apagado: hasta que lo actives, el teclado no se conecta a nadie."
+    const val OFF_LINE2 = "Está apagado: hasta que lo actives, el teclado no se conecta a KLIPY."
     const val OFF_BUTTON = "Ver qué se envía y activar"
 
     /** GO2: what is sent, to whom, what never is, where it is recorded, how to turn it off. */

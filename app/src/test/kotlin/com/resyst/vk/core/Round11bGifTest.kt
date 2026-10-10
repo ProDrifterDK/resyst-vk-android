@@ -384,6 +384,22 @@ class Round11bGifTest {
         assertTrue(GifCopy.pageOutcome("q".repeat(50), 9, 24, null).length <= 80 + 20) // stored outcome is capped by the log
     }
 
+    @Test fun noCopyClaimsAnOnlyConnectionOrConnectingToNobody() { // r11b-copy: two clients exist, each line talks about its own
+        val updates = listOf(UpdateNotice.promise(true), UpdateNotice.promise(false), UpdateNotice.autoSubtitle()) +
+            (listOf("1.2.3", "10.20.30").flatMap { v -> UpdateNotice.labels(v).flatMap { listOf(it.title, it.action) } })
+        val gif = listOf(
+            GifCopy.TITLE, GifCopy.SETTING, GifCopy.PLACEHOLDER, GifCopy.ATTRIBUTION, GifCopy.OFF_LINE1, GifCopy.OFF_LINE2,
+            GifCopy.OFF_BUTTON, GifCopy.ACCEPT, GifCopy.CANCEL, GifCopy.LOADING, GifCopy.EMPTY, GifCopy.NOT_ACCEPTED, GifCopy.TOO_BIG,
+        ) + GifCopy.DISCLOSURE + GifCopy.Fail.values().flatMap { listOf(it.line, it.log) }
+        val bad = Regex("""\bún(ica|ico)s?\b|\bunic[ao]s?\b|\bunicamente\b|únicamente|\bnadie\b|\bninguna otra\b|no se conecta a internet|nunca se conecta""", RegexOption.IGNORE_CASE)
+        for (s in updates + gif) assertFalse("claims an only connection or no connection at all: $s", bad.containsMatchIn(s))
+        // the OFF line names what it is about (KLIPY), never the whole keyboard's connections
+        assertTrue(GifCopy.OFF_LINE2, GifCopy.OFF_LINE2.contains("no se conecta a KLIPY"))
+        // the updates line names its host and says it is about updates, GIF on or off
+        assertTrue(UpdateNotice.promise(true).contains("kv.resyst.cl"))
+        assertTrue(UpdateNotice.promise(false).contains("actualizaciones"))
+    }
+
     @Test fun disclosureSaysWhatWhoNeverWhereAndHowToStop() { // GO2 (the words are the contract)
         val d = GifCopy.DISCLOSURE.joinToString(" ")
         for (must in listOf("buscador de GIF", "ID anónimo", "país", "filtro", "nunca se envía", "KLIPY", "otra empresa", "Libro de conexiones", "Apágalo", "se borra el ID"))

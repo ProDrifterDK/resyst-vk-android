@@ -26,7 +26,7 @@ Then on the device:
 1. **Settings → System → Languages & input → On-screen keyboard → Manage keyboards** → enable **Resyst VK**
 2. Open any app with a text field, switch keyboards (🌐 or long-press space) → pick **Resyst VK**
 
-No analytics, no telemetry, nothing you type ever leaves the phone. The only network use is the updater: one small `release.json` check when the keyboard process starts (toggle "Buscar actualizaciones al iniciar", default on) and the download you ask for in Settings. Its result shows only inside the keyboard strip and Settings, never as a status-bar notification.
+No analytics, no telemetry, nothing you type in apps ever leaves the phone. There are exactly two network clients. The updater (kv.resyst.cl): one small `release.json` check when the keyboard opens (at most every 12 h, 1 h after a failure; toggle "Buscar actualizaciones automáticamente", default on) and the download you ask for in Settings. The GIF search (KLIPY): off by default; only after you accept the disclosure, and only when you open the GIF tab, search, scroll for more or send a GIF. Every request is listed in Settings › Acerca de › Libro de conexiones. An update result shows only inside the keyboard strip and Settings, never as a status-bar notification.
 
 ## Verify on a device/emulator
 

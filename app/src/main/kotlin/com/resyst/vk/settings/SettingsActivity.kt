@@ -1047,7 +1047,7 @@ class SettingsActivity : Activity() {
         row.addView(label("✦", 30f, pal.accent, 500).apply { setPadding(0, 0, px(12f), 0) })
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(label("Resyst VK", 26f, t.text, 700))
-        col.addView(label("Teclado de sistema · lo que escribes no sale del teléfono", 13f, t.muted, 450))
+        col.addView(label("Teclado de sistema · lo que escribes en las apps no sale del teléfono", 13f, t.muted, 450))
         row.addView(col)
         root.addView(row, lp(bottom = 18f))
     }
@@ -1120,7 +1120,7 @@ class SettingsActivity : Activity() {
         card.addView(step(2, "Elegirlo como teclado actual", selected) {
             getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
         }, lp(top = 8f))
-        card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
+        card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes en las apps nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
         root.addView(card, lp(bottom = 20f))
     }
 

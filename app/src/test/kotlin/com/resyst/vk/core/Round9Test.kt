@@ -145,6 +145,6 @@ class Round9Test {
         assertTrue(on.contains("al abrir el teclado") && on.contains("una vez")) // r11c (OC14)
         assertTrue(on.contains("solo cuando tú se lo pides"))
         val off = UpdateNotice.promise(false)
-        assertTrue(off.contains("No se conecta a internet por sí solo"))
+        assertTrue(off.contains("No busca actualizaciones por sí solo") && off.contains("solo cuando tú se lo pides"))
     }
 }

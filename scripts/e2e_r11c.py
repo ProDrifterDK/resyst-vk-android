@@ -283,7 +283,7 @@ def main():
     check('A', 'attempt persisted: attemptAt + attemptOk=true', 'name="attemptAt"' in p and '<boolean name="attemptOk" value="true"' in p, re.sub(r'\s+', ' ', p)[-220:])
     shot('r11c-A-uptodate-keyboard.png')
     open_about()
-    nn, t2 = scroll_find(lambda d, x: x.startswith('Su única conexión'))
+    nn, t2 = scroll_find(lambda d, x: x.startswith('Para las actualizaciones, al abrir el teclado'))
     prom = nn.get('text') if nn is not None else None
     check('A', 'promise line says when and how often', bool(prom) and 'al abrir el teclado' in prom and 'una vez cada 12 horas' in prom, prom)
     n, t = scroll_find(lambda d, x: x.startswith('✓ Ya tienes la última versión'))
@@ -392,7 +392,7 @@ def main():
     n, t = set_toggle(False)
     check('F', 'toggle turns off', n is not None and n.get('content-desc').endswith('desactivado'), n.get('content-desc') if n is not None else None)
     top()
-    nn, t = scroll_find(lambda d, x: x.startswith('No se conecta a internet por sí solo'))
+    nn, t = scroll_find(lambda d, x: x.startswith('No busca actualizaciones por sí solo'))
     check('F', 'promise line follows the toggle', nn is not None)
     shot('r11c-F-toggle-off.png')
     sh('input keyevent KEYCODE_BACK')
