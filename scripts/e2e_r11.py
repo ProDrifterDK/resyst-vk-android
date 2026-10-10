@@ -18,7 +18,7 @@ only (not in either lexicon). Starts by wiping the DEBUG package's learned files
   E2 spot-check list visible in the grid: 🥹 🫠 🫶 🥲 🤌 🫡 🫣 🫂 ❤️‍🔥 🇳🇱
   E3 skin tone: long-press 👍 → tones; pick one → committed, remembered as 👍's default, in recents;
      an incognito field neither commits a new default nor writes recents
-  E4 "Borrar lo aprendido" wipes the tone defaults (👍 opens plain again)
+  E4 "Lo que sé de ti" lists the chosen tone; "Borrar lo aprendido" wipes it (👍 opens plain again)
 
 Artifacts: build/e2e-r11/r11-e2e.json (+ repro.json in --repro mode) and PNGs.
 Usage: scripts/e2e_r11.py --serial SERIAL [--only learn|emoji] [--repro]
@@ -270,6 +270,19 @@ def know_and_forget():
 
 
 def wipe_learned():
+    t = settings_page('datos')
+    for _ in range(6):
+        if node_where(t, lambda d, _: d.startswith('Olvidar el tono elegido para')) is not None:
+            break
+        sh('input swipe 540 1700 540 900 300')
+        time.sleep(0.6)
+        t = dump()
+    shot('r11-E4-know-tones.png')
+    check('E4 "Lo que sé de ti" lists the chosen tone (👍 → 👍🏽)',
+          node_where(t, lambda d, _: d == 'Olvidar el tono elegido para 👍') is not None,
+          [n.get('content-desc') for n in t.iter('node') if 'tono' in (n.get('content-desc') or '')])
+    sh('input keyevent KEYCODE_BACK')
+    time.sleep(0.6)
     t = settings_page('privacidad')
     row = node_where(t, lambda d, _: d.startswith('Borrar lo aprendido'))
     check('E4 "Borrar lo aprendido" row present', row is not None, '')

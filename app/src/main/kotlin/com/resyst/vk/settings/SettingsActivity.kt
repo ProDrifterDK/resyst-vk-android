@@ -825,6 +825,36 @@ class SettingsActivity : Activity() {
         hs.addView(row)
         into.addView(hs, lp(top = 4f))
         into.addView(label("Toca un emoji para quitarlo de recientes.", 11f, t.muted), lp(top = 4f, bottom = 4f))
+        knowTones()
+    }
+
+    /** r11 (ET2): the skin tones chosen by long-press are kept too (files/personal/emoji_tones.txt): listed, tap to forget one. */
+    private val tonesFile get() = java.io.File(java.io.File(filesDir, "personal"), "emoji_tones.txt")
+
+    private fun knowTones() {
+        val pairs = runCatching { tonesFile.takeIf { it.exists() }?.readLines() }.getOrNull().orEmpty()
+            .map { it.split('\t') }.filter { it.size == 2 && it[0].isNotEmpty() && it[1].isNotEmpty() }
+        if (pairs.isEmpty()) return
+        into.addView(label("Tonos de piel elegidos · ${pairs.size}", 12f, t.muted, 600), lp(top = 10f))
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (p in pairs) {
+            row.addView(label(p[1], 22f, t.text).apply {
+                gravity = Gravity.CENTER
+                isClickable = true
+                background = rounded(t.key, t.edge, 12f)
+                contentDescription = "Olvidar el tono elegido para ${p[0]}"
+                tag = "forget.tone"
+                setOnClickListener {
+                    val rest = pairs.filter { it !== p }.joinToString("\n") { "${it[0]}\t${it[1]}" }
+                    runCatching { tonesFile.writeText(rest) }
+                    rerender()
+                }
+            }, LinearLayout.LayoutParams(px(48f), px(48f)).apply { marginEnd = px(6f) })
+        }
+        hs.addView(row)
+        into.addView(hs, lp(top = 4f))
+        into.addView(label("Toca uno para volver al tono amarillo.", 11f, t.muted), lp(top = 4f, bottom = 4f))
     }
 
     private fun knowClip() {

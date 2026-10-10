@@ -197,9 +197,21 @@ def main():
 
         # 6 — settings: the toggle is there; "Borrar lo aprendido" wipes everything. Since r10 (e4c0bae)
         # settings are pages: the toggle lives on "escritura", the wipe on "privacidad".
+        # A typed address + a password field make Android autofill (Google Password Manager on the
+        # Pixel 6) raise "Save password?" over the next screen: dismiss it, never save.
+        def dismiss_autofill():
+            for n in dump().iter('node'):
+                if (n.get('text') or '') in ('Not now', 'Ahora no', 'No, gracias', 'No thanks') and n.get('package') != PKG:
+                    tap(n)
+                    time.sleep(0.8)
+                    return True
+            return False
+
         def page_rows(page, wanted):
             sh(f'am start -W -f 0x10008000 -n {SETTINGS} --es com.resyst.vk.page {page}')
             time.sleep(1.5)
+            if dismiss_autofill():
+                print('  · autofill "save password" sheet dismissed (Not now)')
             got = {}
             for _ in range(8):
                 for n in dump().iter('node'):
