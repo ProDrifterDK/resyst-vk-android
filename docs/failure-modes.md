@@ -668,6 +668,11 @@ user opening the keyboard can start it; it sends nothing typed.
   (installed meanwhile → no longer available → forgotten; an "up to date" / "not published" answer
   forgets it; a failure keeps it).
 
+- OC17 (found by the r11c E2E, present in 0.7.0) Tapping ⚙ in a fresh IME process before the
+  emoji key was ever used crashes the keyboard: `showQuick` lays out every panel, the emoji panel
+  still holds `EmojiCatalog.EMPTY` and indexed `groups[0]`. The quick panel (and its update line)
+  must open in any process; an empty catalog lays out as an empty grid and caches nothing.
+
 ### Copy + log
 - OC14 The setting, the line under "Versión instalada", the settings card ("Comprobado …"), the
   install-time notice or the site still say "al iniciar" / "una vez": the copy must say "al abrir

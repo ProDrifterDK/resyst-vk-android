@@ -66,8 +66,14 @@ class EmojiPanel(private val dp: Float) {
     private fun tabCount() = catalog.groups.size + 1
 
     /** The drawable cells of catalog tab [t] (1-based), measured on first use and logged. */
-    private fun cellsOf(t: Int): List<EmojiCatalog.Cell> = cache.getOrPut(t) {
-        val g = catalog.groups[t - 1]
+    private fun cellsOf(t: Int): List<EmojiCatalog.Cell> {
+        // r11c: the panels are laid out together (⚙ before the emoji key ever ran = EMPTY catalog);
+        // nothing to show yet, and nothing cached so the real catalog is measured once it is set
+        val g = catalog.groups.getOrNull(t - 1) ?: return emptyList()
+        return cellsOf(t, g)
+    }
+
+    private fun cellsOf(t: Int, g: EmojiCatalog.Group): List<EmojiCatalog.Cell> = cache.getOrPut(t) {
         val t0 = SystemClock.uptimeMillis()
         val ok = g.cells.filter { drawable(it.base) }
         Log.i(TAG, "emoji: tab ${g.id} shown=${ok.size}/${g.cells.size} ms=${SystemClock.uptimeMillis() - t0}")
