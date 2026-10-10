@@ -443,6 +443,12 @@ def emoji_open():
 
 
 def emoji():
+    # E1 reads the once-per-process measuring log (EC5): start from a fresh IME process so a panel an
+    # earlier run already measured doesn't hide the lines (r12: every tab is measured as soon as the
+    # catalog is set, on the vk-emoji-glyphs thread)
+    sh(f'am force-stop {PKG}')
+    sh(f'ime enable {IME}'); sh(f'ime set {IME}')
+    time.sleep(0.8)
     sh('logcat -c')
     run_as('rm -f files/personal/emoji_tones.txt files/personal/emoji_recents.txt')
     emoji_open()
