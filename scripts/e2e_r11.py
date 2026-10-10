@@ -451,7 +451,9 @@ def emoji():
     shot('r11-E1-panel.png')
     expected = ['Recientes', 'Caras y emociones', 'Personas y cuerpo', 'Animales y naturaleza', 'Comida y bebida',
                 'Viajes y lugares', 'Actividades', 'Objetos', 'Símbolos', 'Banderas']
-    check('E1 tabs: recents + the 9 Unicode groups in Unicode order', labels == expected, labels)
+    # r11b (authority: the r11b brief): a build with a KLIPY key adds its own "GIF (KLIPY)" tab after the groups
+    check('E1 tabs: recents + the 9 Unicode groups in Unicode order (+ the r11b GIF tab last)',
+          labels[:len(expected)] == expected and labels[len(expected):] in ([], ['GIF (KLIPY)']), labels)
     for i, lab in enumerate(expected[1:], 1):
         select_tab(lab)
         shot(f'r11-E1-tab{i:02d}.png')
