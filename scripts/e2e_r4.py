@@ -43,7 +43,13 @@ def pick(word):
 
 
 def press(name):
-    tap(keys(dump())[name])
+    # phones label the space key 'Espacio. Mantén pulsado para cambiar de teclado' (same fix as the
+    # r10 scripts, 17fcf25): exact name first, else the one key whose name starts with it
+    km = keys(dump())
+    node = km.get(name)
+    if node is None:
+        node = next(n for d, n in km.items() if d.startswith(name))
+    tap(node)
     time.sleep(0.3)
 
 
