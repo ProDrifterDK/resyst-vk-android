@@ -23,6 +23,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import e2e  # noqa: E402
+import e2e_r10_bilingual as bl  # noqa: E402  (space flick → keyboard language)
 from e2e import adb, sh, dump, keys, field_text, tap, type_word, PKG, IME, SETTINGS  # noqa: E402
 
 OUT = os.path.join(e2e.ROOT, 'build', 'e2e-r4')
@@ -70,6 +71,15 @@ def restart_keyboard():
     time.sleep(0.8)
     sh(f'ime enable {IME}')
     sh(f'ime set {IME}')
+    spanish()
+
+
+def spanish():
+    """The checks below are the Spanish seeds (cómo → estás). Since r10 a cold keyboard pulls the
+    system subtype (Subtypes.reconcile), which may be English: flick to Spanish like the r10 scripts."""
+    e2e.open_host('text')
+    bl.set_lang('es')
+    record('keyboard is on Spanish for the run', bl.space_label() == 'es', str(bl.phone_lang()))
 
 
 def type_hola_comma(km):
