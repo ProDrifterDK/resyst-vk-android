@@ -130,10 +130,12 @@ class GifFeed(private val context: Context, private val view: () -> View?, priva
             val m = KlipyParse.preview(g, animated) ?: KlipyParse.preview(g, animated = false)
             if (m == null) { failed += i; continue }
             pending += i
+            val gen = KlipyClient.generation
             KlipyClient.thumb(m.url, KlipyParse.PREVIEW_CAP, { bytes -> decode(bytes, animated && m.format != "jpg") }) { d, reached ->
                 if (t != token) { (d as? Animatable)?.stop(); return@thumb }
                 pending -= i
                 if (reached) count(i)
+                if (gen != KlipyClient.generation) return@thumb // cancelled (tab hidden): loads again when shown, not a failure
                 if (d == null) { failed += i; changed(); return@thumb }
                 d.callback = callback
                 thumbs[i] = d
@@ -144,11 +146,18 @@ class GifFeed(private val context: Context, private val view: () -> View?, priva
 
     /** Only the cells on screen animate; everything else is stopped (GM1). */
     fun animate(visible: IntRange?) {
+        var running = 0
         for ((i, d) in thumbs) {
             val a = d as? Animatable ?: continue
-            if (visible != null && i in visible) { if (!a.isRunning) a.start() } else if (a.isRunning) a.stop()
+            if (visible != null && i in visible) { if (!a.isRunning) a.start(); running++ } else if (a.isRunning) a.stop()
+        }
+        if (running != animating) {
+            animating = running
+            if (com.resyst.vk.BuildConfig.DEBUG) Log.i(TAG, "gif: animating $running")
         }
     }
+
+    private var animating = 0
 
     /** The tab is hidden: stop every animation and every load in flight; decoded thumbs stay (bounded). */
     fun pause() {

@@ -174,8 +174,11 @@ class EmojiPanel(private val dp: Float) {
         }
         val g = gif
         if (g != null && onGif) {
-            g.layout(RectF(bounds.left, gridTop, bounds.right, gridBottom))
+            // the disclosure takes the bottom bar's room too: all of it is readable without scrolling (GO2)
+            val disc = g.face == GifPanel.Face.DISCLOSURE
+            g.layout(RectF(bounds.left, gridTop, bounds.right, if (disc) bounds.bottom else gridBottom))
             for (h in g.hits) hits += Hit(Act.GIF, "", h.target.act.ordinal * 10_000 + h.target.index, h.rect, h.desc, gif = h.target)
+            if (disc) return
         }
         // grid: only the visible rows become hits
         val list = items()

@@ -40,6 +40,8 @@ object GifCopy {
         BAD_RESPONSE("Respuesta ilegible de KLIPY", "Respuesta ilegible"),
         TOO_LARGE("Respuesta demasiado grande", "Respuesta demasiado grande"),
         TLS("No se pudo establecer una conexión segura", "Conexión no segura"),
+        /** The user left the tab / the field while it was in flight: logged, never shown. */
+        CANCELLED("", "Cancelada al salir"),
         ;
 
         companion object {

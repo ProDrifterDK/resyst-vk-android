@@ -312,7 +312,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val autoCap = fieldKind == FieldKind.TEXT && info.inputType and (
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
         engine.start(FieldInfo(fieldKind, multiLine, action, autoCap))
-        view?.setEnter(enterIcon(action, multiLine), enterDesc(action, multiLine))
+        fieldEnter = enterIcon(action, multiLine) to enterDesc(action, multiLine)
+        view?.setEnter(fieldEnter.first, fieldEnter.second)
         subtypes.enableAllOnce()
         syncSubtype(systemSubtype = null)
         applySettings()
@@ -379,7 +380,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val st = s
         v.setSwitchAvailable(customSwitcherRequested || canSwitch())
         v.setDayNight(if (st.dayNightChip) Themes.byId(st.theme).dark else null)
-        val spec = LayoutSpec(st.lang, st.effectiveTopRow, fieldKind, emojiKey = st.emojiKey && !policy.secret)
+        // r11b: the GIF search box types on the plain letters (an email / URL field's layout would not fit a query)
+        val spec = LayoutSpec(st.lang, st.effectiveTopRow, if (gifSearching) FieldKind.TEXT else fieldKind, emojiKey = st.emojiKey && !policy.secret)
         val rows = KeyboardLayouts.rows(engine.layer, spec)
         // Height is anchored to the letters layer so switching layers never jumps.
         val base = if (engine.layer == Layer.NUMPAD) 4 else st.baseRowCount
@@ -888,6 +890,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** The emoji panel is on its GIF tab right now. */
     private var gifShown = false
 
+    /** The field's own Enter icon + name (restored when the GIF box closes). */
+    private var fieldEnter: Pair<Icon, String> = Icon.ENTER to "Intro"
+
     /** A key is built in and this field may show the GIF tab (never secret / incognito, GO5). */
     private val gifAllowed get() = KlipyClient.available && !policy.secret && !policy.incognito
 
@@ -994,7 +999,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         gifSearching = true
         v.hideEmoji()
         engine.setLayer(Layer.LETTERS)
+        engine.updateAutoCap(false) // the app field's auto-capital never applies to the GIF query
         rebuildLayout()
+        v.setShift(engine.shift)
+        v.setEnter(Icon.SEARCH, "Buscar GIF")
         v.setGifSearch(gifQuery.text)
         v.announceForAccessibility("Escribe tu búsqueda de GIF. Solo esto se envía a KLIPY")
     }
@@ -1003,7 +1011,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (!gifSearching) return
         gifSearching = false
         view?.setGifSearch(null)
-        if (rebuild) { engine.setLayer(Layer.LETTERS); rebuildLayout() }
+        view?.setEnter(fieldEnter.first, fieldEnter.second)
+        if (rebuild) { engine.setLayer(Layer.LETTERS); rebuildLayout(); refreshContext() }
     }
 
     /** A key while the GIF box is open: into the private buffer, nowhere else (GQ1/GQ2). */

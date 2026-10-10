@@ -61,6 +61,8 @@ class GifPanel(context: Context, private val dp: Float) {
     private val pad get() = 8 * dp
     private val gap get() = 4 * dp
     private val gridTop get() = area.top + rowH
+    /** Breathing room between the search row's divider and the first row of GIFs. */
+    private val inset get() = 6 * dp
     private val targetH get() = min(112 * dp, max(72 * dp, (area.height() - rowH) / 2.1f))
 
     fun reset() { scroll = 0f; cells = emptyList() }
@@ -105,9 +107,9 @@ class GifPanel(context: Context, private val dp: Float) {
 
     private fun disclosureText(width: Int): StaticLayout {
         discLayout?.let { if (discWidth == width) return it }
-        val body = GifCopy.DISCLOSURE.joinToString("\n\n") { "•  $it" }
+        val body = GifCopy.DISCLOSURE.joinToString("\n") { "•  $it" }
         val tp = TextPaint(text).apply { textSize = 12.5f * dp; typeface = Typeface.DEFAULT }
-        val l = staticLayout(body, tp, width, 1.12f)
+        val l = staticLayout(body, tp, width, 1.06f)
         discLayout = l
         discWidth = width
         return l
@@ -134,7 +136,7 @@ class GifPanel(context: Context, private val dp: Float) {
         val top = gridTop
         val bottom = area.bottom
         for (c in cells) {
-            val y = top + c.top - scroll
+            val y = top + inset + c.top - scroll
             if (y + c.height <= top || y >= bottom) continue
             val g = items.getOrNull(c.index) ?: continue
             hits += Hit(Target(Act.ITEM, c.index), RectF(area.left + pad + c.left, max(y, top), area.left + pad + c.right, min(y + c.height, bottom)),
@@ -155,7 +157,7 @@ class GifPanel(context: Context, private val dp: Float) {
         return m.width.toFloat() / m.height
     }
 
-    private fun contentHeight(): Float = (cells.maxOfOrNull { it.bottom } ?: 0f) + if (loadingMore || (retry && items.isNotEmpty())) 44 * dp else 8 * dp
+    private fun contentHeight(): Float = inset + (cells.maxOfOrNull { it.bottom } ?: 0f) + if (loadingMore || (retry && items.isNotEmpty())) 44 * dp else 8 * dp
 
     private fun maxScroll(): Float = when (face) {
         Face.ON -> max(0f, contentHeight() - (area.bottom - gridTop))
@@ -253,7 +255,7 @@ class GifPanel(context: Context, private val dp: Float) {
             c.drawRoundRect(area.right - 4 * dp, y, area.right - 2 * dp, y + len, dp, dp, fill)
         }
         for (h in hits) when (h.target.act) {
-            Act.CANCEL -> pill(c, h.rect, GifCopy.CANCEL, t.keyMod, t.textMod, typeface, pressed?.act == Act.CANCEL, p)
+            Act.CANCEL -> pill(c, h.rect, GifCopy.CANCEL, t.keyMod, t.text, typeface, pressed?.act == Act.CANCEL, p)
             Act.ACCEPT -> pill(c, h.rect, GifCopy.ACCEPT, p.accent, p.accentInk, typeface, pressed?.act == Act.ACCEPT, p)
             else -> Unit
         }
@@ -285,7 +287,7 @@ class GifPanel(context: Context, private val dp: Float) {
         c.clipRect(area.left, gridTop, area.right, area.bottom)
         val gr = 8 * dp
         for (cell in cells) {
-            val y = gridTop + cell.top - scroll
+            val y = gridTop + inset + cell.top - scroll
             if (y + cell.height <= gridTop || y >= area.bottom) continue
             val rect = RectF(area.left + pad + cell.left, y, area.left + pad + cell.right, y + cell.height)
             c.save()

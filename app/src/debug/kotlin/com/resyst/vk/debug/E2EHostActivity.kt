@@ -37,6 +37,11 @@ import java.io.File
  * com.resyst.vk.debug.SET_CLIP --es text …` (optional `--ez sensitive true`, `--ez image true`) puts a clip
  * on the system clipboard exactly like a user's "Copiar" in an app would. A "rich" field
  * declares support for any image type (commitContent) and logs every image it receives.
+ *
+ * r11b: "rich" and "demo" also show the image they receive (an animated GIF plays) under the
+ * field, so the E2E screenshots and the KLIPY demo video see the GIF land. "demo" is the same
+ * field with a neutral look (no "E2E" label) for the recording. "text" declares no content types:
+ * it is the field that rejects images.
  */
 class E2EHostActivity : Activity() {
     private val receiver = object : BroadcastReceiver() {
@@ -51,17 +56,23 @@ class E2EHostActivity : Activity() {
             setPadding(32, 96, 32, 32)
             setBackgroundColor(0xFF08080F.toInt())
         }
+        val rich = kind == "rich" || kind == "demo"
         val title = TextView(this).apply {
-            text = "✦ E2E host · $kind"
+            text = if (kind == "demo") "Mensaje" else "✦ E2E host · $kind"
             setTextColor(0xFFC9A84C.toInt())
             textSize = 16f
         }
-        val field = (if (kind == "rich") RichField(this) else EditText(this)).apply {
+        val shown = android.widget.ImageView(this).apply {
+            adjustViewBounds = true
+            scaleType = android.widget.ImageView.ScaleType.FIT_START
+            contentDescription = "e2e-received"
+        }
+        val field = (if (rich) RichField(this) { uri -> show(shown, uri) } else EditText(this)).apply {
             tag = "e2e-field"
             contentDescription = "e2e-field"
             setTextColor(0xFFE9E4D6.toInt())
             setHintTextColor(0xFF8F8A7A.toInt())
-            hint = "e2e"
+            hint = if (kind == "demo") "Escribe un mensaje" else "e2e"
             gravity = Gravity.TOP or Gravity.START
             textSize = 20f
             inputType = when (kind) {
@@ -91,7 +102,8 @@ class E2EHostActivity : Activity() {
             }
         }
         root.addView(title)
-        root.addView(field, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 360))
+        root.addView(field, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, if (rich) 220 else 360))
+        if (rich) root.addView(shown, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 420).apply { topMargin = 16 })
         setContentView(root)
         field.requestFocus()
         field.post { getSystemService(InputMethodManager::class.java)?.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT) }
@@ -129,19 +141,36 @@ class E2EHostActivity : Activity() {
         Log.i("ResystE2E", "setClip mimes=${(0 until clip.description.mimeTypeCount).map { clip.description.getMimeType(it) }}")
     }
 
+    /** Shows the received image (animated on API 28+); the bytes were copied while the grant was live. */
+    private fun show(v: android.widget.ImageView, file: File) {
+        val d = runCatching {
+            if (Build.VERSION.SDK_INT >= 28) android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(file))
+            else android.graphics.drawable.BitmapDrawable(resources, android.graphics.BitmapFactory.decodeFile(file.path))
+        }.getOrNull() ?: return
+        v.setImageDrawable(d)
+        if (Build.VERSION.SDK_INT >= 28 && d is android.graphics.drawable.AnimatedImageDrawable) d.start()
+        Log.i("ResystE2E", "shown ${d.javaClass.simpleName} ${d.intrinsicWidth}x${d.intrinsicHeight}")
+    }
+
     /** A field that takes images like a messenger's compose box (commitContent). */
-    private class RichField(c: Context) : EditText(c) {
+    private class RichField(c: Context, private val onImage: (File) -> Unit = {}) : EditText(c) {
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
             val ic = super.onCreateInputConnection(outAttrs) ?: return null
             EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
             return InputConnectionCompat.createWrapper(ic, outAttrs) { info, flags, _ ->
                 val desc: ClipDescription = info.description
+                var head = ""
+                val copy = File(context.cacheDir, "received")
                 val ok = runCatching {
                     if (flags and InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION != 0) info.requestPermission()
-                    context.contentResolver.openInputStream(info.contentUri)?.use { it.readBytes().size } ?: -1
+                    val bytes = context.contentResolver.openInputStream(info.contentUri)?.use { it.readBytes() } ?: ByteArray(0)
+                    head = String(bytes.copyOf(minOf(6, bytes.size)), Charsets.ISO_8859_1).filter { it in ' '..'~' }
+                    copy.writeBytes(bytes)
+                    bytes.size
                 }.getOrElse { Log.w("ResystE2E", "commitContent read failed", it); -1 }
-                Log.i("ResystE2E", "commitContent mime=${desc.getMimeType(0)} bytes=$ok uri=${info.contentUri}")
-                if (ok > 0) append("[imagen $ok B]")
+                runCatching { info.releasePermission() }
+                Log.i("ResystE2E", "commitContent mime=${desc.getMimeType(0)} bytes=$ok head=$head uri=${info.contentUri}")
+                if (ok > 0) { if (tag == "e2e-field" && (context as? E2EHostActivity)?.intent?.getStringExtra("kind") != "demo") append("[imagen $ok B]"); onImage(copy) }
                 ok > 0
             }
         }

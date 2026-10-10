@@ -83,7 +83,7 @@ object KlipyClient {
                 val p = KlipyParse.page(body)
                 if (!p.ok) Result.Failed(GifCopy.Fail.BAD_RESPONSE) else Result.Page(p, 0)
             } catch (e: Exception) {
-                Result.Failed(fail(e))
+                Result.Failed(if (gen != generation) GifCopy.Fail.CANCELLED else fail(e))
             }
             val n = ConnectionBook.add(app, what, ConnectionLog.Why.USER,
                 GifCopy.pageOutcome(query, page, (result as? Result.Page)?.page?.items?.size ?: 0, (result as? Result.Failed)?.fail, status))
@@ -127,7 +127,7 @@ object KlipyClient {
                 null
             } catch (e: Exception) {
                 dest.delete()
-                fail(e)
+                if (gen != generation) GifCopy.Fail.CANCELLED else fail(e)
             }
             ConnectionBook.add(app, ConnectionLog.What.GIF_FILE, ConnectionLog.Why.USER,
                 if (fail == null) "${dest.length() / 1024} KB" else fail.log + if (fail == GifCopy.Fail.HTTP && status > 0) " $status" else "",
