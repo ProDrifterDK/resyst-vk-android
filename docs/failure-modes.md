@@ -613,6 +613,119 @@ and could not wipe them.
 - F4 The device check for F1 depends on test order: it passes only because an earlier section
   left learned words behind (the row was enabled by the words, not the emoji data).
 
+## Round 11b — opt-in GIF search (`KlipyUrls`, `KlipyParse`, `GifOptIn`, `GifQuery`, `ConnectionLog` v2)
+
+Alan's request: GIF search inside the keyboard whose promise is that it never talks to anyone.
+Provider: KLIPY (Tenor closed 2026-06-30, GIPHY is paid). Privacy model decided by Alan: opt-in,
+OFF by default, a plain disclosure before the first request, no ads, an anonymous resettable ID,
+every request in the "Libro de conexiones". This deliberately changes V7: there are now two
+network clients, `Updater.kt` and `KlipyClient.kt`, both logged, both allowlisted.
+
+### Key injection (`keystore/klipy.key` → `BuildConfig.KLIPY_KEY`)
+- GK1 The key lands in a tracked file (source, test fixture, script, report, docs) or in a log
+  line: logcat, the Libro de conexiones, an exception message that carries the request URL.
+- GK2 A public clone without `keystore/klipy.key` fails to build, or builds with a GIF tab /
+  setting that cannot work (the feature must be hidden entirely when the key is absent).
+- GK3 A malformed key file (spaces, quotes, newline) breaks the generated Java source or is sent
+  half-trimmed: only `[A-Za-z0-9_-]{16,128}` is accepted, anything else = no key.
+
+### URL allowlist (`KlipyUrls`)
+- GA1 A request goes anywhere but `https://api.klipy.com/api/v1/…`, or media loads from anywhere
+  but `https://static.klipy.com/…`: other host or look-alike (`api.klipy.com.evil.io`,
+  `static.klipy.com@evil.io`, `evil.io/static.klipy.com/`), http, a port, userinfo, a backslash,
+  whitespace / control characters, `..` segments, a fragment, or a scheme-relative URL.
+- GA2 A redirect is followed (off-host or not): redirects are never followed; a 3xx is an error.
+- GA3 A media URL is rewritten, re-encoded or reconstructed instead of used exactly as returned
+  (KLIPY rule 1), or a URL that fails the allowlist is "repaired" instead of dropped.
+- GA4 A query, customer id or slug breaks out of its parameter / path segment (`&`, `#`, `/`, `?`,
+  spaces, non-ASCII): every value is percent-encoded as UTF-8; a slug outside `[A-Za-z0-9_-]`
+  sends no share trigger at all.
+
+### Response parsing (`KlipyParse`)
+- GP1 Malformed, truncated, oversized, `result:false`, HTML error page or wrong-shape JSON
+  crashes the keyboard instead of becoming one calm error line (empty page).
+- GP2 Results are reordered, merged with another source, deduplicated or filtered by the app
+  (KLIPY rule 4): order is the response order; only items we cannot draw at all (no allowlisted
+  media) are skipped, and the count of skipped items is known. Ads are never parsed or drawn
+  (monetization is OFF at the platform; an item whose `type` is not `gif` is skipped).
+- GP3 `has_next` / `current_page` missing or wrong type → no pagination (never an endless loop
+  of page requests).
+
+### Format choice (`KlipyParse.preview` / `insert`)
+- GF1 The preview format is chosen by name instead of size: one `sm` webp was 479 KB while its
+  `sm` gif was 59 KB. The smallest decodable candidate under the preview cap wins; `xs` is the
+  fallback; API 26–27 (no animated decoder) get the static `jpg`.
+- GF2 The inserted file is a type the field did not declare (`EditorInfo.contentMimeTypes`), is
+  static (`jpg`) or video (`mp4`/`webm`), or is larger than the insert cap (an `hd` gif reached
+  5.4 MB). A field that accepts none of `image/gif` / `image/webp` (wildcards honored) gets no
+  download at all.
+
+### Opt-in gate + disclosure (`GifOptIn`)
+- GO1 Any request (API or media) while the feature is OFF: by default, after "Apagar", after a
+  corrupt or partial stored state, or before the disclosure was accepted.
+- GO2 The setting turns on without the disclosure, or the disclosure is dismissible into ON
+  (back, outside tap, "Cancelar" must all leave it OFF). The disclosure names what is sent (only
+  the words typed in the GIF search box, a random ID, the region, the safety level, the IP like
+  any connection, which GIF was sent), to whom (KLIPY, a third party), that the app field's text
+  is never sent, that every request is in the Libro de conexiones, and how to turn it off.
+- GO3 A stored consent for an older disclosure version counts as consent for the current one.
+- GO4 The feature runs in the background: a request without a user action in the GIF tab
+  (open, search, scroll to the next page, tap a GIF), or one still in flight after the tab
+  closed, the panel hid, the field finished, or the feature was turned off.
+- GO5 The GIF tab (and therefore any request) appears in a password / PIN / secret field or in
+  an incognito field (IME_FLAG_NO_PERSONALIZED_LEARNING).
+
+### Anonymous ID (`GifOptIn`)
+- GI1 The ID exists while OFF, survives "Apagar", is not a random v4 UUID, is derived from the
+  device / account, or is reused after "Nuevo ID anónimo".
+- GI2 The ID leaves the device another way: Android backup or device transfer (the prefs file
+  is excluded from both), or a log line in a release build.
+
+### Query buffer (`GifQuery`)
+- GQ1 A key typed in the GIF search box reaches the app's InputConnection, or the query is
+  pre-filled from the field's text (the field must be untouched and never read for it).
+- GQ2 The query is learned by the personal model, space-corrected, double-space-perioded or
+  shown as suggestions.
+- GQ3 Search runs on every keystroke (the shared testing key allows 100 calls/hour): only the
+  search key / ⏎ sends it; an empty or whitespace query means trending; the buffer is bounded
+  and ⌫ never splits a surrogate pair.
+
+### Connection log (`ConnectionLog` v2)
+- GL1 A KLIPY request is not logged (trending page, search page, share trigger, the chosen GIF's
+  download), or a page's thumbnails are logged one entry each (flood) instead of one count on the
+  page's entry.
+- GL2 An old v1 log (updater only) stops reading after the upgrade, loses its total or first
+  date; a v2 entry with junk (unknown kind, negative media) crashes instead of being dropped.
+- GL3 The page entry is written only after its thumbnails finish (a process death in between
+  hides a request that happened): the entry is written when the API answers and amended with the
+  media count later.
+- GL4 The updater and the GIF client race on the same stored log and one entry overwrites the
+  other (one lock for both writers).
+
+### Errors + rate limit
+- GE1 Offline, timeout, HTTP 429, other HTTP errors and malformed JSON do not show one calm line
+  ("Sin conexión", "Demasiadas búsquedas, intenta en un rato", …) or are not logged with that
+  outcome; any automatic retry (the user taps to retry).
+- GE2 Two page requests in flight at once (double tap on search, scroll while loading).
+
+### Commit fallback (`commitContent`)
+- GC1 A field that rejects images gets a pasted URL or text; the user is not told (Toast +
+  TalkBack); a share trigger is sent for a GIF that was not committed.
+- GC2 The temporary full-size file outlives its purpose: more than one kept, not deleted on the
+  next pick, or a library of picks builds up. Thumbnails are never written to disk.
+
+### Memory + lifecycle (`GifThumbs`)
+- GM1 Decoding is unbounded: no byte cap per thumbnail / page JSON / chosen GIF, no target
+  decode size, every page kept forever. Previews keep animating while the panel is hidden;
+  in-flight loads continue after a tab change or `onFinishInputView`.
+- GM2 A thumbnail that fails to load or decode crashes or leaves a hole that shifts the order
+  (the cell stays in place, drawn as a placeholder).
+
+### Attribution + honesty
+- GT1 No visible KLIPY attribution in the GIF tab; the search box placeholder is not "Buscar en
+  KLIPY"; anything suggests KLIPY made or endorses the keyboard.
+- GT2 The Libro de conexiones still says the updater is the only network user.
+
 ## Round 11c — the update check runs when the keyboard opens (`OpenCheckGate`), 0.7.1
 
 Found by Alan on device: a published update was never announced. r9 claimed the automatic check
