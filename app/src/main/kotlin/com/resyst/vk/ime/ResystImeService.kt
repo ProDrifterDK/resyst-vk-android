@@ -350,6 +350,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        // r12 (PS4): a cursor the user moved (tap, selection) or text the app rewrote ends a pick's provisional space
+        if (engine.hasProvisional) engine.selectionChanged(currentInputConnection?.getTextBeforeCursor(WINDOW, 0) ?: "", newSelStart, newSelEnd)
         refreshContext()
     }
 
@@ -444,8 +446,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (gifSearching) { if (gifQuery.type(text)) view?.setGifSearch(gifQuery.text); return }
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
-        val outs = engine.variant(text)
+        val outs = engine.variant(text, before) // r12 (PS1): a closing variant takes a pick's provisional space
+        if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
+        if (outs.size > 1) ic.endBatchEdit()
         learn(before, outs, Learner.Edit.KEY)
         view?.setShift(engine.shift)
     }
@@ -484,6 +488,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onCursorDrag(steps: Int) {
         if (gifSearching || currentInputConnection == null) return // the caret of the app's field never moves for the GIF box
+        engine.endProvisional() // r12 (PS4): the space-drag cursor ends a pick's provisional space
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(kotlin.math.abs(steps)) { sendDownUpKeyEvents(code) }
         pulse(HapticEvent.CURSOR_TICK)
@@ -532,6 +537,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     // ── quick panel (r10, UX-3) ─────────────────────────────────────────
     override fun onQuickPanel() {
+        engine.endProvisional() // r12 (PS4)
         feedback(null)
         openQuick()
     }
@@ -721,6 +727,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             null -> return
         }
         learner.reset()
+        engine.endProvisional() // r12 (PS4)
         refreshClip()
     }
 
@@ -772,6 +779,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onClipboardButton() {
         if (!ClipRules.mayShowHistory(policy, clipS)) return // W5
+        engine.endProvisional() // r12 (PS4)
         val h = ClipStore.history
         val now = System.currentTimeMillis()
         if (h != null && clipS.purgeHour && h.purge(now, ClipboardHistory.PURGE_MS)) ClipStore.changed()
@@ -789,6 +797,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 v.hideClipboard()
                 currentInputConnection?.commitText(e.text, 1)
                 learner.reset()
+                engine.endProvisional() // r12 (PS4)
                 feedback(null)
             }
             ClipboardPanel.Act.PIN -> {
@@ -840,6 +849,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onEmojiKey() {
         if (gifSearching) { onGifSearchBack(); return }
         if (policy.secret) return
+        engine.endProvisional() // r12 (PS4): opening a panel ends a pick's provisional space
         emojiRecents = null // re-read: "Borrar lo aprendido" may have wiped files/personal/
         emojiTones = null
         val v = view ?: return
@@ -865,6 +875,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EmojiPanel.Act.EMOJI -> {
                 ic.commitText(text, 1)
                 learner.reset()
+                engine.endProvisional() // r12 (PS4)
                 feedback(null)
                 // incognito fields leave no trace, not even in the recents
                 if (!policy.incognito && recents().push(text)) {
@@ -1238,6 +1249,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ic.endBatchEdit()
         val kept = engine.takeReverted()
         if (kept != null) keep(before, outs, kept) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
+        engine.endProvisional() // r12 (PS4)
         feedback(null)
     }
 
@@ -1256,6 +1268,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
      */
     fun editAction(op: EditOp) {
         val ic = currentInputConnection ?: return
+        engine.endProvisional() // r12 (PS4): any edit-panel op ends a pick's provisional space
         fun key(code: Int) {
             if (selecting) {
                 val meta = KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
@@ -1285,6 +1298,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                     if (n > 0) ic.deleteSurroundingText(n, 0) else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
                 }
                 learner.reset()
+                engine.endProvisional() // r12 (PS4)
                 selecting = false
             }
         }

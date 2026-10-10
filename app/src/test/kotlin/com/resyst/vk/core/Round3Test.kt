@@ -164,7 +164,11 @@ class Round3Test {
         val e = engine()
         e.pickSuggestion("casa", "casaa")
         asked.clear()
-        assertEquals(listOf(Out.Commit(" ")), e.press(space, "mi casa ", 10))
+        // r12 (PS2, deliberate change): the space right after a pick is absorbed (it already has one)
+        assertEquals(emptyList<Out>(), e.press(space, "mi casa ", 10))
+        assertTrue(asked.isEmpty())
+        // a later space after a typed word is a normal one and still never re-corrects the pick
+        assertEquals(listOf(Out.Commit(" ")), e.press(space, "mi casa ", 20))
         assertTrue(asked.isEmpty())
     }
 
