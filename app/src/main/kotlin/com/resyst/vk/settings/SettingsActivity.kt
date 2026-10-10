@@ -33,6 +33,7 @@ import com.resyst.vk.core.EmojiRecents
 import com.resyst.vk.core.EmojiTones
 import com.resyst.vk.core.PersonalSummary
 import com.resyst.vk.core.FieldKind
+import com.resyst.vk.core.GifCopy
 import com.resyst.vk.core.Ctl
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.Density
@@ -219,6 +220,7 @@ class SettingsActivity : Activity() {
         Updater.resume(this)
         ClipStore.listeners += clipListener
         PersonalStore.wiped += personalListener
+        ConnectionBook.listeners += bookListener
         render()
         maybeAutoInstall()
     }
@@ -233,7 +235,11 @@ class SettingsActivity : Activity() {
     /** r11a-fix (F2): the wipe finished on disk: re-count what files/personal/ still holds. */
     private val personalListener: () -> Unit = { rerender() }
 
+    /** r11b: a GIF request logged while the book is on screen re-renders it. */
+    private val bookListener: () -> Unit = { if (page == SettingsIA.pageOf(Ctl.CONNECTIONS)?.id) rerender() }
+
     override fun onPause() {
+        ConnectionBook.listeners -= bookListener
         ClipStore.listeners -= clipListener
         PersonalStore.wiped -= personalListener
         Updater.listeners -= updaterListener
@@ -443,6 +449,8 @@ class SettingsActivity : Activity() {
                 commitClip { it.copy(history = v) }
             }
             Ctl.CLIP_PURGE -> toggle(ctl.label, "Borra solo lo no fijado que copiaste hace más de una hora", store.clip.purgeHour) { v -> commitClip { it.copy(purgeHour = v) } }
+            Ctl.GIF_SEARCH -> gifRow()
+            Ctl.GIF_NEW_ID -> gifNewIdRow()
             Ctl.CLEAR_CLIP -> clearClipRow()
             Ctl.FORGET_LEARNED -> forgetRow()
 
@@ -909,24 +917,69 @@ class SettingsActivity : Activity() {
             else -> "${log.total} conexiones a internet desde la instalación."
         }
         into.addView(label(head, 16f, t.text, 650).apply { tag = "connections-total" }, lp(top = 2f))
-        into.addView(label("Solo para comprobar o descargar actualizaciones de Resyst VK en kv.resyst.cl. Nunca se envía lo que escribes, lo que copias ni lo aprendido; ninguna otra parte de la app usa la red.", 12f, t.muted), lp(top = 2f, bottom = 6f))
+        // r11b (GT2): two clients now, each named with where it goes
+        val gifOn = KlipyClient.available && GifStore.read(this).active
+        val why = "Para comprobar o descargar actualizaciones de Resyst VK en kv.resyst.cl" +
+            (if (KlipyClient.available) ", y para la búsqueda de GIF con KLIPY solo si la activas (ahora ${if (gifOn) "activada" else "apagada"})" else "") +
+            ". Nunca se envía lo que escribes en las apps, lo que copias ni lo aprendido."
+        into.addView(label(why, 12f, t.muted).apply { tag = "connections-why" }, lp(top = 2f, bottom = 6f))
         val fmt = java.text.SimpleDateFormat("d MMM yyyy · HH:mm", java.util.Locale("es", "CL"))
         for ((i, e) in log.recent().withIndex()) {
+            val media = when (e.media) { 0 -> ""; 1 -> " · 1 archivo"; else -> " · ${e.media} archivos" }
             val col = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 minimumHeight = px(48f)
                 gravity = Gravity.CENTER_VERTICAL
                 tag = "connection.$i"
                 isFocusable = true
-                contentDescription = "${e.what.label}, ${fmt.format(java.util.Date(e.at))}, ${e.why.label}. ${e.outcome}"
+                contentDescription = "${e.what.label}, a ${e.what.host}, ${fmt.format(java.util.Date(e.at))}, ${e.why.label}. ${e.outcome}$media"
             }
-            col.addView(label("${e.what.label} · ${e.why.label}", 14f, t.text, 550))
-            col.addView(label("${fmt.format(java.util.Date(e.at))} · ${e.outcome}", 12f, t.muted))
+            col.addView(label("${e.what.label} · ${e.what.host} · ${e.why.label}", 14f, t.text, 550))
+            col.addView(label("${fmt.format(java.util.Date(e.at))} · ${e.outcome}$media", 12f, t.muted))
             into.addView(col, lp())
         }
         if (log.total > log.recent().size) {
             into.addView(label("Se muestran las ${log.recent().size} más recientes.", 11f, t.muted), lp(top = 4f))
         }
+    }
+
+    // ── r11b: opt-in GIF search (KLIPY) ─────────────────────────────────
+    /**
+     * Hidden entirely in a build without a KLIPY key (GK2). OFF → the disclosure dialog, whose
+     * «Activar» is the only way on (back / outside / «Cancelar» leave it off, GO2). ON → «Apagar»
+     * deletes the anonymous id at once.
+     */
+    private fun gifRow() {
+        if (!KlipyClient.available) return
+        val st = GifStore.read(this)
+        toggle(Ctl.GIF_SEARCH.label, if (st.active) "Activada · pestaña GIF en el panel de emojis · cada conexión va al Libro de conexiones"
+            else "Apagada · el teclado no se conecta a KLIPY · al activarla te digo qué se envía", st.active) { v ->
+            if (v) confirmGif() else { GifStore.turnOff(this); rerender() }
+        }
+    }
+
+    private fun gifNewIdRow() {
+        if (!KlipyClient.available) return
+        val st = GifStore.read(this)
+        if (!st.active) return
+        val id = st.customerId ?: return
+        link("${Ctl.GIF_NEW_ID.label} ›") {
+            GifStore.newId(this)
+            android.widget.Toast.makeText(this, "Listo: KLIPY verá un ID nuevo", android.widget.Toast.LENGTH_SHORT).show()
+            rerender()
+        }
+        // the id itself, abbreviated: enough to see it change, nothing to copy
+        into.addView(label("ID actual: ${id.take(8)}…", 11f, t.muted).apply { tag = "gif-id" }, lp(bottom = 4f))
+    }
+
+    private fun confirmGif() {
+        val body = GifCopy.DISCLOSURE.joinToString("\n\n") { "•  $it" }
+        AlertDialog.Builder(this)
+            .setTitle(GifCopy.TITLE)
+            .setMessage(body)
+            .setPositiveButton(GifCopy.ACCEPT) { _, _ -> GifStore.accept(this); rerender() }
+            .setNegativeButton(GifCopy.CANCEL, null)
+            .show()
     }
 
     // ── clipboard (device-wide) ─────────────────────────────────────────

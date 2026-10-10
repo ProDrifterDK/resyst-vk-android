@@ -40,7 +40,8 @@ class Round9Test {
         val net = root.walkTopDown().filter { it.isFile && it.extension == "kt" }
             .filter { f -> f.readText().let { it.contains("openConnection") || it.contains("HttpsURLConnection") || it.contains("java.net.Socket") } }
             .map { it.name }.toList()
-        assertEquals(listOf("Updater.kt"), net)
+        // r11b (authority: Alan's r11b brief): the opt-in GIF search is the second and last client
+        assertEquals(listOf("KlipyClient.kt", "Updater.kt"), net.sorted())
         val manifest = File("src/main/AndroidManifest.xml").readText()
         assertTrue(manifest.contains("usesCleartextTraffic=\"false\""))
         assertFalse("no status-bar notifications", manifest.contains("POST_NOTIFICATIONS"))

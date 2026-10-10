@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Used only by Settings → "Buscar actualizaciones" / "Descargar e instalar", on a tap.
-         The keyboard service never opens a connection. -->
+    <!-- Two uses, both logged in Settings → Libro de conexiones: updates of Resyst VK (kv.resyst.cl),
+         and, only after the user turns it on (OFF by default), the GIF search with KLIPY (r11b). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets Android's own installer open the verified update; off until the user allows
          "Install unknown apps" for Resyst VK. Every install is still confirmed by the user. -->

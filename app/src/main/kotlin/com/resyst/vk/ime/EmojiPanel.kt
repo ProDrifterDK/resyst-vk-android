@@ -24,11 +24,16 @@ import kotlin.math.min
  * emoji, and scrolling only re-lays out the visible rows. A cell with skin tones shows the user's
  * chosen tone ([tones]); a long-press opens its tones ([showTones]) — tap one, or slide onto it
  * and lift.
+ *
+ * r11b: when the GIF search may run in this field ([gif] set: a KLIPY key is built in and the field
+ * is neither secret nor incognito), a last "GIF" tab hands its grid area to [GifPanel] — a
+ * dedicated tab, never mixed with the emoji (KLIPY rule 5).
  */
 class EmojiPanel(private val dp: Float) {
-    enum class Act { TAB, EMOJI, ABC, SPACE, DELETE, TONE, CLOSE_TONES }
-    /** [cell] = the catalog cell behind an EMOJI / TONE hit (null in recents for unknown emoji). */
-    class Hit(val act: Act, val text: String, val index: Int, val rect: RectF, val desc: String, val cell: EmojiCatalog.Cell? = null)
+    enum class Act { TAB, EMOJI, ABC, SPACE, DELETE, TONE, CLOSE_TONES, GIF }
+    /** [cell] = the catalog cell behind an EMOJI / TONE hit (null in recents for unknown emoji); [gif] = a GIF-tab target. */
+    class Hit(val act: Act, val text: String, val index: Int, val rect: RectF, val desc: String, val cell: EmojiCatalog.Cell? = null,
+              val gif: GifPanel.Target? = null)
 
     val bounds = RectF()
     val hits = ArrayList<Hit>()
@@ -63,7 +68,13 @@ class EmojiPanel(private val dp: Float) {
 
     private fun drawable(e: String) = glyphOk.getOrPut(e) { text.hasGlyph(e) }
 
-    private fun tabCount() = catalog.groups.size + 1
+    /** r11b: the GIF tab's panel, null = no GIF tab in this field. */
+    var gif: GifPanel? = null
+        set(v) { if (v !== field) { field = v; if (v == null && tab > catalog.groups.size) tab = 1 } }
+    val gifTab get() = catalog.groups.size + 1
+    val onGif get() = gif != null && tab == gifTab
+
+    private fun tabCount() = catalog.groups.size + 1 + if (gif != null) 1 else 0
 
     /** The drawable cells of catalog tab [t] (1-based), measured on first use and logged. */
     private fun cellsOf(t: Int): List<EmojiCatalog.Cell> {
@@ -82,7 +93,8 @@ class EmojiPanel(private val dp: Float) {
 
     /** What the grid of the current tab shows: (emoji to draw/commit, its catalog cell). */
     private fun items(): List<Pair<String, EmojiCatalog.Cell?>> =
-        if (tab == 0) recents.filter(::drawable).map { it to catalog.cellOf(it) }
+        if (tab > catalog.groups.size) emptyList()
+        else if (tab == 0) recents.filter(::drawable).map { it to catalog.cellOf(it) }
         else cellsOf(tab).map { c -> tones.shown(c.base).takeIf(::drawable).let { (it ?: c.base) to c } }
 
     /** Opens on recents when there are any, else on the first category. */
@@ -97,7 +109,7 @@ class EmojiPanel(private val dp: Float) {
     fun setRecents(r: List<String>) { recents = r; if (tab == 0) relayout() }
 
     fun selectTab(i: Int) {
-        val t = i.coerceIn(0, catalog.groups.size)
+        val t = i.coerceIn(0, tabCount() - 1)
         tonesOf = null
         if (t != tab) { tab = t; scroll = 0f }
         relayout()
@@ -107,6 +119,7 @@ class EmojiPanel(private val dp: Float) {
 
     fun scrollBy(dy: Float): Boolean {
         if (tonesOf != null) return false
+        if (onGif) return gif?.scrollBy(dy)?.also { if (it) relayout() } ?: false
         val s = (scroll + dy).coerceIn(0f, maxScroll())
         if (s == scroll) return false
         scroll = s
@@ -153,10 +166,16 @@ class EmojiPanel(private val dp: Float) {
         val n = tabCount()
         val tw = bounds.width() / n
         for (i in 0 until n) {
-            val label = if (i == 0) "Recientes" else catalog.groups[i - 1].label
-            hits += Hit(Act.TAB, if (i == 0) "" else catalog.groups[i - 1].icon, i,
+            val isGif = i > catalog.groups.size
+            val label = if (i == 0) "Recientes" else if (isGif) "GIF (KLIPY)" else catalog.groups[i - 1].label
+            hits += Hit(Act.TAB, if (i == 0) "" else if (isGif) "GIF" else catalog.groups[i - 1].icon, i,
                 RectF(bounds.left + i * tw, bounds.top, bounds.left + (i + 1) * tw, bounds.top + tabH),
                 label + if (i == tab) ", seleccionada" else "")
+        }
+        val g = gif
+        if (g != null && onGif) {
+            g.layout(RectF(bounds.left, gridTop, bounds.right, gridBottom))
+            for (h in g.hits) hits += Hit(Act.GIF, "", h.target.act.ordinal * 10_000 + h.target.index, h.rect, h.desc, gif = h.target)
         }
         // grid: only the visible rows become hits
         val list = items()
@@ -224,7 +243,18 @@ class EmojiPanel(private val dp: Float) {
                 fill.color = if (sel) p.accentSoft else t.keyHi
                 c.drawRoundRect(h.rect.left + 2 * dp, h.rect.top + 5 * dp, h.rect.right - 2 * dp, h.rect.bottom - 5 * dp, radius, radius, fill)
             }
-            if (h.index == 0) {
+            if (h.index > catalog.groups.size) {
+                text.textSize = min(h.rect.height() * 0.3f, 12.5f * dp)
+                text.typeface = typeface(if (sel) 750 else 650)
+                text.color = if (sel) p.accent else t.muted
+                text.alpha = dim
+                stroke.color = if (sel) p.accent else t.muted
+                stroke.strokeWidth = 1.2f * dp
+                val gw = min(h.rect.width() - 8 * dp, 30 * dp)
+                c.drawRoundRect(h.rect.centerX() - gw / 2, h.rect.centerY() - 9 * dp, h.rect.centerX() + gw / 2, h.rect.centerY() + 9 * dp, 5 * dp, 5 * dp, stroke)
+                drawCentered(c, "GIF", h.rect.centerX(), h.rect.centerY())
+                text.alpha = 255
+            } else if (h.index == 0) {
                 drawClock(c, h.rect.centerX(), h.rect.centerY(), min(h.rect.width(), h.rect.height()) * 0.42f, if (sel) p.accent else t.muted)
             } else {
                 text.textSize = min(h.rect.width() * 0.55f, 20 * dp)
@@ -268,6 +298,12 @@ class EmojiPanel(private val dp: Float) {
         c.restore()
         text.alpha = 255
         if (open != null) { drawTones(c, p, radius, pressed); return }
+        val g = gif
+        if (g != null && onGif) {
+            g.draw(c, p, radius, typeface, pressed?.gif)
+            drawBar(c, p, radius, typeface, pressed)
+            return
+        }
         if (!any) {
             text.color = t.muted
             text.textSize = 13 * dp
@@ -282,6 +318,11 @@ class EmojiPanel(private val dp: Float) {
             fill.color = t.edgeHi
             c.drawRoundRect(bounds.right - 4 * dp, y, bounds.right - 2 * dp, y + barLen, dp, dp, fill)
         }
+        drawBar(c, p, radius, typeface, pressed)
+    }
+
+    private fun drawBar(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
+        val t = p.theme
         // bottom bar
         for (h in hits) when (h.act) {
             Act.ABC -> button(c, h, "ABC", t.keyMod, t.textMod, radius, typeface, h === pressed, p)

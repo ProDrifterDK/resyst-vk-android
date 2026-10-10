@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API 31+: learned words / remembered emails / clipboard history are excluded from cloud backup AND device transfer. -->
+<!-- API 31+: learned words / remembered emails / clipboard history (and, r11b, the GIF search consent + anonymous ID)
+     are excluded from cloud backup AND device transfer. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="personal/" />
         <exclude domain="file" path="clipboard/" />
+        <exclude domain="sharedpref" path="resyst_vk_gif.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="personal/" />
         <exclude domain="file" path="clipboard/" />
+        <exclude domain="sharedpref" path="resyst_vk_gif.xml" />
     </device-transfer>
 </data-extraction-rules>

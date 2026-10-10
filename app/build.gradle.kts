@@ -12,8 +12,18 @@ android {
         minSdk = 26
         targetSdk = 36
         // -Pvk.versionCode=N / -Pvk.versionName=X: local test builds only (updater E2E), never published.
-        versionCode = (findProperty("vk.versionCode") as String?)?.toInt() ?: 8
-        versionName = (findProperty("vk.versionName") as String?) ?: "0.7.1"
+        versionCode = (findProperty("vk.versionCode") as String?)?.toInt() ?: 9
+        versionName = (findProperty("vk.versionName") as String?) ?: "0.8.0"
+        // r11b (GK1–GK3): the KLIPY API key is read at build time from keystore/klipy.key
+        // (gitignored, like the signing secrets). No file, or anything but a plain token, means
+        // an empty key: the build still succeeds and the GIF search is hidden entirely.
+        val klipyFile = rootProject.file("keystore/klipy.key")
+        val klipyKey = if (klipyFile.exists()) klipyFile.readText().trim().takeIf { Regex("[A-Za-z0-9_-]{16,128}").matches(it) } ?: "" else ""
+        buildConfigField("String", "KLIPY_KEY", "\"$klipyKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {

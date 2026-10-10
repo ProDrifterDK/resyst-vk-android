@@ -19,7 +19,11 @@ class Round10QuickTest {
     @Test fun stripKeepsOnlyTypingAids() { // QS1
         val kinds = view.substringAfter("enum class StripKind {").substringBefore("}")
             .split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        assertEquals(setOf("PASTE", "SUGGESTION", "SETTINGS", "DAYNIGHT", "UPDATE", "UPDATE_X", "NO_MEMORY"), kinds)
+        // r11b (authority: the r11b brief, GIF search box): GIF_BACK / GIF_FIELD / GIF_GO replace the whole strip only
+        // while the GIF search box is open; the typing strip itself still holds only typing aids
+        assertEquals(setOf("PASTE", "SUGGESTION", "SETTINGS", "DAYNIGHT", "UPDATE", "UPDATE_X", "NO_MEMORY", "GIF_BACK", "GIF_FIELD", "GIF_GO"), kinds)
+        val layout = view.substringAfter("private fun layoutStrip()").substringBefore("var l = 6 * dp")
+        assertTrue("the GIF search strip returns before any typing-strip item is added", layout.substringAfter("gifSearch?.let").substringBefore("StripKind.SETTINGS").contains("return"))
         assertFalse("the sun/moon is opt-in", KbSettings().dayNightChip)
         assertFalse(seed.settings.dayNightChip)
     }

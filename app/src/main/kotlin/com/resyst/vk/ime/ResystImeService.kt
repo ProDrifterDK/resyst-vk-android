@@ -65,6 +65,12 @@ import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.ValueMemory
+import com.resyst.vk.core.GifCopy
+import com.resyst.vk.core.GifQuery
+import com.resyst.vk.core.KlipyParse
+import com.resyst.vk.core.KlipyUrls
+import com.resyst.vk.settings.GifStore
+import com.resyst.vk.settings.KlipyClient
 import com.resyst.vk.settings.SettingsActivity
 import com.resyst.vk.settings.SettingsRepo
 import com.resyst.vk.settings.Updater
@@ -146,10 +152,16 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // r9/r11c: the keyboard listens to the process-wide Updater; the automatic check itself is
         // asked on every keyboard show (onStartInputView), never here or from any background trigger.
         Updater.listeners += updaterListener
+        // r11b: «Apagar» in settings stops the GIF tab at once; a GIF file left by a dead process goes (GC2)
+        GifStore.prefs(this).registerOnSharedPreferenceChangeListener(gifPrefsListener)
+        deleteGifFile()
     }
 
     override fun onDestroy() {
         repo.prefs.unregisterOnSharedPreferenceChangeListener(this)
+        GifStore.prefs(this).unregisterOnSharedPreferenceChangeListener(gifPrefsListener)
+        gifFeed.clear()
+        deleteGifFile()
         Updater.listeners -= updaterListener
         clipboard?.removePrimaryClipChangedListener(clipListener)
         ClipStore.listeners -= clipStoreListener
@@ -223,6 +235,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onCreateInputView(): View {
         val v = KeyboardView(this)
         v.listener = this
+        gifPanel = GifPanel(this, resources.displayMetrics.density).also { p -> p.thumb = { gifFeed.thumb(it) } }
         v.reserveNavBar = true
         view = v
         hideSystemImeSwitcher()
@@ -271,10 +284,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             Log.i(TAG, "field: pkg=${info.packageName} ${FieldPolicy.describe(info.inputType, info.imeOptions)} restarting=$restarting")
         }
         learner.reset()
+        endGifSearch(rebuild = false)
         view?.hideClipboard()
         view?.hideEmoji()
         view?.hideQuick()
         view?.hideEdit()
+        resetGif() // r11b (GO4): a new field starts with no GIF state and nothing in flight
         selecting = false
         view?.setSecret(policy.secret)
         if (!restarting) { typedSinceStart = false; typedForUpdate = false }
@@ -316,8 +331,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onFinishInputView(finishingInput: Boolean) {
         rememberValue()
+        endGifSearch(rebuild = false)
         view?.hideClipboard()
         view?.hideEmoji()
+        resetGif() // r11b (GO4, GM1): in-flight loads cancelled, thumbnails released
         view?.hideQuick()
         view?.hideEdit()
         selecting = false
@@ -391,6 +408,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onKeyCommit(key: Key) {
+        if (gifSearching) { onGifKey(key); return } // r11b (GQ1): the GIF box owns the keys
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
@@ -421,6 +439,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onVariant(text: String) {
+        if (gifSearching) { if (gifQuery.type(text)) view?.setGifSearch(gifQuery.text); return }
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val outs = engine.variant(text)
@@ -462,7 +481,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onCursorDrag(steps: Int) {
-        if (currentInputConnection == null) return
+        if (gifSearching || currentInputConnection == null) return // the caret of the app's field never moves for the GIF box
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(kotlin.math.abs(steps)) { sendDownUpKeyEvents(code) }
         pulse(HapticEvent.CURSOR_TICK)
@@ -566,7 +585,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     /** r10 (UX-6): the leftward swipe on ⌫ deletes the previous word (one char in secret fields, W4). */
-    override fun onDeleteWord() = editAction(EditOp.DELETE_WORD)
+    override fun onDeleteWord() {
+        if (gifSearching) { while (gifQuery.text.isNotEmpty() && gifQuery.text.last() == ' ') gifQuery.backspace(); while (gifQuery.text.isNotEmpty() && gifQuery.text.last() != ' ') gifQuery.backspace(); view?.setGifSearch(gifQuery.text); return }
+        editAction(EditOp.DELETE_WORD)
+    }
 
     override fun onOneHand(side: OneHand) {
         feedback(null)
@@ -814,12 +836,14 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onEmojiKey() {
+        if (gifSearching) { onGifSearchBack(); return }
         if (policy.secret) return
         emojiRecents = null // re-read: "Borrar lo aprendido" may have wiped files/personal/
         emojiTones = null
         val v = view ?: return
         v.emojiPanel.catalog = emojiCatalog()
         v.emojiPanel.tones = tones()
+        v.emojiPanel.gif = gifPanel?.takeIf { gifAllowed } // r11b (GO5, GK2): no GIF tab in secret / incognito fields or without a key
         v.showEmoji(recents().items())
     }
 
@@ -850,8 +874,224 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EmojiPanel.Act.SPACE -> { ic.commitText(" ", 1); feedback(null) }
             EmojiPanel.Act.DELETE -> { backspace(ic); feedback(null) }
             EmojiPanel.Act.ABC -> view?.hideEmoji()
-            EmojiPanel.Act.TAB, EmojiPanel.Act.TONE, EmojiPanel.Act.CLOSE_TONES -> Unit
+            EmojiPanel.Act.TAB, EmojiPanel.Act.TONE, EmojiPanel.Act.CLOSE_TONES, EmojiPanel.Act.GIF -> Unit
         }
+    }
+
+    // ── r11b: opt-in GIF search (KLIPY) ─────────────────────────────────
+    private var gifPanel: GifPanel? = null
+    private val gifFeed by lazy { GifFeed(this, { view }) { refreshGif() } }
+    /** What the user types in the GIF search box: never the app's field, never learned (GQ1/GQ2). */
+    private val gifQuery = GifQuery()
+    /** The keys type into [gifQuery] (the strip shows the GIF search box). */
+    private var gifSearching = false
+    /** The emoji panel is on its GIF tab right now. */
+    private var gifShown = false
+
+    /** A key is built in and this field may show the GIF tab (never secret / incognito, GO5). */
+    private val gifAllowed get() = KlipyClient.available && !policy.secret && !policy.incognito
+
+    private val gifPrefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        if (!GifStore.read(this).active) {
+            gifFeed.clear() // turned off elsewhere: nothing in flight, nothing shown (GO1/GO4)
+            endGifSearch(rebuild = true)
+            gifPanel?.face = GifPanel.Face.OFF
+            refreshGif()
+        }
+    }
+
+    private fun gifParams(): KlipyUrls.Params? {
+        val st = GifStore.read(this)
+        val id = st.customerId ?: return null
+        if (!st.active) return null
+        return KlipyUrls.Params(id, KlipyUrls.locale(java.util.Locale.getDefault().country), KlipyUrls.contentFilter(s.profanityFilter))
+    }
+
+    override fun onGifTab(shown: Boolean) {
+        gifShown = shown
+        val p = gifPanel ?: return
+        if (!shown) {
+            gifFeed.pause() // GM1: no animation, no load while the tab is not on screen
+            if (p.face == GifPanel.Face.DISCLOSURE) p.face = GifPanel.Face.OFF
+            return
+        }
+        openGif()
+    }
+
+    /** The GIF tab came on screen: OFF explainer, or trending (one request) when on and nothing is loaded yet. */
+    private fun openGif() {
+        val p = gifPanel ?: return
+        val params = gifParams()
+        if (params == null) {
+            if (p.face != GifPanel.Face.DISCLOSURE) p.face = GifPanel.Face.OFF
+        } else {
+            p.face = GifPanel.Face.ON
+            if (gifFeed.empty && !gifFeed.loading && gifFeed.fail == null) gifFeed.load(gifFeed.query, params)
+        }
+        refreshGif()
+    }
+
+    override fun onGifPanel(target: GifPanel.Target) {
+        val p = gifPanel ?: return
+        feedback(null)
+        when (target.act) {
+            GifPanel.Act.ENABLE -> {
+                p.face = GifPanel.Face.DISCLOSURE
+                p.reset()
+                view?.announceForAccessibility(GifCopy.TITLE + ". " + GifCopy.DISCLOSURE.joinToString(" "))
+            }
+            GifPanel.Act.CANCEL -> p.face = GifPanel.Face.OFF
+            GifPanel.Act.ACCEPT -> {
+                GifStore.accept(this) // GO2: the only way on; creates the anonymous id
+                Log.i(TAG, "gif: enabled from the keyboard disclosure (v${com.resyst.vk.core.GifOptIn.DISCLOSURE_VERSION})")
+                p.reset()
+                openGif()
+                return
+            }
+            GifPanel.Act.SEARCH -> { startGifSearch(); return }
+            GifPanel.Act.RETRY -> gifParams()?.let { gifFeed.retry(it) }
+            GifPanel.Act.ITEM -> { pickGif(target.index); return }
+            GifPanel.Act.ATTRIBUTION -> return
+        }
+        refreshGif()
+    }
+
+    override fun onGifScrolled() {
+        windowGif()
+        val params = gifParams() ?: return
+        if (gifPanel?.nearEnd() == true) gifFeed.more(params) // one request per page, only on the user's scroll
+    }
+
+    /** Pushes the feed into the panel and redraws; loads the thumbnails near the viewport. */
+    private fun refreshGif() {
+        val p = gifPanel ?: return
+        val f = gifFeed
+        if (p.items.size != f.items.size || (f.empty && p.items.isNotEmpty())) p.items = f.items.toList()
+        p.query = f.query
+        p.retry = f.fail != null
+        p.loadingMore = f.loading && !f.empty
+        p.status = when {
+            f.fail != null -> f.fail?.line
+            f.loading && f.empty -> GifCopy.LOADING
+            f.answered && f.empty -> GifCopy.EMPTY
+            else -> null
+        }
+        view?.gifChanged()
+        windowGif()
+    }
+
+    private fun windowGif() {
+        val p = gifPanel ?: return
+        if (!gifShown || p.face != GifPanel.Face.ON) { gifFeed.animate(null); return }
+        gifFeed.window(p.window(1f), p.window(2f))
+        gifFeed.animate(p.visible())
+    }
+
+    // the GIF search box: the strip shows it, the keys type into gifQuery, «Buscar» / ⏎ sends ONE request (GQ3)
+    private fun startGifSearch() {
+        val v = view ?: return
+        if (gifParams() == null) return
+        gifSearching = true
+        v.hideEmoji()
+        engine.setLayer(Layer.LETTERS)
+        rebuildLayout()
+        v.setGifSearch(gifQuery.text)
+        v.announceForAccessibility("Escribe tu búsqueda de GIF. Solo esto se envía a KLIPY")
+    }
+
+    private fun endGifSearch(rebuild: Boolean) {
+        if (!gifSearching) return
+        gifSearching = false
+        view?.setGifSearch(null)
+        if (rebuild) { engine.setLayer(Layer.LETTERS); rebuildLayout() }
+    }
+
+    /** A key while the GIF box is open: into the private buffer, nowhere else (GQ1/GQ2). */
+    private fun onGifKey(key: Key) {
+        when (key.type) {
+            KeyType.CHAR -> {
+                val t = (engine.variant(key.text).firstOrNull() as? Out.Commit)?.text ?: key.text // shift applied, nothing committed
+                gifQuery.type(t)
+            }
+            KeyType.SPACE -> gifQuery.type(" ")
+            KeyType.BACKSPACE -> gifQuery.backspace()
+            KeyType.ENTER -> { onGifSearchGo(); return }
+            KeyType.LAYER -> { engine.setLayer(key.target ?: Layer.LETTERS); rebuildLayout() }
+            KeyType.EMOJI -> { onGifSearchBack(); return }
+            KeyType.SHIFT, KeyType.SPACER -> Unit
+        }
+        view?.setShift(engine.shift)
+        view?.setGifSearch(gifQuery.text)
+    }
+
+    override fun onGifSearchBack() {
+        feedback(null)
+        endGifSearch(rebuild = true)
+        view?.showGif(recents().items()) // back to the same results: no request
+    }
+
+    override fun onGifSearchGo() {
+        feedback(null)
+        val q = gifQuery.submitted()
+        endGifSearch(rebuild = true)
+        val params = gifParams()
+        val same = q == gifFeed.query && !gifFeed.empty && gifFeed.fail == null
+        if (params != null && !same) {
+            gifFeed.load(q, params)
+            gifPanel?.reset()
+        }
+        view?.showGif(recents().items())
+    }
+
+    private fun resetGif() {
+        gifFeed.clear()
+        gifQuery.clear()
+        gifShown = false
+        gifPanel?.let { it.face = GifPanel.Face.OFF; it.items = emptyList(); it.query = null; it.status = null; it.retry = false; it.reset() }
+    }
+
+    /** The single temporary full-size copy handed to the app (GC2): replaced on every pick. */
+    private fun gifFile(ext: String) = java.io.File(java.io.File(cacheDir, CLIP_DIR).apply { mkdirs() }, "gif.$ext")
+
+    private fun deleteGifFile() {
+        java.io.File(cacheDir, CLIP_DIR).listFiles()?.filter { it.name.startsWith("gif.") }?.forEach { it.delete() }
+    }
+
+    /**
+     * Tap on a GIF: the field must take gif/webp (else a message and nothing else, GC1); the file
+     * is fetched (one logged request), handed over by commitContent through our FileProvider, and
+     * only a committed GIF sends KLIPY's share trigger.
+     */
+    private fun pickGif(index: Int) {
+        val g = gifFeed.items.getOrNull(index) ?: return
+        val info = currentInputEditorInfo ?: return
+        val accept = EditorInfoCompat.getContentMimeTypes(info).toList()
+        if (!KlipyParse.fieldTakesGifs(accept)) { gifNotice(GifCopy.NOT_ACCEPTED); return }
+        val m = KlipyParse.insert(g, accept) ?: run { gifNotice(GifCopy.TOO_BIG); return }
+        val params = gifParams() ?: return
+        val query = gifFeed.query
+        val token = currentInputConnection
+        deleteGifFile()
+        val dest = gifFile(if (m.format == "webp") "webp" else "gif")
+        KlipyClient.file(this, m.url, KlipyParse.INSERT_CAP, dest) { f, fail ->
+            val ic = currentInputConnection
+            if (f == null) { gifNotice(fail?.line ?: GifCopy.Fail.HTTP.line); return@file }
+            if (ic == null || ic !== token) { f.delete(); return@file } // the field changed meanwhile
+            val uri = FileProvider.getUriForFile(this, "$packageName.updates", f)
+            val content = InputContentInfoCompat(uri, ClipDescription(g.title.ifEmpty { "GIF" }, arrayOf(m.mime)), null)
+            val ok = runCatching {
+                InputConnectionCompat.commitContent(ic, info, content, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
+            }.getOrDefault(false)
+            Log.i(TAG, "gif: commitContent ${m.mime} ${f.length()}B → $ok")
+            if (!ok) { f.delete(); gifNotice(GifCopy.NOT_ACCEPTED); return@file }
+            KlipyClient.share(this, g.slug, params.customerId, query)
+        }
+    }
+
+    private fun gifNotice(msg: String) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        view?.announceForAccessibility(msg)
+        Log.i(TAG, "gif: notice \"$msg\"")
     }
 
     override fun onDayNight() {

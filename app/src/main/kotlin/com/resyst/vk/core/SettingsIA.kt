@@ -74,6 +74,13 @@ enum class Ctl(
     CLIP_PURGE("clip.purge", Scope.DEVICE, "Purgar tras 1 hora", dependsOn = CLIP_HISTORY),
     CLEAR_CLIP(null, Scope.DEVICE, "Borrar historial del portapapeles", destructive = true),
     FORGET_LEARNED(null, Scope.DEVICE, "Borrar lo aprendido", destructive = true),
+    /**
+     * r11b: the opt-in GIF search with KLIPY (OFF by default; on only through its disclosure).
+     * Stored in its own prefs file (GifStore), not in the profile store: no key here.
+     */
+    GIF_SEARCH(null, Scope.DEVICE, "Búsqueda de GIF (KLIPY)"),
+    /** r11b: replace the anonymous id sent to KLIPY (only while the GIF search is on). */
+    GIF_NEW_ID(null, Scope.DEVICE, "Nuevo ID anónimo"),
 
     // r10 (F-4): "Lo que sé de ti" — see and delete, one by one, what the keyboard keeps
     KNOW_WORDS(null, Scope.DEVICE, "Palabras aprendidas"),
@@ -132,8 +139,8 @@ object SettingsIA {
             Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME,
         ), summary = "Vibración, intensidad, sonido y volumen"),
         SettingsPage("privacidad", "Portapapeles y privacidad", Scope.DEVICE, listOf(
-            Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
-        ), summary = "Historial del portapapeles y lo que el teclado aprendió"),
+            Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.GIF_SEARCH, Ctl.GIF_NEW_ID, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
+        ), summary = "Historial del portapapeles, búsqueda de GIF y lo que el teclado aprendió"),
         SettingsPage("datos", "Lo que sé de ti", Scope.DEVICE, listOf(
             Ctl.KNOW_WORDS, Ctl.KNOW_EMAILS, Ctl.KNOW_EMOJI, Ctl.KNOW_CLIP,
         ), summary = "Ver y borrar, una a una, las palabras, correos y emojis que guardo · solo en este teléfono"),

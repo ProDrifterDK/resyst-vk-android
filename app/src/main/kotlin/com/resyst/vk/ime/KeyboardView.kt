@@ -112,6 +112,15 @@ class KeyboardView(context: Context) : View(context) {
         fun onEditOp(op: EditOp) = Unit
         /** r10 (bet 5): a leftward swipe on ⌫ — delete the word before the cursor. */
         fun onDeleteWord() = Unit
+        /** r11b: the emoji panel moved onto ([shown] true) or off the GIF tab (also when the panel hides). */
+        fun onGifTab(shown: Boolean) = Unit
+        /** r11b: a target of the GIF tab (enable, accept, cancel, search box, retry, a GIF). */
+        fun onGifPanel(target: GifPanel.Target) = Unit
+        /** r11b: the GIF grid scrolled (thumbnail window, next page). */
+        fun onGifScrolled() = Unit
+        /** r11b: the GIF search strip's ← (back to the grid, no request) and «Buscar» (one request). */
+        fun onGifSearchBack() = Unit
+        fun onGifSearchGo() = Unit
     }
 
     var listener: Listener? = null
@@ -304,8 +313,35 @@ class KeyboardView(context: Context) : View(context) {
     fun hideEmoji() {
         if (!emojiOpen) return
         cancelPointers()
+        val wasGif = emojiPanel.onGif
         emojiOpen = false
         invalidate(); a11y.invalidateRoot()
+        if (wasGif) listener?.onGifTab(false)
+    }
+
+    /** r11b: the emoji panel straight on its GIF tab (back from the GIF search strip). */
+    fun showGif(recents: List<String>) {
+        showEmoji(recents)
+        emojiPanel.selectTab(emojiPanel.gifTab)
+        invalidate(); a11y.invalidateRoot()
+        listener?.onGifTab(true)
+    }
+
+    /** r11b: re-lay out and redraw the GIF tab after its content changed (page, thumbnail, status). */
+    fun gifChanged() {
+        if (!emojiOpen || !emojiPanel.onGif) return
+        emojiPanel.relayout()
+        invalidate(); a11y.invalidateRoot()
+    }
+
+    // ── r11b: the GIF search strip (the keys type into the service's private buffer) ──
+    /** The GIF query being typed, null = normal strip. */
+    private var gifSearch: String? = null
+
+    fun setGifSearch(query: String?) {
+        if (query == gifSearch) return
+        gifSearch = query
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
     }
 
     // ── geometry ─────────────────────────────────────────────────────────
@@ -316,7 +352,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PASTE, SUGGESTION, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY }
+    private enum class StripKind { PASTE, SUGGESTION, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY, GIF_BACK, GIF_FIELD, GIF_GO }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -402,7 +438,7 @@ class KeyboardView(context: Context) : View(context) {
 
     fun showClipboard(items: List<com.resyst.vk.core.ClipboardHistory.Entry>, now: Long) {
         cancelPointers()
-        emojiOpen = false
+        hideEmoji()
         quickOpen = false
         if (!clipboardOpen) clipPanel.reset()
         clipboardOpen = true
@@ -577,6 +613,16 @@ class KeyboardView(context: Context) : View(context) {
         stripItems.clear()
         if (width == 0) return
         val h = stripH
+        gifSearch?.let { q ->
+            // r11b: ← · the query box · «Buscar»; nothing else (no suggestions, no chips) while typing a GIF search
+            val back = 48 * dp
+            val go = 84 * dp
+            stripItems += StripItem(StripKind.GIF_BACK, "", RectF(0f, 0f, back, h))
+            stripItems += StripItem(StripKind.GIF_GO, "Buscar", RectF(width - go, 0f, width.toFloat(), h))
+            stripItems += StripItem(StripKind.GIF_FIELD, q, RectF(back, 5 * dp, width - go - 4 * dp, h - 5 * dp))
+            gearDot = false
+            return
+        }
         // ⚙ owns the right edge (48 dp target); the opt-in sun/moon and the «sin memoria» mark sit beside it
         val gearW = 48 * dp
         stripItems += StripItem(StripKind.SETTINGS, "", RectF(width - gearW, 0f, width.toFloat(), h))
@@ -865,6 +911,9 @@ class KeyboardView(context: Context) : View(context) {
             StripKind.DAYNIGHT -> listener?.onDayNight()
             StripKind.UPDATE -> if (!chipExiting) listener?.onUpdateChip()
             StripKind.UPDATE_X -> if (!chipExiting) listener?.onUpdateDismiss()
+            StripKind.GIF_BACK -> listener?.onGifSearchBack()
+            StripKind.GIF_GO -> listener?.onGifSearchGo()
+            StripKind.GIF_FIELD -> Unit
         }
     }
 
@@ -999,12 +1048,16 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         val h = emojiHit
-        val inGrid = h == null || h.act == EmojiPanel.Act.EMOJI
+        val gifScrolls = h?.act == EmojiPanel.Act.GIF && h.gif?.act.let { it == GifPanel.Act.ITEM || it == GifPanel.Act.ATTRIBUTION }
+        val inGrid = h == null || h.act == EmojiPanel.Act.EMOJI || gifScrolls
         if (!emojiScrolling && inGrid && abs(y - emojiDownY) > 10 * dp) {
             emojiScrolling = true
             emojiHit = null
         }
-        if (emojiScrolling && emojiPanel.scrollBy(emojiLastY - y)) { invalidate(); a11y.invalidateRoot() }
+        if (emojiScrolling && emojiPanel.scrollBy(emojiLastY - y)) {
+            invalidate(); a11y.invalidateRoot()
+            if (emojiPanel.onGif) listener?.onGifScrolled()
+        }
         emojiLastY = y
     }
 
@@ -1030,7 +1083,12 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun emojiAct(h: EmojiPanel.Hit) {
         when (h.act) {
-            EmojiPanel.Act.TAB -> emojiPanel.selectTab(h.index)
+            EmojiPanel.Act.TAB -> {
+                val was = emojiPanel.onGif
+                emojiPanel.selectTab(h.index)
+                if (was != emojiPanel.onGif) listener?.onGifTab(emojiPanel.onGif)
+            }
+            EmojiPanel.Act.GIF -> h.gif?.let { listener?.onGifPanel(it) }
             EmojiPanel.Act.CLOSE_TONES -> emojiPanel.hideTones()
             EmojiPanel.Act.TONE -> {
                 val cell = h.cell
@@ -1216,6 +1274,41 @@ class KeyboardView(context: Context) : View(context) {
                     }
                 }
                 StripKind.NO_MEMORY -> drawNoMemory(c, r, s in pressedStrip)
+                StripKind.GIF_BACK -> {
+                    if (s in pressedStrip) { fill.color = t.keyHi; tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, radius(), radius(), fill) }
+                    KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp, t.textMod, stroke, fill)
+                }
+                StripKind.GIF_FIELD -> {
+                    fill.color = t.key
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
+                    stroke.color = palette.accentGlow
+                    stroke.strokeWidth = 1 * dp
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
+                    text.textAlign = Paint.Align.LEFT
+                    text.textSize = 15 * dp
+                    val empty = s.text.isEmpty()
+                    text.color = if (empty) t.muted else t.text
+                    text.typeface = typeface(if (empty) 450 else 550)
+                    val label = ellipsize(if (empty) com.resyst.vk.core.GifCopy.PLACEHOLDER else s.text, r.width() - 34 * dp)
+                    val fm = text.fontMetrics
+                    val baseline = r.centerY() - (fm.ascent + fm.descent) / 2
+                    c.drawText(label, r.left + 14 * dp, baseline, text)
+                    // the caret: this box, not the app's field, receives the keys
+                    val cx = r.left + 14 * dp + (if (empty) 0f else text.measureText(label)) + 2 * dp
+                    fill.color = palette.accent
+                    c.drawRect(cx, r.centerY() - 9 * dp, cx + 1.5f * dp, r.centerY() + 9 * dp, fill)
+                    text.textAlign = Paint.Align.CENTER
+                }
+                StripKind.GIF_GO -> {
+                    val pressed = s in pressedStrip
+                    tmp.set(r.left + 4 * dp, 6 * dp, r.right - 6 * dp, stripH - 6 * dp)
+                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.7f) else palette.accent
+                    c.drawRoundRect(tmp, tmp.height() / 2, tmp.height() / 2, fill)
+                    text.color = palette.accentInk
+                    text.textSize = 14 * dp
+                    text.typeface = typeface(650)
+                    drawCentered(c, s.text, tmp.centerX(), tmp.centerY())
+                }
                 StripKind.UPDATE_X -> Unit // drawn with its chip
                 StripKind.UPDATE -> drawUpdateChip(c, s, pressedStrip)
                 StripKind.SUGGESTION -> {
@@ -1668,6 +1761,9 @@ class KeyboardView(context: Context) : View(context) {
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
                     StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"
+                    StripKind.GIF_BACK -> "Volver a los GIF"
+                    StripKind.GIF_GO -> "Buscar GIF"
+                    StripKind.GIF_FIELD -> "Búsqueda de GIF: " + s.text.ifEmpty { "vacía" }
                     null -> ""
                 }
                 s?.let { r.set(it.rect) }

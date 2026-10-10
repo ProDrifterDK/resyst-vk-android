@@ -157,7 +157,8 @@ class Round10PrivacyTest {
         val net = root.walkTopDown().filter { it.isFile && it.extension == "kt" }
             .filter { f -> f.readText().let { it.contains("openConnection") || it.contains("HttpsURLConnection") || it.contains("java.net.Socket") } }
             .map { it.name }.toList()
-        assertEquals(listOf("Updater.kt"), net)
+        // r11b (authority: Alan's r11b brief): KlipyClient.kt is the second client; it logs every request too (Round11bGifTest)
+        assertEquals(listOf("KlipyClient.kt", "Updater.kt"), net.sorted())
         assertFalse("the log is pure core: no network", File("src/main/kotlin/com/resyst/vk/core/ConnectionLog.kt").readText().contains("java.net"))
     }
 

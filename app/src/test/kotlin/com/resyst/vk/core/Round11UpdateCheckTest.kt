@@ -259,9 +259,10 @@ class Round11UpdateCheckTest {
         assertTrue("automatic checks log as OPEN", src.contains("if (auto) ConnectionLog.Why.OPEN"))
     }
 
-    @Test fun versionIs071() {
+    /** 0.7.1 (8) shipped r11c; r11b (GIF search) lands on top as 0.8.0 (9): never reuse a published code. */
+    @Test fun versionIs080() {
         val g = File("build.gradle.kts").readText()
-        assertTrue(g.contains("?.toInt() ?: 8"))
-        assertTrue(g.contains("?: \"0.7.1\""))
+        assertTrue(g.contains("?.toInt() ?: 9"))
+        assertTrue(g.contains("?: \"0.8.0\""))
     }
 }

@@ -34,7 +34,8 @@ import javax.net.ssl.HttpsURLConnection
  * buttons in Settings and, when "Buscar actualizaciones automáticamente" is on, from the keyboard
  * opening (r11c, [onKeyboardShown]): at most one [check] per [OpenCheck.OK_HOURS] h after an answer,
  * per [OpenCheck.FAILED_HOURS] h after a failure, persisted across processes. The same single GET;
- * nothing scheduled, polled, or sent. Nothing else in the app opens a connection.
+ * nothing scheduled, polled, or sent. The only other client is the opt-in GIF search (r11b,
+ * [KlipyClient]): its own gate and allowlist, never this GET; both log to [ConnectionBook].
  *
  * check()    → one HTTPS GET of release.json → [UpdateChecker.decide]
  * download() → DownloadManager (system progress notification) into the app's external files dir
@@ -246,23 +247,17 @@ object Updater {
 
     // ── r10: the connection log ("Libro de conexiones", V5) ─────────────
 
-    private const val LOG_KEY = "connections"
-
     /** Every request this app made, newest first ([ConnectionLog.CAP] kept, [ConnectionLog.total] counted). */
-    fun connections(context: Context): ConnectionLog =
-        ConnectionLog.decode(prefs(context.applicationContext).getString(LOG_KEY, null))
+    fun connections(context: Context): ConnectionLog = ConnectionBook.read(context)
 
     /**
      * One entry per network request (V5): called from the request paths only ([check] after its
-     * GET, [download] when DownloadManager accepted the job). Any thread; synchronized because
-     * the GET finishes on [io] while a download is logged on main.
+     * GET, [download] when DownloadManager accepted the job). Any thread; r11b: written through
+     * [ConnectionBook], the same lock the GIF client logs under (GL4).
      */
-    @Synchronized
     private fun logConnection(app: Context, what: ConnectionLog.What, auto: Boolean, outcome: String) {
         val why = if (auto) ConnectionLog.Why.OPEN else ConnectionLog.Why.USER
-        val next = connections(app).add(ConnectionLog.Entry(System.currentTimeMillis(), what, why, outcome))
-        prefs(app).edit().putString(LOG_KEY, next.encode()).apply()
-        Log.i(TAG, "connection log: ${what.id} (${why.id}) → $outcome")
+        ConnectionBook.add(app, what, why, outcome)
     }
 
     private fun checkOutcome(d: UpdateDecision?, e: Exception?): String = when (d) {

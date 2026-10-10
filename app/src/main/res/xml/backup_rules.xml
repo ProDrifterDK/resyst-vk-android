@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API ≤ 30: what the user typed (learned words, remembered emails, clipboard history) never leaves the device. -->
+<!-- API ≤ 30: what the user typed (learned words, remembered emails, clipboard history) never leaves the device.
+     r11b: neither does the GIF search consent + its anonymous ID (resyst_vk_gif.xml). -->
 <full-backup-content>
     <exclude domain="file" path="personal/" />
     <exclude domain="file" path="clipboard/" />
+    <exclude domain="sharedpref" path="resyst_vk_gif.xml" />
 </full-backup-content>
