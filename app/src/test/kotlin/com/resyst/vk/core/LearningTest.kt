@@ -162,13 +162,17 @@ class LearningTest {
         // r8: a single-line, uncapitalized NO_SUGGESTIONS box (handle, code) is fully closed …
         val noSugg = FieldPolicy.of(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
         assertFalse(noSugg.suggestions || noSugg.personalWords(on))
-        // … a prose one (social composer) gets the static lexicon, never the personal model
+        // … a prose one (social composer) gets the static lexicon and never learns; r11 (X6): it
+        // offers the words already learned elsewhere (read gate), the handle box does not
         val prose = FieldPolicy.of(text or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, 0)
         assertTrue(prose.suggestions)
         assertFalse(prose.personalWords(on))
+        assertTrue(prose.offerWords(on))
+        assertFalse(noSugg.offerWords(on))
         val incognito = FieldPolicy.of(text, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or EditorInfo.IME_ACTION_SEND)
         assertTrue(incognito.suggestions) // the static lexicon is not personal data
         assertFalse(incognito.personalWords(on))
+        assertFalse(incognito.offerWords(on))
         val email = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
         assertFalse(FieldPolicy.of(email, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING).personalValues(on))
         // By design: email fields routinely carry NO_SUGGESTIONS just to stop autocorrect from

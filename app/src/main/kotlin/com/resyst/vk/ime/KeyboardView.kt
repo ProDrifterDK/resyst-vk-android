@@ -90,6 +90,8 @@ class KeyboardView(context: Context) : View(context) {
         fun onEmojiKey()
         /** An emoji panel action: EMOJI commits [text], SPACE / DELETE edit, ABC closes. */
         fun onEmojiPanel(act: EmojiPanel.Act, text: String)
+        /** r11: a skin tone picked from [cell]'s long-press: commit [pick] and make it the default. */
+        fun onEmojiTone(cell: com.resyst.vk.core.EmojiCatalog.Cell, pick: String) = Unit
         /** The day/night chip in the strip (r8). */
         fun onDayNight()
         /** r9: the update chip — open the settings' update section. */
@@ -767,7 +769,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun move(id: Int, x: Float, y: Float) {
         if (id == quickPtr || id == editPtr) return
-        if (id == emojiPtr) { emojiMove(y); return }
+        if (id == emojiPtr) { emojiMove(x, y); return }
         if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
         val b = p.box ?: return
@@ -951,6 +953,8 @@ class KeyboardView(context: Context) : View(context) {
     private var emojiDownY = 0f
     private var emojiLastY = 0f
     private var emojiScrolling = false
+    /** r11: this press opened the skin tones (a lift on a tone picks it; elsewhere keeps them open). */
+    private var emojiTonesByPress = false
 
     private fun emojiDown(id: Int, x: Float, y: Float) {
         if (emojiPtr != -1) return
@@ -959,9 +963,21 @@ class KeyboardView(context: Context) : View(context) {
         emojiHit = hit
         emojiDownY = y; emojiLastY = y
         emojiScrolling = false
+        emojiTonesByPress = false
         if (hit?.act == EmojiPanel.Act.DELETE) {
             listener?.onEmojiPanel(EmojiPanel.Act.DELETE, "")
             scheduleEmojiRepeat(REPEAT_START_MS)
+        }
+        if (hit?.act == EmojiPanel.Act.EMOJI && hit.cell?.tones?.isNotEmpty() == true) {
+            // r11 (ET4): hold an emoji with skin tones = its tones; the lift on one picks it
+            handler.postAtTime({
+                if (emojiPtr == id && !emojiScrolling && emojiHit === hit && emojiPanel.showTones(hit)) {
+                    emojiTonesByPress = true
+                    emojiHit = null
+                    listener?.onLongPressOpened()
+                    invalidate(); a11y.invalidateRoot()
+                }
+            }, emojiToken, SystemClock.uptimeMillis() + settings.longPressMs)
         }
         invalidate()
     }
@@ -975,7 +991,13 @@ class KeyboardView(context: Context) : View(context) {
         }, emojiToken, SystemClock.uptimeMillis() + delay)
     }
 
-    private fun emojiMove(y: Float) {
+    private fun emojiMove(x: Float, y: Float) {
+        if (emojiPanel.tonesOf != null) {
+            // slide across the tones: the one under the finger is highlighted
+            val t = emojiPanel.hitAt(x, y)?.takeIf { it.act == EmojiPanel.Act.TONE }
+            if (t !== emojiHit) { emojiHit = t; invalidate() }
+            return
+        }
         val h = emojiHit
         val inGrid = h == null || h.act == EmojiPanel.Act.EMOJI
         if (!emojiScrolling && inGrid && abs(y - emojiDownY) > 10 * dp) {
@@ -991,6 +1013,17 @@ class KeyboardView(context: Context) : View(context) {
         emojiPtr = -1
         val h = emojiHit
         emojiHit = null
+        val byPress = emojiTonesByPress
+        emojiTonesByPress = false
+        if (emojiPanel.tonesOf != null) {
+            val t = emojiPanel.hitAt(x, y)
+            when {
+                t?.act == EmojiPanel.Act.TONE -> emojiAct(t)
+                !byPress -> { emojiPanel.hideTones(); a11y.invalidateRoot() } // a tap outside closes them
+            }
+            invalidate()
+            return
+        }
         if (!emojiScrolling && h != null && h.act != EmojiPanel.Act.DELETE && emojiPanel.hitAt(x, y)?.let { it.act == h.act && it.index == h.index } == true) emojiAct(h)
         invalidate()
     }
@@ -998,6 +1031,12 @@ class KeyboardView(context: Context) : View(context) {
     private fun emojiAct(h: EmojiPanel.Hit) {
         when (h.act) {
             EmojiPanel.Act.TAB -> emojiPanel.selectTab(h.index)
+            EmojiPanel.Act.CLOSE_TONES -> emojiPanel.hideTones()
+            EmojiPanel.Act.TONE -> {
+                val cell = h.cell
+                emojiPanel.hideTones()
+                if (cell != null) listener?.onEmojiTone(cell, h.text)
+            }
             else -> listener?.onEmojiPanel(h.act, h.text)
         }
         invalidate(); a11y.invalidateRoot()
@@ -1610,6 +1649,9 @@ class KeyboardView(context: Context) : View(context) {
                 val h = emojiPanel.hits.getOrNull(id - emojiBase)
                 desc = h?.desc ?: ""
                 h?.let { r.set(it.rect) }
+                // r11 (ET4): TalkBack reaches the skin tones with a long-click action
+                if (h?.act == EmojiPanel.Act.EMOJI && h.cell?.tones?.isNotEmpty() == true) node.addAction(
+                    AccessibilityNodeInfoCompat.AccessibilityActionCompat(AccessibilityNodeInfo.ACTION_LONG_CLICK, "Tonos de piel"))
             } else if (id >= panelBase) {
                 val h = clipPanel.hits.getOrNull(id - panelBase)
                 desc = h?.desc ?: ""
@@ -1660,6 +1702,10 @@ class KeyboardView(context: Context) : View(context) {
             }
             if (id >= emojiBase) {
                 val h = emojiPanel.hits.getOrNull(id - emojiBase) ?: return false
+                if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK && h.act == EmojiPanel.Act.EMOJI) {
+                    if (!emojiPanel.showTones(h)) return false
+                    invalidate(); invalidateRoot(); return true
+                }
                 if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
                 if (h.act == EmojiPanel.Act.DELETE) listener?.onEmojiPanel(EmojiPanel.Act.DELETE, "") else emojiAct(h)
                 return true

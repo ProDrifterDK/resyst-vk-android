@@ -104,19 +104,22 @@ class Round8Test {
             assertTrue("0x%x suggestions".format(t), p.suggestions)
             assertTrue("0x%x optedOut".format(t), p.optedOut)
             assertFalse("0x%x personal".format(t), p.personalWords(on))
+            // r11 (X6, deliberate change): the composer offers learned words, still learns nothing
+            assertTrue("0x%x offers".format(t), p.offerWords(on))
             assertFalse(p.secret)
         }
-        // incognito composer: lexicon yes, personal no
+        // incognito composer: lexicon yes, personal no (neither offered nor learned)
         val inc = FieldPolicy.of(cls or caps or multi or noSugg, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
         assertTrue(inc.suggestions && inc.incognito)
         assertFalse(inc.personalWords(on))
+        assertFalse(inc.offerWords(on))
     }
 
     @Test fun handlesAndCodesStayClosed() { // F8-3
         for (t in listOf(cls or noSugg, cls or InputType.TYPE_TEXT_VARIATION_PERSON_NAME or noSugg,
             cls or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or noSugg)) {
             val p = FieldPolicy.of(t, EditorInfo.IME_ACTION_DONE)
-            assertFalse("0x%x".format(t), p.suggestions || p.personalWords(on))
+            assertFalse("0x%x".format(t), p.suggestions || p.personalWords(on) || p.offerWords(on))
         }
     }
 

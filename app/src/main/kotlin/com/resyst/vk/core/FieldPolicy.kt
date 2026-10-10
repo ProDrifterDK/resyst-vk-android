@@ -14,9 +14,14 @@ package com.resyst.vk.core
  * because the app draws its own @mention / #hashtag dropdown, not because correction is unwanted —
  * the same text typed into a notification reply (RemoteInput, no flag) was corrected. A field
  * that is prose by its own declaration ([prose]) gets the on-device lexicon and the space
- * correction anyway; the flag still closes everything personal ([optedOut]): nothing is learned
- * there and learned words are not offered. Secret, email, URL, number and phone fields are never
- * prose.
+ * correction anyway; the flag still closes learning ([optedOut]): nothing is learned there.
+ * Secret, email, URL, number and phone fields are never prose.
+ *
+ * r11 (X6, deliberate change to r8): reading and writing personal words are separate gates. Such a
+ * prose composer now OFFERS the words the user already taught the keyboard elsewhere ([offerWords])
+ * — the DM is where they write their names and slang — but still never LEARNS from it
+ * ([personalWords]). Handles, opted-out search boxes, secret, incognito and non-text fields stay
+ * closed both ways.
  */
 data class FieldPolicy(
     val kind: FieldKind,
@@ -28,7 +33,15 @@ data class FieldPolicy(
     val optedOut: Boolean = false,
 ) {
 
+    /** WRITE gate: words typed in this field may be learned (X1–X3, X6: never in an opted-out field). */
     fun personalWords(s: KbSettings): Boolean = suggestions && !optedOut && !incognito && s.suggest && s.personal
+
+    /**
+     * r11 READ gate (X6): the learned words may be offered / protect a typed word from space here.
+     * [suggestions] is only true with the opt-out for prose composers (never search, handles or
+     * non-text kinds), so this opens exactly those plus everything [personalWords] opens.
+     */
+    fun offerWords(s: KbSettings): Boolean = suggestions && !incognito && s.suggest && s.personal
 
     /**
      * Email value memory. NO_SUGGESTIONS doesn't close it: email fields set that flag to stop

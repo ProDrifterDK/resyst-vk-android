@@ -64,21 +64,23 @@ class Round8UiTest {
         assertFalse(r.push("😀")) // already first: no write
         assertFalse(r.push("hola")); assertFalse(r.push("")); assertFalse(r.push("a b"))
         assertTrue(r.push("1️⃣")) // keycaps are emoji even though they start with a digit
-        repeat(40) { r.push(Emoji.ALL[it]) }
+        val all = EmojiCatalog.parse(java.io.File("src/main/assets/emoji/emoji.txt").readText()).groups.flatMap { g -> g.cells.map { it.base } }
+        repeat(40) { r.push(all[it]) }
         assertEquals(EmojiRecents.MAX, r.items().size)
         assertEquals(r.items(), EmojiRecents.decode(r.encode()).items())
         assertEquals(emptyList<String>(), EmojiRecents.decode(null).items())
         assertEquals(listOf("😀"), EmojiRecents.decode("😀\u001Fjunk text\u001F😀").items())
     }
 
-    @Test fun catalogIsWellFormed() { // E8-6
-        assertTrue(Emoji.CATEGORIES.size >= 6)
-        for (c in Emoji.CATEGORIES) {
-            assertTrue(c.id, c.items.size >= 20)
-            assertEquals(c.id, c.items.size, c.items.toSet().size)
-            for (e in c.items) assertTrue("${c.id} $e", EmojiRecents.valid(e))
+    @Test fun catalogIsWellFormed() { // E8-6 (r11: the generated Unicode catalog; counts in Round11EmojiTest)
+        val cat = EmojiCatalog.parse(java.io.File("src/main/assets/emoji/emoji.txt").readText())
+        assertTrue(cat.groups.size >= 6)
+        for (g in cat.groups) {
+            assertTrue(g.id, g.cells.size >= 20)
+            assertEquals(g.id, g.cells.size, g.cells.map { it.base }.toSet().size)
+            for (c in g.cells) for (e in listOf(c.base) + c.tones) assertTrue("${g.id} $e", EmojiRecents.valid(e))
         }
-        assertEquals(Emoji.CATEGORIES.size, Emoji.CATEGORIES.map { it.id }.toSet().size)
+        assertEquals(cat.groups.size, cat.groups.map { it.id }.toSet().size)
     }
 
     // ── themes ──────────────────────────────────────────────────────────

@@ -33,7 +33,9 @@ import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.EditOp
 import com.resyst.vk.core.Edits
+import com.resyst.vk.core.EmojiCatalog
 import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.EmojiTones
 import com.resyst.vk.core.Lang
 import com.resyst.vk.core.TextEdit
 import com.resyst.vk.core.Themes
@@ -87,8 +89,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** Learns finished words; the gate is re-checked on every edit (X1–X3). */
     private val learner = Learner { personalWords() }
 
-    /** The learned model, or null whenever this field / these settings may not use it. */
+    /** The learned model for LEARNING (write), or null whenever this field / these settings may not learn. */
     private fun personalWords() = PersonalStore.words?.takeIf { policy.personalWords(s) }
+    /** r11 (X6): the learned model for OFFERING (read): also open in prose fields that opted out of suggestions. */
+    private fun personalRead() = PersonalStore.words?.takeIf { policy.offerWords(s) }
+    /** r11 (BL8): the vocabularies offered / protected: the writing language first, both with bilingual on. */
+    private fun vocabLangs(): List<Lang> = if (s.bilingual && s.suggest) listOf(writeLang, BiLang.other(writeLang)) else listOf(writeLang)
     private fun personalValues() = PersonalStore.values?.takeIf { policy.personalValues(s) }
     /** Remembers this field's final value once (action key, then field exit). */
     private var valueSession = ValueMemory.Session(null, FieldKind.TEXT)
@@ -327,7 +333,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         writeLang = st.lang
         engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
             // r10 (bet 4): correct in the language being written (writeLang), guarded by the other one
-            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexiconFor(writeLang), personalWords(), writeLang, clean = st.profanityFilter) }
+            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexiconFor(writeLang), personalRead(), writeLang, clean = st.profanityFilter, vocab = vocabLangs()) }
         } else null
         v.setStyle(st, Palette.of(st.theme, st.accent))
         refreshMemory()
@@ -391,7 +397,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
-        learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
+        val kept = engine.takeReverted()
+        if (kept != null) keep(before, outs, kept) // r11 (K1): ⌫ right after a space-correction
+        else learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
         if (key.type == KeyType.SPACE) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
@@ -463,7 +471,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val st = s
         if (!st.bilingual || !st.suggest || noSuggestField) return st.lang
         val lex = lexicon ?: return st.lang
-        val personal = personalWords()
+        val personal = personalRead()
         return BiLang.detect(
             BiLang.recentWords(before, windowFull = before.length >= WINDOW), st.lang,
             rank = { l, w -> lex.peek(l)?.rank(w) },
@@ -768,10 +776,37 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         EmojiRecents.decode(emojiFile.takeIf { it.exists() }?.readText())
     }.getOrDefault(EmojiRecents()).also { emojiRecents = it }
 
+    /** r11: the skin tone chosen per emoji (ET1/ET2): next to the recents, wiped with them. */
+    private val tonesFile by lazy { java.io.File(java.io.File(filesDir, "personal").apply { mkdirs() }, "emoji_tones.txt") }
+    private var emojiTones: EmojiTones? = null
+
+    private fun tones(): EmojiTones = emojiTones ?: runCatching {
+        EmojiTones.decode(tonesFile.takeIf { it.exists() }?.readText(), emojiCatalog())
+    }.getOrDefault(EmojiTones()).also { emojiTones = it }
+
+    /** r11: the Unicode 18.0 catalog (assets/emoji/emoji.txt), parsed once per process (EC4: junk lines skipped). */
+    private fun emojiCatalog(): EmojiCatalog = catalogCache ?: runCatching {
+        EmojiCatalog.parse(assets.open("emoji/emoji.txt").bufferedReader(Charsets.UTF_8).use { it.readText() })
+    }.onFailure { Log.w(TAG, "emoji catalog not loaded", it) }.getOrDefault(EmojiCatalog.EMPTY).also { if (it.groups.isNotEmpty()) catalogCache = it }
+
     override fun onEmojiKey() {
         if (policy.secret) return
         emojiRecents = null // re-read: "Borrar lo aprendido" may have wiped files/personal/
-        view?.showEmoji(recents().items())
+        emojiTones = null
+        val v = view ?: return
+        v.emojiPanel.catalog = emojiCatalog()
+        v.emojiPanel.tones = tones()
+        v.showEmoji(recents().items())
+    }
+
+    /** r11 (ET1/ET2): a tone picked by long-press is committed and becomes that emoji's default. */
+    override fun onEmojiTone(cell: EmojiCatalog.Cell, pick: String) {
+        if (policy.secret) return
+        if (!policy.incognito && tones().choose(cell, pick)) {
+            val enc = tones().encode()
+            clipIo.execute { runCatching { tonesFile.writeText(enc) } }
+        }
+        onEmojiPanel(EmojiPanel.Act.EMOJI, pick)
     }
 
     override fun onEmojiPanel(act: EmojiPanel.Act, text: String) {
@@ -791,7 +826,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EmojiPanel.Act.SPACE -> { ic.commitText(" ", 1); feedback(null) }
             EmojiPanel.Act.DELETE -> { backspace(ic); feedback(null) }
             EmojiPanel.Act.ABC -> view?.hideEmoji()
-            EmojiPanel.Act.TAB -> Unit
+            EmojiPanel.Act.TAB, EmojiPanel.Act.TONE, EmojiPanel.Act.CLOSE_TONES -> Unit
         }
     }
 
@@ -816,6 +851,16 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val lang = if (kind == Learner.Edit.BACKSPACE) learnedLang else writeLang
         if (learner.afterEdit(lang, b, outs, windowFull = b.length >= WINDOW, kind = kind)) PersonalStore.changed()
         if (kind != Learner.Edit.BACKSPACE) learnedLang = writeLang
+    }
+
+    /**
+     * r11 (K1/K2): the user reverted the space-correction of [word] (⌫ or ↶): the correction's learn
+     * is taken back and [word] becomes theirs, in the language it was written in (write gate inside
+     * [learner]: nothing is kept in secret / incognito / opted-out fields, K6).
+     */
+    private fun keep(before: CharSequence, outs: List<Out>, word: String) {
+        val b = before.toString()
+        if (learner.kept(learnedLang, learnedLang, b, outs, windowFull = b.length >= WINDOW, word = word)) PersonalStore.changed()
     }
 
     /** The field's whole text into the value memory (email fields, gate open — F1/X1). */
@@ -891,7 +936,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(offers); return }
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
-        val sugg = Bar.words(before, after, before.length >= WINDOW, writeLang, lexiconFor(writeLang), personalWords(), engine.shift, clean = st.profanityFilter)
+        val sugg = Bar.words(before, after, before.length >= WINDOW, writeLang, lexiconFor(writeLang), personalRead(), engine.shift, clean = st.profanityFilter, vocab = vocabLangs())
         v.setSuggestions((offers + sugg).take(Bar.LIMIT))
     }
 
@@ -918,7 +963,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ic.beginBatchEdit()
         run(outs, ic)
         ic.endBatchEdit()
-        learner.reset()
+        val kept = engine.takeReverted()
+        if (kept != null) keep(before, outs, kept) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
         feedback(null)
     }
 
@@ -973,6 +1019,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     private companion object {
+        /** r11: the emoji catalog is the same for every service instance of the process. */
+        var catalogCache: EmojiCatalog? = null
         const val TAG = "ResystVK"
         /** Chars read before the cursor; a full read may start mid-word (see Tokens). */
         const val WINDOW = 64

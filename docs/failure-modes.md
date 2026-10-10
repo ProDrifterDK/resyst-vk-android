@@ -536,8 +536,9 @@ Field report (Pixel 6): "aunque tenga palabras aprendidas, no me recomienda las 
   corrected again by a later space, or is not offered once its prefix is typed.
 - K2 The ↶ chip and the ⌫ revert disagree: the chip leaves the corrected word learned (M10 again)
   or never learns the word the user kept.
-- K3 The kept mark is lost: by save → load, by the ⌫ that undoes the next learn (an unlearn down
-  to 0 must not drop a kept word), by vocabulary eviction (kept words go last) or count halving.
+- K3 The kept mark is lost: by save → load, by the ⌫ that undoes a later use of the word, by
+  vocabulary eviction (kept words go last) or count halving. (The ⌫ that undoes the very space
+  that kept it drops it: the user is editing the word again.)
 - K4 Migration: a v1 file loses entries, counts, stamps or a language; a v2 file with junk (an
   unknown flag value, count 0 without the kept flag) crashes or keeps the junk; malformed or
   foreign JSON is still an empty model (M9).

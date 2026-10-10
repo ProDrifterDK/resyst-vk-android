@@ -14,9 +14,15 @@ package com.resyst.vk.core
  *
  * A logical clock (not wall time) orders recency, so ranking is deterministic and survives a
  * device clock change. Not thread-safe: the IME touches it from the main thread only.
+ *
+ * r11 (v2): a word can be [keep]-marked — the user reverted the space-correction that replaced it
+ * (⌫ right after it, or the ↶ chip). A kept word is theirs at once: never corrected, offered as a
+ * strong completion, evicted last (K1–K3). Completions come in two tiers ([Completion.strong]): a
+ * continuation of the previous word, a word used [COMPLETE_MIN]+ times, or a kept word; and the
+ * one-offs (typed once), which the bar ranks after the first lexicon candidate (N1/N2).
  */
 class PersonalModel {
-    private class Word(var form: String, val folded: String, var count: Int, var stamp: Long)
+    private class Word(var form: String, val folded: String, var count: Int, var stamp: Long, var kept: Boolean = false)
     private class Cont(val key: String, var count: Int, var stamp: Long)
     private class Tables {
         val vocab = LinkedHashMap<String, Word>()
@@ -42,7 +48,7 @@ class PersonalModel {
             w.count++; w.stamp = now
             if (form != null) w.form = form
         } else {
-            if (t.vocab.size >= VOCAB_CAP) t.vocab.entries.minWithOrNull(compareBy({ it.value.count }, { it.value.stamp }))?.let { t.vocab.remove(it.key) }
+            evictVocab(t)
             t.vocab[k] = Word(form ?: k, Suggest.fold(k), 1, now)
         }
         if ((t.vocab[k]?.count ?: 0) > COUNT_CAP) for (v in t.vocab.values) v.count = halve(v.count)
@@ -59,10 +65,42 @@ class PersonalModel {
         }
     }
 
+    /**
+     * r11 (K1): the user kept [word] as typed (reverted its space-correction): mark it as theirs.
+     * Normally called right after the [learn] of that word; creates the entry if it is missing.
+     * True when the model changed.
+     */
+    fun keep(lang: Lang, word: String): Boolean {
+        if (!Tokens.learnable(word)) return false
+        val k = Tokens.key(word)
+        val t = tables(lang)
+        val w = t.vocab[k]
+        if (w != null) {
+            if (w.kept) return false
+            w.kept = true
+            return true
+        }
+        evictVocab(t)
+        t.vocab[k] = Word(formOf(word, false) ?: k, Suggest.fold(k), 1, ++clock, kept = true)
+        return true
+    }
+
+    /** Whether the user kept [word] in [lang] (see [keep]). */
+    fun kept(lang: Lang, word: String): Boolean = langs[lang]?.vocab?.get(Tokens.key(word))?.kept == true
+
+    /**
+     * r11: [word] is the user's in any of [langs] — kept, or typed at least [minCount] times. Space
+     * never corrects it (B5, K1, BL8).
+     */
+    fun owns(within: List<Lang>, word: String, minCount: Int): Boolean =
+        within.any { l -> langs[l]?.vocab?.get(Tokens.key(word))?.let { it.kept || it.count >= minCount } == true }
+
     /** Takes back one [learn] (the user immediately deleted the word it learned, M10). */
     fun unlearn(lang: Lang, prev: String?, word: String, sentenceStart: Boolean) {
         val t = langs[lang] ?: return
         val k = Tokens.key(word)
+        // undoing the very learn that kept a word (count 1) drops it with its mark: the user is
+        // editing the word again; a later use's undo leaves the mark (K3)
         t.vocab[k]?.let { if (--it.count <= 0) t.vocab.remove(k) }
         if (sentenceStart) drop(t.starters, k)
         val p = prev?.let(Tokens::key) ?: return
@@ -86,27 +124,43 @@ class PersonalModel {
     }
 
     /**
-     * The user's words that complete [prefix] (accent-insensitive, never the prefix itself):
-     * continuations of [prev] first, then words used at least [COMPLETE_MIN] times.
+     * The user's strong words that complete [prefix] (accent-insensitive, never the prefix itself):
+     * continuations of [prev] first, then words used at least [COMPLETE_MIN] times or kept.
      */
-    fun complete(lang: Lang, prefix: String, prev: String?, limit: Int): List<String> {
-        val t = langs[lang] ?: return emptyList()
-        if (prefix.isEmpty()) return emptyList()
+    fun complete(lang: Lang, prefix: String, prev: String?, limit: Int): List<String> =
+        completions(listOf(lang), prefix, prev, limit).filter { it.strong }.map { it.word }
+
+    /** One personal completion; [strong] = a continuation, a habit (≥ [COMPLETE_MIN]) or kept. */
+    data class Completion(val word: String, val strong: Boolean)
+
+    /**
+     * r11: completions of [prefix] from the vocabularies of [langs] (the writing language first,
+     * de-duplicated by key, BL8). Strong ones first — continuations of [prev] in the first language
+     * (bigrams stay per language), then habits and kept words — at most [limit]; then the one-offs
+     * (typed once), at most [limit], which the bar ranks lower (N2).
+     */
+    fun completions(langs: List<Lang>, prefix: String, prev: String?, limit: Int): List<Completion> {
+        if (prefix.isEmpty() || langs.isEmpty() || limit <= 0) return emptyList()
         val kp = Tokens.key(prefix)
         val fp = Suggest.fold(prefix)
-        val out = LinkedHashSet<String>()
-        prev?.let { t.next[Tokens.key(it)] }?.let { list ->
+        val strong = LinkedHashMap<String, String>()
+        val first = this.langs[langs[0]]
+        if (first != null) prev?.let { first.next[Tokens.key(it)] }?.let { list ->
             for (c in ranked(list)) {
-                val w = t.vocab[c.key]
-                val folded = w?.folded ?: Suggest.fold(c.key)
-                if (c.key != kp && folded.startsWith(fp)) out += c.key
+                val folded = first.vocab[c.key]?.folded ?: Suggest.fold(c.key)
+                if (c.key != kp && folded.startsWith(fp)) strong.putIfAbsent(c.key, formFor(first, c.key))
             }
         }
-        t.vocab.entries.asSequence()
-            .filter { (k, w) -> w.count >= COMPLETE_MIN && k != kp && w.folded.startsWith(fp) }
-            .sortedWith(compareByDescending<Map.Entry<String, Word>> { it.value.count }.thenByDescending { it.value.stamp })
-            .forEach { out += it.key }
-        return out.take(limit).map { formFor(t, it) }
+        val weak = LinkedHashMap<String, String>()
+        val order = compareByDescending<Map.Entry<String, Word>> { it.value.count }.thenByDescending { it.value.stamp }
+        for (pass in 0..1) for (l in langs.distinct()) {
+            val t = this.langs[l] ?: continue
+            t.vocab.entries.asSequence()
+                .filter { (k, w) -> k != kp && w.folded.startsWith(fp) && (w.kept || w.count >= COMPLETE_MIN) == (pass == 0) }
+                .sortedWith(order)
+                .forEach { (k, w) -> if (pass == 0) strong.putIfAbsent(k, w.form) else if (k !in strong) weak.putIfAbsent(k, w.form) }
+        }
+        return strong.values.take(limit).map { Completion(it, true) } + weak.values.take(limit).map { Completion(it, false) }
     }
 
     /** Whether the user has typed [word] at least [minCount] times (space never "corrects" it, B5). */
@@ -133,8 +187,8 @@ class PersonalModel {
         return changed
     }
 
-    /** One learned word as "Lo que sé de ti" lists it: the user's spelling and how often. */
-    data class Learned(val key: String, val form: String, val count: Int)
+    /** One learned word as "Lo que sé de ti" lists it: the user's spelling, how often, and whether they kept it (K5). */
+    data class Learned(val key: String, val form: String, val count: Int, val kept: Boolean = false)
 
     /** The learned words of [lang], most used first (most recent among equals), at most [limit] (V13). */
     fun words(lang: Lang, limit: Int): List<Learned> {
@@ -142,7 +196,7 @@ class PersonalModel {
         return t.vocab.entries.asSequence()
             .sortedWith(compareByDescending<Map.Entry<String, Word>> { it.value.count }.thenByDescending { it.value.stamp })
             .take(limit.coerceAtLeast(0))
-            .map { (k, w) -> Learned(k, w.form, w.count) }
+            .map { (k, w) -> Learned(k, w.form, w.count, w.kept) }
             .toList()
     }
 
@@ -161,6 +215,12 @@ class PersonalModel {
         list.sortedWith(compareByDescending<Cont> { it.count }.thenByDescending { it.stamp })
 
     private fun formFor(t: Tables, key: String) = t.vocab[key]?.form ?: key
+
+    /** A full vocabulary drops its least useful word: never a kept one while another is left (K3). */
+    private fun evictVocab(t: Tables) {
+        if (t.vocab.size < VOCAB_CAP) return
+        t.vocab.entries.minWithOrNull(compareBy({ it.value.kept }, { it.value.count }, { it.value.stamp }))?.let { t.vocab.remove(it.key) }
+    }
 
     private fun bump(list: ArrayList<Cont>, k: String, now: Long, cap: Int) {
         val c = list.firstOrNull { it.key == k }
@@ -188,7 +248,7 @@ class PersonalModel {
             b.append(MiniJson.quote(lang.code)).append(":{\"vocab\":[")
             t.vocab.entries.forEachIndexed { i, (k, w) ->
                 if (i > 0) b.append(',')
-                b.append('[').append(MiniJson.quote(k)).append(',').append(MiniJson.quote(w.form)).append(',').append(w.count).append(',').append(w.stamp).append(']')
+                b.append('[').append(MiniJson.quote(k)).append(',').append(MiniJson.quote(w.form)).append(',').append(w.count).append(',').append(w.stamp).append(',').append(if (w.kept) 1 else 0).append(']')
             }
             b.append("],\"starters\":")
             conts(b, t.starters)
@@ -215,7 +275,9 @@ class PersonalModel {
     }
 
     companion object {
-        const val VERSION = 1
+        /** r11: v2 adds the kept flag as a 5th vocabulary field; v1 files load unchanged (K4). */
+        const val VERSION = 2
+        private const val V1 = 1
         const val NEXT_CAP = 8
         const val STARTER_CAP = 16
         const val PREV_CAP = 1500
@@ -233,11 +295,15 @@ class PersonalModel {
             else -> word
         }
 
-        /** Parses [toJson] output; anything malformed yields an empty model, bad entries are dropped (M9). */
+        /**
+         * Parses [toJson] output (v2, or a v1 file from r4–r10 — nothing kept yet); anything malformed
+         * yields an empty model, bad entries are dropped (M9, K4).
+         */
         fun fromJson(text: String): PersonalModel {
             val m = PersonalModel()
             val root = runCatching { MiniJson.parse(text) }.getOrNull() as? Map<*, *> ?: return m
-            if ((root["v"] as? Number)?.toInt() != VERSION) return m
+            val v = root["v"]
+            if (v !is Number || (v.toLong() != VERSION.toLong() && v.toLong() != V1.toLong())) return m
             val langs = root["langs"] as? Map<*, *> ?: return m
             var maxStamp = 0L
             for ((code, raw) in langs) {
@@ -251,7 +317,9 @@ class PersonalModel {
                     val count = int(a.getOrNull(2)) ?: continue
                     val stamp = long(a.getOrNull(3)) ?: continue
                     if (!Tokens.learnable(k) || k != Tokens.key(k) || Tokens.key(form) != k || count <= 0 || t.vocab.size >= VOCAB_CAP) continue
-                    t.vocab[k] = Word(form, Suggest.fold(k), count.coerceAtMost(COUNT_CAP), stamp)
+                    // v2 5th field: 1 = kept; anything else (absent in v1, junk) = not kept
+                    val kept = (a.getOrNull(4) as? Number)?.toLong() == 1L
+                    t.vocab[k] = Word(form, Suggest.fold(k), count.coerceAtMost(COUNT_CAP), stamp, kept)
                     maxStamp = maxOf(maxStamp, stamp)
                 }
                 readConts(o["starters"], STARTER_CAP).let { t.starters += it; it.forEach { c -> maxStamp = maxOf(maxStamp, c.stamp) } }

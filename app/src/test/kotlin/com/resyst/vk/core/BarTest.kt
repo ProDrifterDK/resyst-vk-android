@@ -74,8 +74,9 @@ class BarTest {
 
     @Test fun personalCompletionsRankFirstAmongCompletions() { // B2
         val m = model("estupendo estupendo", "cómo estás")
-        // static order would be está, esta, estaba; the user's habit comes first
-        assertEquals(listOf("estupendo", "está", "esta"), bar("muy es", m))
+        // static order would be está, esta, estaba; the user's habit comes first. r11 (N1/N2): the
+        // one-off "estás" (typed once, no context here) is offered right after the first lexicon word
+        assertEquals(listOf("estupendo", "está", "estás"), bar("muy es", m))
         // with context the continuation wins over the global habit
         assertEquals(listOf("estás", "estupendo", "está"), bar("cómo es", m))
         assertEquals("Estupendo", bar("Es", m).first()) // B4: typed case mirrored

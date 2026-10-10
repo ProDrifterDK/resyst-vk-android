@@ -12,6 +12,10 @@ package com.resyst.vk.core
  *
  * [personal] is null whenever the privacy gate is closed: the bar then behaves exactly like r3
  * plus the generic seeds (X1/X3). Duplicates across sources collapse by [Tokens.key] (B3).
+ *
+ * r11: [vocab] = the vocabularies the user's words are read from — the writing language first,
+ * plus the other one with bilingual on (BL8); predictions (bigrams) stay in [lang]. A word typed
+ * only once is offered too, but right after the first lexicon candidate, never before it (N1/N2).
  */
 object Bar {
     const val LIMIT = 3
@@ -23,10 +27,13 @@ object Bar {
      * The space-correction for [word]: the lexicon's, unless the user habitually types [word].
      * r10 [clean] (V1): never a correction INTO an offensive word the user hasn't made theirs.
      */
-    fun correction(word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang, clean: Boolean = false): String? {
+    fun correction(
+        word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang,
+        clean: Boolean = false, vocab: List<Lang> = listOf(lang),
+    ): String? {
         val fix = lexicon?.correction(word, sentenceStart) ?: return null
-        if (personal?.knows(lang, word, HABIT) == true) return null
-        return if (clean && !allowed(fix, lang, personal)) null else fix
+        if (personal?.owns(vocab, word, HABIT) == true) return null // B5, K1 (kept), BL8 (either table)
+        return if (clean && !allowed(fix, vocab, personal)) null else fix
     }
 
     /**
@@ -37,21 +44,21 @@ object Bar {
     fun words(
         before: CharSequence, after: CharSequence, windowFull: Boolean, lang: Lang,
         lexicon: Suggest?, personal: PersonalModel?, shift: ShiftState, limit: Int = LIMIT,
-        clean: Boolean = false,
+        clean: Boolean = false, vocab: List<Lang> = listOf(lang),
     ): List<String> {
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return emptyList() // B6
         val word = Suggest.currentWord(before)
         fun bar(n: Int) = if (word.isEmpty()) predictions(before, windowFull, lang, personal, shift, n)
-        else completions(before, word, windowFull, lang, lexicon, personal, n)
+        else completions(before, word, windowFull, vocab.ifEmpty { listOf(lang) }, lexicon, personal, n)
         val raw = bar(limit)
-        if (!clean || raw.all { allowed(it, lang, personal) }) return raw // nothing to drop: identical to r9
+        if (!clean || raw.all { allowed(it, vocab, personal, lang) }) return raw // nothing to drop: identical to r9
         // something was dropped: ask for a few more so the bar has no hole
-        return bar(limit + FILTER_SLACK).filter { allowed(it, lang, personal) }.take(limit)
+        return bar(limit + FILTER_SLACK).filter { allowed(it, vocab, personal, lang) }.take(limit)
     }
 
-    /** V3: an offensive word is only proposed once the user has made it theirs. */
-    private fun allowed(w: String, lang: Lang, personal: PersonalModel?): Boolean =
-        !Profanity.blocked(w, lang) || personal?.knows(lang, w, HABIT) == true
+    /** V3: an offensive word is only proposed once the user has made it theirs (habit or kept). */
+    private fun allowed(w: String, vocab: List<Lang>, personal: PersonalModel?, lang: Lang = vocab.first()): Boolean =
+        !Profanity.blocked(w, lang) || personal?.owns(vocab, w, HABIT) == true
 
     private const val FILTER_SLACK = 3
 
@@ -68,7 +75,7 @@ object Bar {
     }
 
     private fun completions(
-        before: CharSequence, word: String, windowFull: Boolean, lang: Lang,
+        before: CharSequence, word: String, windowFull: Boolean, vocab: List<Lang>,
         lexicon: Suggest?, personal: PersonalModel?, limit: Int,
     ): List<String> {
         val stem = before.subSequence(0, before.length - word.length)
@@ -76,13 +83,23 @@ object Bar {
         val static = lexicon?.suggest(word, limit) ?: emptyList()
         // suggest() leads with the confident fix when there is one
         val confident = static.isNotEmpty() && lexicon?.best(word.lowercase())?.confident == true
-        val habit = confident && personal?.knows(lang, word, HABIT) == true
+        val habit = confident && personal?.owns(vocab, word, HABIT) == true
+        val mine = personal?.completions(vocab, word, ctx.prev, limit) ?: emptyList()
+        // (word, from the lexicon) in bar order before the one-offs go in
+        val items = ArrayList<Pair<String, Boolean>>()
+        if (confident) items += if (habit) word to false else static[0] to true
+        for (c in mine) if (c.strong) items += Suggest.matchCase(c.word, word) to false
+        if (habit) items += static[0] to true
+        static.drop(if (confident) 1 else 0).forEach { items += it to true }
+        // N2: a word typed once goes right after the first lexicon candidate (slot 1 only when the
+        // lexicon has nothing for this prefix) — a one-off is often an uncorrected typo — and never
+        // before a strong personal word (N3)
+        val weak = mine.filter { !it.strong }.map { Suggest.matchCase(it.word, word) to false }
+        val firstLex = items.indexOfFirst { it.second }
+        val lastMine = items.indexOfLast { !it.second }
+        if (firstLex < 0) items.addAll(weak) else items.addAll(maxOf(firstLex, lastMine) + 1, weak)
         val out = LinkedHashMap<String, String>()
-        fun add(w: String) { out.putIfAbsent(Tokens.key(w), w) }
-        if (confident) add(if (habit) word else static[0])
-        personal?.complete(lang, word, ctx.prev, limit)?.forEach { add(Suggest.matchCase(it, word)) }
-        if (habit) add(static[0])
-        static.drop(if (confident) 1 else 0).forEach(::add)
+        for ((w, _) in items) out.putIfAbsent(Tokens.key(w), w)
         return out.values.take(limit)
     }
 

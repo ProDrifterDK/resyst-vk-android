@@ -777,7 +777,9 @@ class SettingsActivity : Activity() {
             // the model is per keyboard language: say which keyboard learned them (only when both did)
             if (langs.size > 1) into.addView(label((if (lang == Lang.ES) "CON EL TECLADO EN ESPAÑOL · $n" else "CON EL TECLADO EN INGLÉS · $n"), 11f, t.muted, 700).apply { letterSpacing = 0.1f }, lp(top = 10f, bottom = 2f))
             for (e in w.words(lang, wordsShown)) {
-                knowRow(e.form, if (e.count == 1) "1 vez" else "${e.count} veces", "la palabra ${e.form}", "${lang.code}.${e.key}") {
+                // r11 (K5): a word the user kept by undoing its correction says so
+                val uses = if (e.count == 1) "1 vez" else "${e.count} veces"
+                knowRow(e.form, if (e.kept) "$uses · conservada" else uses, "la palabra ${e.form}", "${lang.code}.${e.key}") {
                     if (w.forget(lang, e.key)) { PersonalStore.changed(); rerender() }
                 }
             }

@@ -33,6 +33,8 @@ class KeyboardEngine {
     private var undo: Pair<String, String>? = null
     /** A word the user reverted: the next space keeps it as typed. */
     private var rejected: String? = null
+    /** r11: the typed word the last [press] / [undoCorrection] restored (read once by [takeReverted]). */
+    private var reverted: String? = null
 
     val upper: Boolean get() = shift != ShiftState.OFF
 
@@ -74,6 +76,7 @@ class KeyboardEngine {
 
     /** [after] = text right after the cursor (only its first char matters: mid-word ⇒ no correction). */
     fun press(key: Key, before: CharSequence, now: Long, after: CharSequence = ""): List<Out> {
+        reverted = null
         val pendingUndo = undo
         if (key.type != KeyType.SHIFT) undo = null
         val out = when (key.type) {
@@ -160,8 +163,15 @@ class KeyboardEngine {
         val tail = "$fixed "
         if (!before.endsWith(tail)) return null
         rejected = typedWord
+        reverted = typedWord
         return listOf(Out.DeleteBefore(tail.length), Out.Commit(typedWord))
     }
+
+    /**
+     * r11 (K1/K2): the word the user just kept by reverting its space-correction (⌫ right after
+     * it, or the ↶ chip), or null. Cleared by the read and by the next key press.
+     */
+    fun takeReverted(): String? = reverted.also { reverted = null }
 
     private fun enter(): Out = when {
         field.multiLine -> Out.Commit("\n")
