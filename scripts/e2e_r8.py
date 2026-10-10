@@ -15,7 +15,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import e2e  # noqa: E402
-from e2e import adb, sh, dump, keys, bounds, center, IME, HOST  # noqa: E402
+from e2e import adb, sh, dump, keys, bounds, center, IME, HOST, PKG  # noqa: E402
 
 OUT = os.path.join(e2e.ROOT, 'build', 'e2e-r8')
 rows = []
@@ -56,6 +56,27 @@ def type_letters(word):
 
 def shot(name):
     open(os.path.join(OUT, name), 'wb').write(adb('exec-out', 'screencap', '-p', binary=True))
+
+
+PROFILES = 'shared_prefs/resyst_vk_profiles.xml'
+
+
+def set_phone(key, value):
+    """One phone-wide setting in the v2 store (as e2e_r10_privacy); returns the previous value."""
+    sh(f'am force-stop {PKG}')
+    xml = sh(f"run-as {PKG} cat {PROFILES}", check=False)
+    if '<map' not in xml:
+        xml = "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n</map>\n"
+    pat = re.compile(r'<string name="' + re.escape(key) + r'">([^<]*)</string>')
+    m = pat.search(xml)
+    line = f'<string name="{key}">{value}</string>'
+    xml = pat.sub(line, xml) if m else xml.replace('</map>', f'    {line}\n</map>')
+    local = os.path.join(OUT, 'profiles.xml')
+    open(local, 'w', encoding='utf-8').write(xml)
+    adb('push', local, '/data/local/tmp/r8p.xml')
+    sh(f'run-as {PKG} cp /data/local/tmp/r8p.xml {PROFILES}', check=False)
+    sh('rm -f /data/local/tmp/r8p.xml', check=False)
+    return m.group(1) if m else None
 
 
 def main():
@@ -129,7 +150,9 @@ def main():
     fl = [l.split('ResystVK:')[-1].strip() for l in log.splitlines() if 'field: pkg=' in l and low_bits(l) == 0xa4001]
     check('social field logged as prose + optedOut', bool(fl) and 'suggestions=true' in fl[-1] and 'optedOut=true' in fl[-1], fl[-1] if fl else 'no log')
 
-    # 5 — day/night chip flips the theme
+    # 5 — day/night chip flips the theme. Since r10 (ad7e37c) the chip is opt-in (Teclas e idioma →
+    # chip día/noche, default off; the quick panel has the tile): turn it on for this section only.
+    was_chip = set_phone('phone.dayNightChip', 'true')
     open_field('text')
     tree = dump()
     k = keys(tree)
@@ -146,6 +169,7 @@ def main():
         time.sleep(0.8)
         back = next((d for d in keys(dump()) if d.startswith('Cambiar a tema')), None)
         check('second flip returns', back == chip, str(back))
+    set_phone('phone.dayNightChip', was_chip or 'false')
 
     passed = sum(r['ok'] for r in rows)
     json.dump({'device': sh('getprop ro.product.model').strip(), 'api': sh('getprop ro.build.version.sdk').strip(),
