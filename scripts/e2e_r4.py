@@ -195,20 +195,23 @@ def main():
         record('password text never reaches the learned store', 'zumbido' not in stored, f'{len(stored)} bytes stored')
         record('email field text is not learned as words', '"user"' not in stored and '"example"' not in stored)
 
-        # 6 — settings: the toggle is there; "Borrar lo aprendido" wipes everything
-        sh(f'am start -W -f 0x10008000 -n {SETTINGS}')
-        time.sleep(1.5)
-        found = {}
-        for _ in range(14):
-            st = dump()
-            for n in st.iter('node'):
-                t = n.get('text', '')
-                if t in ('Sugerencias personales', 'Borrar lo aprendido'):
-                    found[t] = n
-            if 'Borrar lo aprendido' in found:
-                break
-            sh('input swipe 540 1700 540 900 300')
-            time.sleep(0.6)
+        # 6 — settings: the toggle is there; "Borrar lo aprendido" wipes everything. Since r10 (e4c0bae)
+        # settings are pages: the toggle lives on "escritura", the wipe on "privacidad".
+        def page_rows(page, wanted):
+            sh(f'am start -W -f 0x10008000 -n {SETTINGS} --es com.resyst.vk.page {page}')
+            time.sleep(1.5)
+            got = {}
+            for _ in range(8):
+                for n in dump().iter('node'):
+                    if n.get('text', '') in wanted:
+                        got[n.get('text')] = n
+                if all(w in got for w in wanted):
+                    break
+                sh('input swipe 540 1700 540 900 300')
+                time.sleep(0.6)
+            return got
+        found = page_rows('escritura', ['Sugerencias personales'])
+        found.update(page_rows('privacidad', ['Borrar lo aprendido']))
         record('settings: "Sugerencias personales" toggle present', 'Sugerencias personales' in found)
         record('settings: "Borrar lo aprendido" present', 'Borrar lo aprendido' in found)
         if 'Borrar lo aprendido' in found:
@@ -229,8 +232,9 @@ def main():
             files = personal_files()
             record('wipe deletes the files on disk', files == [], repr(files))
             st = dump()
-            after = [n.get('text') or '' for n in st.iter('node') if 'aprendidos' in n.get('text', '')]
-            record('settings now shows 0 learned', any(t.startswith('0 palabras · 0 correos') for t in after), repr(after))
+            # r10 wording for an empty store: "Nada aprendido todavía · nada sale del teléfono"
+            after = [n.get('text') or '' for n in st.iter('node') if 'aprendid' in n.get('text', '')]
+            record('settings now shows 0 learned', any(t.startswith('Nada aprendido todavía') for t in after), repr(after))
             tree, km = e2e.open_host('text')
             record('after wipe: no learned opener at sentence start', bar() == [], repr(bar()))
             type_hola_comma(km)
