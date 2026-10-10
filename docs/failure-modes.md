@@ -593,3 +593,22 @@ Field report: "no están todos los emojis en el menú de emojis" (946 curated of
   dropped on read.
 - ET4 A long-press also commits the base, a short tap opens the tones, or TalkBack cannot reach the
   tones (long-click action + one node per tone).
+
+### "Borrar lo aprendido" covers all of files/personal/ (`PersonalSummary`, r11a-fix)
+
+Found on device after review: the row was gated on learned words + emails only, so a user with
+emoji recents / tone defaults and no learned words saw "Nada aprendido todavía" on a disabled row
+and could not wipe them.
+- F1 The wipe row is disabled, or its summary says "Nada aprendido todavía", while anything is kept
+  in files/personal/: learned words, remembered emails, emoji recents, chosen skin tones. Each one
+  alone must enable the row and be named in the summary (singular/plural Spanish, zero parts
+  omitted, "· nada sale del teléfono" kept).
+- F2 After the wipe the row still counts the old data (the summary is read before the files are
+  gone), or the keyboard keeps showing the old recents / tone defaults from memory: with the
+  panel open, or the next time it opens in the same IME process.
+- F3 "Lo que sé de ti" lists a tone pair the keyboard would drop on read (stale or junk line in
+  emoji_tones.txt), hides the tones when there are no recents, or forgetting one tone rewrites
+  the file with anything but the remaining valid pairs. The settings list and the panel decode
+  the file the same way (`EmojiTones.decode` against the catalog).
+- F4 The device check for F1 depends on test order: it passes only because an earlier section
+  left learned words behind (the row was enabled by the words, not the emoji data).
