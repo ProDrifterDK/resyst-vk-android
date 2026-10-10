@@ -1034,8 +1034,9 @@ class KeyboardView(context: Context) : View(context) {
             EmojiPanel.Act.CLOSE_TONES -> emojiPanel.hideTones()
             EmojiPanel.Act.TONE -> {
                 val cell = h.cell
-                emojiPanel.hideTones()
+                // the service stores the new default first: the grid laid out by hideTones shows it (ET1)
                 if (cell != null) listener?.onEmojiTone(cell, h.text)
+                emojiPanel.hideTones()
             }
             else -> listener?.onEmojiPanel(h.act, h.text)
         }

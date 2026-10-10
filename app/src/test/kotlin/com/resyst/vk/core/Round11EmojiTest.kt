@@ -88,7 +88,9 @@ class Round11EmojiTest {
     }
 
     @Test fun recentsAcceptEveryCatalogEmojiAndOldFiles() { // EC6
-        for (g in cat.groups) for (c in g.cells) for (e in listOf(c.base) + c.tones) assertTrue(e, EmojiRecents.valid(e))
+        // every pinned emoji, not just what the parser kept (it filters with the same rule)
+        for ((_, e) in pinned) assertTrue(e, EmojiRecents.valid(e))
+        assertTrue("ℹ️ is a BMP letter + FE0F", EmojiRecents.valid("\u2139\uFE0F"))
         // an r8–r10 recents file keeps loading
         val old = listOf("😂", "❤️", "👍", "🇨🇱", "1️⃣").joinToString("\u001F")
         assertEquals(listOf("😂", "❤️", "👍", "🇨🇱", "1️⃣"), EmojiRecents.decode(old).items())
