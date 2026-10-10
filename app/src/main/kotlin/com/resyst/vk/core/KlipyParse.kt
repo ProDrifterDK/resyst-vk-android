@@ -92,6 +92,13 @@ object KlipyParse {
         return null
     }
 
+    /** The file the grid actually fetches for [g]: the animated preview, else the static one. */
+    fun thumbnail(g: Gif, animated: Boolean): GifMedia? = preview(g, animated) ?: preview(g, animated = false)
+
+    /** width / height of [thumbnail] (review m3: the cell matches the decoded file); 1 if none. */
+    fun previewAspect(g: Gif, animated: Boolean): Float =
+        thumbnail(g, animated)?.let { it.width.toFloat() / it.height } ?: 1f
+
     /**
      * GF2: the file handed to the app. Only animated image types the field declared (wildcards
      * honored); never jpg / video. Sizes md → sm → xs (hd gifs run to several MB), gif before

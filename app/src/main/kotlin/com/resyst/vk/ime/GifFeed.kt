@@ -127,7 +127,7 @@ class GifFeed(private val context: Context, private val view: () -> View?, priva
         for (i in want) {
             if (i !in items.indices || i in thumbs || i in pending || i in failed) continue
             val g = items[i]
-            val m = KlipyParse.preview(g, animated) ?: KlipyParse.preview(g, animated = false)
+            val m = KlipyParse.thumbnail(g, animated)
             if (m == null) { failed += i; continue }
             pending += i
             val gen = KlipyClient.generation

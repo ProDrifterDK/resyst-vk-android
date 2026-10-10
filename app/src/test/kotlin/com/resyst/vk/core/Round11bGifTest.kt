@@ -137,6 +137,80 @@ class Round11bGifTest {
         assertNull(KlipyParse.preview(big.copy(files = mapOf("sm" to big.files.getValue("sm"))), animated = true))
     }
 
+    /**
+     * Review m3. Fails when the grid cell takes its aspect from any file other than the one the
+     * thumbnail loader fetches: the first format of `sm` (here an over-cap 3:1 webp), the `sm`
+     * size when the loader fell back to `xs`, or the animated file on the static (jpg) path.
+     */
+    @Test fun gridAspectIsTheAspectOfTheFetchedThumbnail() { // GF1 + GP2
+        fun m(f: String, w: Int, h: Int, bytes: Long) = GifMedia("https://static.klipy.com/$w$f.$f", w, h, bytes, f)
+        val g = Gif("a", "", mapOf(
+            "sm" to linkedMapOf("webp" to m("webp", 300, 100, 500_000), "gif" to m("gif", 200, 200, 50_000), "jpg" to m("jpg", 100, 50, 9_000)),
+            "xs" to linkedMapOf("gif" to m("gif", 90, 45, 8_000)),
+        ))
+        assertEquals(KlipyParse.thumbnail(g, animated = true), KlipyParse.preview(g, animated = true))
+        assertEquals("the 200×200 gif is fetched, not the over-cap 3:1 webp", 1.0f, KlipyParse.previewAspect(g, animated = true), 1e-4f)
+        assertEquals("static path: the jpg's 2:1", 2.0f, KlipyParse.previewAspect(g, animated = false), 1e-4f)
+        val xsOnly = Gif("b", "", mapOf(
+            "sm" to linkedMapOf("gif" to m("gif", 400, 100, 900_000)),
+            "xs" to linkedMapOf("gif" to m("gif", 100, 100, 30_000)),
+        ))
+        assertEquals("sm is over the cap: the xs file (1:1) is fetched", 1.0f, KlipyParse.previewAspect(xsOnly, animated = true), 1e-4f)
+        // animated build with only a jpg: the loader falls back to the static file, and so does the cell
+        val jpgOnly = Gif("c", "", mapOf("sm" to linkedMapOf("jpg" to m("jpg", 150, 100, 9_000))))
+        assertEquals("jpg", KlipyParse.thumbnail(jpgOnly, animated = true)?.format)
+        assertEquals(1.5f, KlipyParse.previewAspect(jpgOnly, animated = true), 1e-4f)
+        // every real item: the cell's aspect is the fetched file's
+        for (it in KlipyParse.page(fixture("trending")).items + KlipyParse.page(fixture("search")).items) {
+            val f = KlipyParse.thumbnail(it, animated = true) ?: continue
+            assertEquals(it.slug, f.width.toFloat() / f.height, KlipyParse.previewAspect(it, animated = true), 1e-4f)
+        }
+        val src = File("src/main/kotlin/com/resyst/vk/ime/GifPanel.kt").readText()
+        assertTrue("GifPanel sizes cells from the fetched file", src.contains("KlipyParse.previewAspect("))
+        val feed = File("src/main/kotlin/com/resyst/vk/ime/GifFeed.kt").readText()
+        assertTrue("GifFeed fetches the same file", feed.contains("KlipyParse.thumbnail("))
+    }
+
+    // ── GP2: the justified grid (review m1) ────────────────────────────
+
+    /**
+     * Fails on: an order swap (cells not left-to-right, top-to-bottom in KLIPY's order), a full
+     * row that overflows or underfills the width (gaps miscounted), a trailing row stretched to
+     * the width instead of keeping its natural size, or rows that overlap.
+     */
+    @Test fun justifyKeepsOrderFillsFullRowsAndLeavesTheTrailingRowNatural() { // GP2
+        val w = 300f; val h = 100f; val gap = 4f
+        val cells = GifLayout.justify(listOf(2.0f, 1.0f, 0.5f, 1.0f), w, h, gap)
+        assertEquals(listOf(0, 1, 2, 3), cells.map { it.index })
+        // row 1 = items 0, 1 (2.0·100 + 1.0·100 + gap ≥ 300); row 2 = items 2, 3 (the trailing row)
+        val rows = cells.groupBy { it.top }.values.toList()
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3)), rows.map { r -> r.map { it.index } })
+        for (r in rows) for (i in 1 until r.size) {
+            assertEquals("left to right with one gap", r[i - 1].right + gap, r[i].left, 1e-3f)
+            assertEquals("one height per row", r[0].height, r[i].height, 1e-3f)
+        }
+        val full = rows[0]
+        assertEquals(0f, full.first().left, 1e-3f)
+        assertEquals("a full row spans the width exactly", w, full.last().right, 1e-3f)
+        assertEquals("…so its widths are the width minus the gaps", w - gap, full.sumOf { it.width.toDouble() }.toFloat(), 1e-3f)
+        assertEquals("aspects kept", 2.0f, full[0].width / full[0].height, 1e-3f)
+        val last = rows[1]
+        assertEquals("rows stack with one gap", full[0].bottom + gap, last[0].top, 1e-3f)
+        assertEquals("the trailing row keeps the target height", h, last[0].height, 1e-3f)
+        assertEquals("…and its natural widths", listOf(50f, 100f), last.map { it.width })
+        assertTrue("…so it does not reach the edge", last.last().right < w - 1f)
+
+        // a row closed by maxPerRow (4) before the width is reached is still a full row
+        val capped = GifLayout.justify(List(6) { 0.5f }, w, h, gap)
+        assertEquals((0 until 6).toList(), capped.map { it.index })
+        val first = capped.filter { it.top == 0f }
+        assertEquals(listOf(0, 1, 2, 3), first.map { it.index })
+        assertEquals(w, first.last().right, 1e-3f)
+        assertEquals(h, capped.last().height, 1e-3f)
+        assertTrue(GifLayout.justify(emptyList(), w, h, gap).isEmpty())
+        assertTrue(GifLayout.justify(listOf(1f), 0f, h, gap).isEmpty())
+    }
+
     @Test fun insertOnlyHandsTheFieldATypeItDeclaredUnderTheCap() { // GF2
         val g = KlipyParse.page(fixture("trending")).items.first()
         val any = KlipyParse.insert(g, listOf("image/*"))!!
@@ -254,6 +328,39 @@ class Round11bGifTest {
         assertEquals(log, ConnectionLog.decode(log.encode()))
         assertEquals("KLIPY", ConnectionLog.What.GIF_SHARE.host)
         assertEquals("kv.resyst.cl", ConnectionLog.What.CHECK.host)
+    }
+
+    /**
+     * r11b on top of r11c (0.7.1): one book for both features. Fails when a 0.7.1 log (v1, with
+     * r11c's `open` and 0.7.0's `startup` reasons) loses entries on upgrade, when `open` or a
+     * KLIPY kind does not survive the v2 round trip, or when the updater logs anything but OPEN.
+     */
+    @Test fun oneBookHoldsTheUpdateCheckAndTheGifSearch() { // GL2 + OC15
+        val v071 = "{\"v\":1,\"total\":4,\"first\":1000,\"items\":[[4000,\"check\",\"open\",\"Ya al día (0.7.1)\"],[3000,\"check\",\"user\",\"Ya al día (0.7.0)\"],[2000,\"download\",\"user\",\"0.7.0\"],[1000,\"check\",\"startup\",\"Hay versión nueva: 0.7.0\"]]}"
+        var log = ConnectionLog.decode(v071)
+        assertEquals(listOf("open", "user", "user", "startup"), log.recent().map { it.why.id })
+        assertEquals(listOf(4, 3, 2, 1), log.recent().map { it.n })
+        val page = log.nextN
+        log = log.add(ConnectionLog.Entry(5000, ConnectionLog.What.GIF_TRENDING, ConnectionLog.Why.USER, "tendencias · 24 GIF"))
+        log = log.add(ConnectionLog.Entry(6000, ConnectionLog.What.CHECK, ConnectionLog.Why.OPEN, "Hay versión nueva: 0.8.1"))
+        log = log.amend(page, 20)
+        val back = ConnectionLog.decode(log.encode())
+        assertEquals(log, back)
+        assertEquals(listOf("check/open", "gif_trending/user", "check/open", "check/user", "download/user", "check/startup"),
+            back.recent().map { "${it.what.id}/${it.why.id}" })
+        assertEquals(listOf("kv.resyst.cl", "KLIPY"), back.recent().take(2).map { it.what.host })
+        assertEquals(20, back.recent()[1].media)
+        assertEquals(6, back.total)
+        assertEquals(1000L, back.firstAt)
+        assertEquals("al abrir el teclado", back.recent()[0].why.label)
+        assertEquals("al iniciar el teclado", back.recent().last().why.label)
+        val upd = File("src/main/kotlin/com/resyst/vk/settings/Updater.kt").readText()
+        val logFn = upd.substringAfter("private fun logConnection(").substringBefore("\n    }\n")
+        assertTrue("the updater logs OPEN through the shared book", logFn.contains("ConnectionLog.Why.OPEN") && logFn.contains("ConnectionBook.add("))
+        assertFalse("the updater no longer writes the log itself", upd.contains("LOG_KEY"))
+        val klipy = File("src/main/kotlin/com/resyst/vk/settings/KlipyClient.kt").readText()
+        assertFalse("the GIF client never reaches the update path", klipy.contains("Updater.") || klipy.contains("OpenCheck"))
+        assertFalse("the updater never reaches the GIF client", upd.contains("KlipyClient."))
     }
 
     @Test fun junkV2EntriesAreDroppedNeverThrown() { // GL2

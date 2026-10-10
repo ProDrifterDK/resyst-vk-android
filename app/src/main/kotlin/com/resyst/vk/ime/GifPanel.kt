@@ -16,6 +16,7 @@ import com.resyst.vk.core.Gif
 import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.GifCopy
 import com.resyst.vk.core.GifLayout
+import com.resyst.vk.core.KlipyParse
 import com.resyst.vk.core.Palette
 import kotlin.math.max
 import kotlin.math.min
@@ -50,6 +51,9 @@ class GifPanel(context: Context, private val dp: Float) {
     private var scroll = 0f
     private var cells: List<GifLayout.Cell> = emptyList()
     private var cellsWidth = 0f
+
+    /** API 28+ decodes animated thumbnails ([GifFeed] uses the same rule to pick the file). */
+    private val animated = Build.VERSION.SDK_INT >= 28
 
     private val logo: Drawable? = runCatching { context.getDrawable(R.drawable.klipy_powered)?.mutate() }.getOrNull()
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -152,10 +156,8 @@ class GifPanel(context: Context, private val dp: Float) {
 
     private fun attributionHit(r: RectF) { hits += Hit(Target(Act.ATTRIBUTION), r, GifCopy.ATTRIBUTION) }
 
-    private fun previewAspect(g: Gif): Float {
-        val m = g.files["sm"]?.values?.firstOrNull() ?: g.files.values.first().values.first()
-        return m.width.toFloat() / m.height
-    }
+    /** Same file as [GifFeed] decodes (review m3), so a cell crops only what it must. */
+    private fun previewAspect(g: Gif): Float = KlipyParse.previewAspect(g, animated)
 
     private fun contentHeight(): Float = inset + (cells.maxOfOrNull { it.bottom } ?: 0f) + if (loadingMore || (retry && items.isNotEmpty())) 44 * dp else 8 * dp
 
