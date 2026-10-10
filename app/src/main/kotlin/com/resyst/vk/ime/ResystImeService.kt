@@ -121,6 +121,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** A character was typed in this field: the update chip steps down to the ⚙ dot (N4). */
     private var typedForUpdate = false
     private val updaterListener: () -> Unit = { refreshUpdate() }
+    /** r11c: the first show after onCreate asks too, whatever `restarting` says (OC1). */
+    private var askedSinceCreate = false
 
     override fun onCreate() {
         super.onCreate()
@@ -141,10 +143,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // its process lives (ClipboardService.isDefaultIme), with no "pasted" toast.
         clipboard = getSystemService(ClipboardManager::class.java)
         clipboard?.addPrimaryClipChangedListener(clipListener)
-        // r9: the one automatic update check of this process (AutoCheckGate: once, toggle on,
-        // updater idle). Background thread inside Updater; a failure stays silent (A5).
+        // r9/r11c: the keyboard listens to the process-wide Updater; the automatic check itself is
+        // asked on every keyboard show (onStartInputView), never here or from any background trigger.
         Updater.listeners += updaterListener
-        runCatching { Updater.autoCheck(this, store.autoUpdateCheck) }.onFailure { Log.w(TAG, "update auto-check not started", it) }
     }
 
     override fun onDestroy() {
@@ -303,6 +304,14 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         refreshContext()
         captureClip(fromListener = false) // a copy made while this process wasn't running
         refreshClip()
+        // r11c (OC1): the user opened the keyboard on a new field — the only trigger of the
+        // automatic update check. At most once per interval, persisted (OpenCheck); not on a
+        // password field (OC8). Background thread inside Updater; a failure stays silent (A5).
+        if (!restarting || !askedSinceCreate) {
+            askedSinceCreate = true
+            runCatching { Updater.onKeyboardShown(this, store.autoUpdateCheck, policy.secret) }
+                .onFailure { Log.w(TAG, "update open-check not started", it) }
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {

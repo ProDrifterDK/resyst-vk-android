@@ -12,9 +12,9 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.content.FileProvider
-import com.resyst.vk.core.AutoCheckGate
 import com.resyst.vk.core.ConnectionLog
 import com.resyst.vk.core.Installed
+import com.resyst.vk.core.OpenCheck
 import com.resyst.vk.core.Release
 import com.resyst.vk.core.UpdateChecker
 import com.resyst.vk.core.UpdateDecision
@@ -31,9 +31,10 @@ import javax.net.ssl.HttpsURLConnection
 
 /**
  * The app's only network code. It runs from the "Buscar actualizaciones" / "Descargar e instalar"
- * buttons in Settings and, when "Buscar actualizaciones al iniciar" is on (r9), ONE [check] per
- * process start ([autoCheck], claimed through [AutoCheckGate]): the same single GET, nothing
- * scheduled, polled, or sent. Nothing else in the app opens a connection.
+ * buttons in Settings and, when "Buscar actualizaciones automáticamente" is on, from the keyboard
+ * opening (r11c, [onKeyboardShown]): at most one [check] per [OpenCheck.OK_HOURS] h after an answer,
+ * per [OpenCheck.FAILED_HOURS] h after a failure, persisted across processes. The same single GET;
+ * nothing scheduled, polled, or sent. Nothing else in the app opens a connection.
  *
  * check()    → one HTTPS GET of release.json → [UpdateChecker.decide]
  * download() → DownloadManager (system progress notification) into the app's external files dir
@@ -45,8 +46,8 @@ import javax.net.ssl.HttpsURLConnection
  *
  * State lives in this process-wide object so re-rendering the screen never loses it and the
  * keyboard + settings read the same result (A4); the pending download id + manifest are also in
- * prefs so a download survives the process dying. An automatic check that fails stays silent:
- * the state returns to Idle and only the log knows (A5).
+ * prefs so a download survives the process dying. An automatic check never shows "Buscando…" and
+ * a failed one changes nothing on screen: the previous state stays and only the log knows (A5, OC12).
  */
 object Updater {
     private const val TAG = "ResystVK"
@@ -80,7 +81,7 @@ object Updater {
      */
     val listeners = LinkedHashSet<() -> Unit>()
 
-    /** When the current [State.Checked] result arrived, and whether the startup check made it. */
+    /** When the current [State.Checked] result arrived, and whether a keyboard-open check made it. */
     var checkedAt = 0L
         private set
     var checkedAuto = false
@@ -97,35 +98,77 @@ object Updater {
         return Installed(code, pi.versionName ?: "?", Build.VERSION.SDK_INT)
     }
 
-    // ── check ───────────────────────────────────────────────────────────
+    // ── check (r11c: the keyboard-open check, OC1–OC13) ─────────────────
 
-    /** The user's "Buscar actualizaciones": errors are shown. */
-    fun check(context: Context) = check(context, auto = false)
+    private const val AT_KEY = "attemptAt"
+    private const val OK_KEY = "attemptOk"
 
-    private val autoGate = AutoCheckGate()
+    @Volatile private var appContext: Context? = null
 
-    /** The startup check already ran (or was claimed) in this process: never fetch again for it. */
-    val autoCheckedThisProcess: Boolean get() = autoGate.ran
-
-    /**
-     * r9: called when the keyboard service (or the settings screen) comes alive. Runs [check] at
-     * most once per process ([AutoCheckGate]); records `autoAt` in prefs. Returns whether it ran.
-     */
-    fun autoCheck(context: Context, enabled: Boolean): Boolean {
-        val app = context.applicationContext
-        val pending = prefs(app).getLong("id", -1) >= 0
-        if (!autoGate.claim(enabled, idle = state is State.Idle, pendingDownload = pending)) return false
-        prefs(app).edit().putLong("autoAt", System.currentTimeMillis()).apply()
-        Log.i(TAG, "update auto-check: start")
-        check(app, auto = true)
-        return true
+    /** The last attempt, in the updater prefs: the throttle survives the process (OC2). */
+    private val attempts = object : OpenCheck.Store {
+        override fun read(): OpenCheck.Attempt? {
+            val p = prefs(appContext ?: return null)
+            val at = p.getLong(AT_KEY, 0L)
+            return if (at == 0L) null else OpenCheck.Attempt(at, p.getBoolean(OK_KEY, false))
+        }
+        override fun write(a: OpenCheck.Attempt) {
+            // commit, not apply: a process killed right after the GET started still backs off (OC4)
+            prefs(appContext ?: return).edit().putLong(AT_KEY, a.at).putBoolean(OK_KEY, a.reached).commit()
+        }
     }
 
-    private fun check(context: Context, auto: Boolean) {
+    private val gate = OpenCheck.Gate(attempts)
+
+    /** A download id from this or an earlier process, or a flow of the user's on screen (OC7). */
+    private fun busy(app: Context): Boolean =
+        prefs(app).getLong("id", -1) >= 0 || state is State.Checking || state is State.Downloading ||
+            state is State.Verifying || state is State.Ready
+
+    /**
+     * r11c: the keyboard was shown for a new field (never a timer or any background trigger, OC9).
+     * Runs [check] when [OpenCheck.Gate.claim] says so: toggle on, not a secret field, updater
+     * free, no check in flight, and the interval since the last attempt has passed. Main thread.
+     */
+    fun onKeyboardShown(context: Context, enabled: Boolean, secret: Boolean): OpenCheck.Verdict {
+        val app = context.applicationContext
+        appContext = app
+        val now = System.currentTimeMillis()
+        val v = gate.claim(now, enabled, secret, busy(app))
+        if (v == OpenCheck.Verdict.RUN) {
+            Log.i(TAG, "update open-check: start")
+            fetch(app, auto = true, startedAt = now)
+        } else if (v != OpenCheck.Verdict.WAIT) {
+            Log.i(TAG, "update open-check: skip ${v.name.lowercase()}")
+        }
+        return v
+    }
+
+    /** A user tap while an automatic check runs: its answer is shown as the user's (errors too). */
+    @Volatile private var promoted = false
+
+    /**
+     * The user's "Buscar actualizaciones": shows "Buscando…" and the answer, errors too. Shares the
+     * gate's clock and in-flight guard with the keyboard-open check (OC5, OC10).
+     */
+    fun check(context: Context) {
         if (state is State.Checking || state is State.Downloading || state is State.Verifying) return
         val app = context.applicationContext
-        val installed = installed(app)
+        appContext = app
+        val now = System.currentTimeMillis()
+        if (!gate.begin(now)) { // an automatic check is in flight: one GET answers both (OC5)
+            promoted = true
+            state = State.Checking
+            return
+        }
         state = State.Checking
+        fetch(app, auto = false, startedAt = now)
+    }
+
+    /** The one GET. The gate was claimed by the caller; [OpenCheck.Gate.end] always follows. */
+    private fun fetch(app: Context, auto: Boolean, startedAt: Long) {
+        val installed = installed(app)
+        promoted = false
         Log.i(TAG, "update check: GET release.json (auto=$auto)") // E2E counts these: one GET per check
         io.execute {
             var decision: UpdateDecision? = null
@@ -138,18 +181,25 @@ object Updater {
                 Log.w(TAG, "update check failed: ${e.javaClass.simpleName}")
                 error = e
             }
+            // reached = the server gave a readable answer; offline / HTTP error / bad JSON back off 1 h
+            gate.end(startedAt, reached = decision != null && decision !is UpdateDecision.Error)
             logConnection(app, ConnectionLog.What.CHECK, auto, checkOutcome(decision, error))
-            val next: State = if (auto) {
-                // A5: a failed startup check never surfaces — back to Idle, log only
-                val kept = UpdateNotice.autoOutcome(decision)
-                Log.i(TAG, "update auto-check: " + (kept?.let { it::class.simpleName } ?: "silent (${error?.javaClass?.simpleName ?: "bad manifest"})"))
-                kept?.let { State.Checked(it) } ?: State.Idle
-            } else {
-                decision?.let { State.Checked(it) } ?: State.Failed(networkMessage(error ?: IOException()))
-            }
             main.post {
-                if (next is State.Checked) { checkedAt = System.currentTimeMillis(); checkedAuto = auto }
-                state = next
+                val asUser = !auto || promoted
+                promoted = false
+                val next: State? = if (!asUser) {
+                    // A5/OC12: a failed automatic check changes nothing on screen, log only
+                    val kept = UpdateNotice.autoOutcome(decision)
+                    Log.i(TAG, "update open-check: " + (kept?.let { it::class.simpleName } ?: "silent (${error?.javaClass?.simpleName ?: "bad manifest"})"))
+                    kept?.let { State.Checked(it) }
+                } else {
+                    decision?.let { State.Checked(it) } ?: State.Failed(networkMessage(error ?: IOException()))
+                }
+                // the user may have started a download meanwhile: never clobber it (OC7)
+                if (next != null && (state is State.Idle || state is State.Checked || state is State.Failed || state is State.Checking)) {
+                    if (next is State.Checked) { checkedAt = System.currentTimeMillis(); checkedAuto = !asUser }
+                    state = next
+                }
             }
         }
     }
@@ -169,7 +219,7 @@ object Updater {
      */
     @Synchronized
     private fun logConnection(app: Context, what: ConnectionLog.What, auto: Boolean, outcome: String) {
-        val why = if (auto) ConnectionLog.Why.STARTUP else ConnectionLog.Why.USER
+        val why = if (auto) ConnectionLog.Why.OPEN else ConnectionLog.Why.USER
         val next = connections(app).add(ConnectionLog.Entry(System.currentTimeMillis(), what, why, outcome))
         prefs(app).edit().putString(LOG_KEY, next.encode()).apply()
         Log.i(TAG, "connection log: ${what.id} (${why.id}) → $outcome")

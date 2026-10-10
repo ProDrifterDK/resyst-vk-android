@@ -147,8 +147,10 @@ class Round10PrivacyTest {
 
     @Test fun updaterLogsEveryNetworkCallAndIsStillTheOnlyClient() { // V5 + V7 (source guard)
         val src = File("src/main/kotlin/com/resyst/vk/settings/Updater.kt").readText()
-        val check = src.substringAfter("private fun check(context: Context, auto: Boolean)").substringBefore("\n    // ──")
-        assertTrue("check() logs its GET", check.contains("logConnection("))
+        // r11c: the one GET lives in fetch(), shared by the user's check and the keyboard-open check
+        val check = src.substringAfter("private fun fetch(app: Context, auto: Boolean, startedAt: Long)").substringBefore("\n    // ──")
+        assertTrue("fetch() requests the manifest", check.contains("fetchManifest()"))
+        assertTrue("fetch() logs its GET", check.contains("logConnection("))
         val dl = src.substringAfter("fun download(context: Context, release: Release)").substringBefore("\n    fun cancel(")
         assertTrue("download() logs the APK fetch", dl.contains("logConnection("))
         val root = File("src/main/kotlin")

@@ -455,7 +455,7 @@ class SettingsActivity : Activity() {
                 into.addView(label(ctl.label, 14f, t.textMod, 550), lp(top = 4f))
                 updateSection()
             }
-            Ctl.UPDATE_AUTO -> toggle(ctl.label, "Una consulta cuando el teclado arranca · si hay versión nueva, aparece aquí y en el teclado", store.autoUpdateCheck) { v ->
+            Ctl.UPDATE_AUTO -> toggle(ctl.label, UpdateNotice.autoSubtitle(), store.autoUpdateCheck) { v ->
                 commitStore(store.copy(autoUpdateCheck = v))
             }
             Ctl.CONNECTIONS -> connectionsBook()
@@ -534,7 +534,7 @@ class SettingsActivity : Activity() {
         }.apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f, bottom = 4f))
     }
 
-    // ── updates (the app's only network use: these buttons + one check at keyboard start) ──
+    // ── updates (the app's only network use: these buttons + the keyboard-open check, r11c) ──
 
     private fun updateSection() {
         val inst = Updater.installed(this)
@@ -584,7 +584,7 @@ class SettingsActivity : Activity() {
         }
     }
 
-    /** "Comprobado al iniciar el teclado · hace 3 min" — where the shown state came from. */
+    /** "Comprobado al abrir el teclado · hace 3 min" — where the shown state came from. */
     private fun checkedWhen(): String {
         val mins = ((System.currentTimeMillis() - Updater.checkedAt) / 60_000).coerceAtLeast(0)
         val ago = when {
@@ -593,7 +593,7 @@ class SettingsActivity : Activity() {
             mins < 48 * 60 -> "hace ${mins / 60} h"
             else -> "hace ${mins / (24 * 60)} días"
         }
-        return (if (Updater.checkedAuto) "Comprobado al iniciar el teclado" else "Comprobado") + " · $ago"
+        return (if (Updater.checkedAuto) "Comprobado al abrir el teclado" else "Comprobado") + " · $ago"
     }
 
     /**

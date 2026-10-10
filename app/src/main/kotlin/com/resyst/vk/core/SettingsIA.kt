@@ -83,8 +83,8 @@ enum class Ctl(
 
     // about
     UPDATES(null, Scope.DEVICE, "Actualización"),
-    /** r9: "Buscar actualizaciones al iniciar" — one release.json check per process start. */
-    UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE, "Buscar actualizaciones al iniciar"),
+    /** r9/r11c: one release.json check when the keyboard opens, at most every [OpenCheck.OK_HOURS] h. */
+    UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE, "Buscar actualizaciones automáticamente"),
     /** r10 (F-5): every request the app ever made to the internet, counted and listed. */
     CONNECTIONS(null, Scope.DEVICE, "Libro de conexiones"),
     RESET_ALL(null, Scope.DEVICE, "Restablecer ajustes y temas", destructive = true),

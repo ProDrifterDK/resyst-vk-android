@@ -3,7 +3,7 @@ package com.resyst.vk.core
 /**
  * r10 (F-5, V5–V6): the "Libro de conexiones". Resyst VK has ONE network path (Updater.kt); every
  * request it makes is one [Entry] here — when, what (version check or APK download), why (the
- * user's tap or the startup check) and how it ended. Settings shows the count since install and
+ * user's tap or the keyboard opening) and how it ended. Settings shows the count since install and
  * the last [CAP] entries, so the user can SEE the promise instead of reading it.
  *
  * Pure and immutable; stored as a small JSON string in the updater's own prefs, on the device.
@@ -16,7 +16,15 @@ data class ConnectionLog(
     val firstAt: Long? = null,
 ) {
     enum class What(val id: String, val label: String) { CHECK("check", "Consulta de versión"), DOWNLOAD("download", "Descarga de actualización") }
-    enum class Why(val id: String, val label: String) { USER("user", "tú lo pediste"), STARTUP("startup", "al iniciar el teclado") }
+    /**
+     * [STARTUP] is what 0.6–0.7.0 stored for their once-per-process check; it stays so those
+     * entries still decode and render (an unknown id is dropped, OC15). New automatic checks are [OPEN].
+     */
+    enum class Why(val id: String, val label: String) {
+        USER("user", "tú lo pediste"),
+        STARTUP("startup", "al iniciar el teclado"),
+        OPEN("open", "al abrir el teclado"),
+    }
 
     data class Entry(val at: Long, val what: What, val why: Why, val outcome: String)
 

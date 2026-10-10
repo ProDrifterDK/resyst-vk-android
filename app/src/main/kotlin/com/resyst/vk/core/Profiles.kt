@@ -187,7 +187,7 @@ object ProfileCodec {
     const val HEIGHT_MIN = 0.8f
     const val HEIGHT_MAX = 1.3f
     const val VERSION = "2"
-    /** r9: "Buscar actualizaciones al iniciar" (device-wide). */
+    /** r9: "Buscar actualizaciones automáticamente" (device-wide; key kept from r9). */
     const val UPDATE_AUTO_KEY = "update.auto"
     const val MODE_KEY = "mode"
     const val ACTIVE_KEY = "active"

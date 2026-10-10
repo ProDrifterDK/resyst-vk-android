@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** Round 9 — startup update check + update notice (A*, N*, S* in docs/failure-modes.md). */
+/** Round 9 — automatic update check + update notice (A*, N*, S* in docs/failure-modes.md). */
 class Round9Test {
 
     private fun rel(version: String, code: Int? = null) = Release(
@@ -19,46 +19,7 @@ class Round9Test {
 
     private fun available(v: String) = UpdateDecision.Available(rel(v))
 
-    // ── once-per-process gate ───────────────────────────────────────────
-    @Test fun gateRunsOncePerProcess() { // A1
-        val g = AutoCheckGate()
-        assertFalse(g.ran)
-        assertTrue(g.claim(enabled = true, idle = true, pendingDownload = false))
-        assertTrue(g.ran)
-        // a second IME onCreate (rebind), settings opening, a config change: same process → no fetch
-        repeat(5) { assertFalse(g.claim(enabled = true, idle = true, pendingDownload = false)) }
-        // a new process = a new gate
-        assertTrue(AutoCheckGate().claim(enabled = true, idle = true, pendingDownload = false))
-    }
-
-    @Test fun gateHonorsTheToggle() { // A2
-        val g = AutoCheckGate()
-        assertFalse(g.claim(enabled = false, idle = true, pendingDownload = false))
-        assertFalse("a disabled toggle must not consume the attempt", g.ran)
-        // turned on later in the same process: the next entry point may check, once
-        assertTrue(g.claim(enabled = true, idle = true, pendingDownload = false))
-        assertFalse(g.claim(enabled = true, idle = true, pendingDownload = false))
-    }
-
-    @Test fun gateNeverClobbersAFlowInProgress() { // A3
-        val busy = AutoCheckGate()
-        assertFalse(busy.claim(enabled = true, idle = false, pendingDownload = false))
-        assertTrue("busy consumes the attempt: the user's flow is this process's truth", busy.ran)
-        assertFalse(busy.claim(enabled = true, idle = true, pendingDownload = false))
-        val pending = AutoCheckGate()
-        assertFalse(pending.claim(enabled = true, idle = true, pendingDownload = true))
-        assertFalse(pending.claim(enabled = true, idle = true, pendingDownload = false))
-    }
-
-    @Test fun gateIsThreadSafe() { // A1 under a race (service + settings on different threads)
-        val g = AutoCheckGate()
-        val wins = java.util.concurrent.atomic.AtomicInteger()
-        val threads = List(16) { Thread { if (g.claim(true, true, false)) wins.incrementAndGet() } }
-        threads.forEach { it.start() }
-        threads.forEach { it.join() }
-        assertEquals(1, wins.get())
-    }
-
+    // ── r9's once-per-process gate (A1–A3) is replaced by OpenCheck in r11c: Round11UpdateCheckTest ──
     @Test fun settingsNeverFetchesOnOpen() { // A4 (source guard: the screen reuses Updater.state)
         val src = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertFalse("settings must not start the startup check", src.contains("autoCheck("))
@@ -67,12 +28,11 @@ class Round9Test {
         val btn = src.substringAfter("private fun checkButton(").substringBefore("\n    }\n")
         assertEquals(all, Regex("""Updater\.check\(""").findAll(btn).count())
         assertTrue(all >= 1)
-        // and the keyboard service only claims through the gate, from onCreate
+        assertFalse("settings must not start the automatic check", src.contains("onKeyboardShown("))
+        // and the keyboard service only asks through the gate (r11c: on keyboard show, OC1)
         val ime = File("src/main/kotlin/com/resyst/vk/ime/ResystImeService.kt").readText()
         assertFalse(ime.contains("Updater.check("))
-        val onCreate = ime.substringAfter("override fun onCreate()").substringBefore("override fun onDestroy()")
-        assertTrue(onCreate.contains("Updater.autoCheck("))
-        assertEquals(1, Regex("""Updater\.autoCheck\(""").findAll(ime).count())
+        assertEquals(1, Regex("""Updater\.onKeyboardShown\(""").findAll(ime).count())
     }
 
     @Test fun oneNetworkPath() { // A1/A5 + r5 promise: no second HTTP client anywhere
@@ -181,7 +141,7 @@ class Round9Test {
     @Test fun privacyCopyMatchesTheToggle() { // S2
         val on = UpdateNotice.promise(true)
         assertFalse(on.contains("por sí solo"))
-        assertTrue(on.contains("al iniciar") && on.contains("una vez"))
+        assertTrue(on.contains("al abrir el teclado") && on.contains("una vez")) // r11c (OC14)
         assertTrue(on.contains("solo cuando tú se lo pides"))
         val off = UpdateNotice.promise(false)
         assertTrue(off.contains("No se conecta a internet por sí solo"))
