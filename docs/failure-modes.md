@@ -526,3 +526,69 @@ other control moves to a panel opened by ⚙, drawn with one vector icon family.
 - QE5 A button is under 48 dp or not a TalkBack node with its name + state.
 - QE6 The ⌫ swipe fires on a tap or a tiny wobble (under 24 dp), on a mostly vertical drag, or
   rightwards; or the char repeat keeps deleting after the swipe took over.
+
+## Round 11 — learned words that come back (`PersonalModel` v2, `Bar`, `FieldPolicy`)
+
+Field report (Pixel 6): "aunque tenga palabras aprendidas, no me recomienda las palabras aprendidas".
+
+### Kept words (`PersonalModel.keep`, words.json v2)
+- K1 A word whose space-correction the user reverted (⌫ right after the space, or the ↶ chip) is
+  corrected again by a later space, or is not offered once its prefix is typed.
+- K2 The ↶ chip and the ⌫ revert disagree: the chip leaves the corrected word learned (M10 again)
+  or never learns the word the user kept.
+- K3 The kept mark is lost: by save → load, by the ⌫ that undoes the next learn (an unlearn down
+  to 0 must not drop a kept word), by vocabulary eviction (kept words go last) or count halving.
+- K4 Migration: a v1 file loses entries, counts, stamps or a language; a v2 file with junk (an
+  unknown flag value, count 0 without the kept flag) crashes or keeps the junk; malformed or
+  foreign JSON is still an empty model (M9).
+- K5 "Olvidar" / "Borrar lo aprendido" leave the kept mark behind (the forgotten word must be
+  correctable again), or "Lo que sé de ti" hides a kept word or lists it without saying so.
+- K6 Keeping escapes the privacy gate: a revert in a secret, incognito or opted-out field marks a
+  word.
+
+### Completion noise gate (`PersonalModel.complete`, `Bar.completions`)
+- N1 A word typed once is not offered for its prefix (H1: the old COMPLETE_MIN = 2).
+- N2 A word typed once (most likely a typo that space didn't fix) takes slot 1 over a lexicon
+  candidate for the same prefix, or pushes the confident fix out of slot 1 (A12).
+- N3 Strong personal words (used ≥ 2 times, kept, or a learned continuation of the previous word)
+  lose their place before the static lexicon.
+- N4 Offers (↶, ¿¡) or a confident fix crowd every personal completion out of the 3 slots.
+
+### Both vocabularies (bilingual on)
+- BL8 With "Sugerencias en dos idiomas" on, a word learned while the other language was detected
+  is not offered or not protected from space; with it off, the other table leaks in; a word known
+  in both tables appears twice; next-word predictions (bigrams) mix languages.
+
+### Prose fields that opt out of suggestions (deliberate change to r8, F8-2)
+- X6 A prose field with TYPE_TEXT_FLAG_NO_SUGGESTIONS (Instagram DM) learns (writes) anything, or
+  does not offer the words already learned. Handles, opted-out search boxes, password, PIN,
+  email, URL, number, phone and incognito fields offer or learn personal words. The "sin memoria"
+  mark there must stay (nothing is learned in that field).
+
+## Round 11 — the full emoji catalog (`EmojiCatalog`, `EmojiTones`, scripts/gen_emoji.py)
+
+Field report: "no están todos los emojis en el menú de emojis" (946 curated of 1923 RGI bases).
+
+### Catalog (`EmojiCatalog`, assets/emoji/emoji.txt)
+- EC1 The asset does not match the pinned emoji-test.txt: a fully-qualified emoji missing, a
+  Component (bare skin tone, hair) shown as an emoji, a minimally-qualified / unqualified duplicate,
+  a wrong group, or not in Unicode (CLDR) order.
+- EC2 A skin-tone variant shows as its own cell in the grid; a base that has tones offers none on
+  long-press; a variant is offered under the wrong base; multi-person mixed tones break the parse.
+- EC3 The generator is not reproducible offline (network, unpinned input) or the asset drifts from
+  it (the JVM test regenerates the counts from the pinned file).
+- EC4 A malformed asset line crashes the keyboard instead of being skipped.
+- EC5 Tofu boxes (the hasGlyph filter is lost) or jank: opening the panel or switching a tab must
+  measure that tab once (lazy, cached), not all ~1900 emoji on every frame / scroll.
+- EC6 Recents: an existing recents file stops loading, a toned pick is stored as its base, or a
+  long sequence (ZWJ + tones, subdivision flags) is rejected by `EmojiRecents.valid`.
+
+### Skin-tone defaults (`EmojiTones`, files/personal/emoji_tones.txt)
+- ET1 A chosen tone is not shown as that emoji's default next time, or leaks to other emoji;
+  choosing the plain (yellow) form does not clear the default.
+- ET2 The default is written from an incognito or secret field, survives "Borrar lo aprendido",
+  or leaves the device (backup / transfer).
+- ET3 Junk in the tones file (a variant of another base, garbage) crashes or shows a wrong emoji:
+  dropped on read.
+- ET4 A long-press also commits the base, a short tap opens the tones, or TalkBack cannot reach the
+  tones (long-click action + one node per tone).
