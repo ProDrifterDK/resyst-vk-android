@@ -793,3 +793,81 @@ user opening the keyboard can start it; it sends nothing typed.
 - OC15 The Libro de conexiones loses history: entries stored by 0.7.0 with reason `startup` must
   still decode and render ("al iniciar el teclado") next to the new `open` entries ("al abrir el
   teclado"); the decoder drops unknown reasons, so removing `startup` would silently erase them.
+
+## Round 12 — the minor details (0.8.1): provisional space, off-thread glyphs, settings asset, update origin
+
+Leftovers of the r11 / r11b / r11c reviews (r11a m2 + m5, r11a-fix recheck minor 1, r11c minors 1 + 2).
+Written before the code; each one names what a test or a device row must catch.
+
+### The space a suggestion pick adds is provisional (`KeyboardEngine`, Gboard-style)
+Found on device since r4 (e2e_r4 "whole sentence built from three picks", failing since 8c9ca89):
+pick "Hola" then `,` gave `"Hola , "`.
+- PS1 Closing punctuation after a pick keeps the pick's space in front of it (`"Hola ,"`). The
+  closing set is exactly `, . ; : ! ? ) ] } » ” …`: the pick's space is removed, the mark committed
+  and a provisional space follows it (`"Hola "` + `,` → `"Hola, "`), in one batch edit. The same
+  holds for a long-press variant that is in the set (`.` → `…`, `,`, `;`, `:`, `!`, `?`).
+- PS2 A space right after a pick or a swap adds a second space (`"Hola, "` + space → `"Hola,  "`).
+  That space press commits nothing and ends the provisional state (a further space is a normal one).
+- PS3 Double-space period arms off a provisional space: pick + space + space within 1.5 s, or a
+  swap + space + space, turns into `". "`. Neither the pick, the swap nor the absorbed space may
+  count as the first space of a double-space.
+- PS4 The provisional state outlives what it describes: a letter, digit, an opening mark
+  (`¿ ¡ ( « “ "`), `@ / - '`, an emoji, enter, a backspace, a cursor move (space-drag, a tap in the
+  app, a selection), a paste, the edit panel, a panel opening, a field change or the text before
+  the cursor no longer ending where the pick left it — after any of those a closing mark is
+  committed as typed, with no deletion. Shift and the ?123 layer keys do not end it (pick → ?123 →
+  `?` must give `"Hola? "`).
+- PS5 Backspace right after a swap "undoes" the swap (restores `"Hola "`) instead of deleting one
+  character: there is no invented undo; ⌫ deletes the provisional space like any other character.
+- PS6 A provisional space exists in a URL / email / number / phone / password field. Picks don't
+  happen there today; the engine must refuse to arm it outside `FieldKind.TEXT` anyway.
+- PS7 Learning double counts or learns a wrong token: the swap leaves the same finished word
+  (`"Hola "` → `"Hola, "`), so `Learner` must learn nothing from it (the pick already learned
+  "Hola" once); the absorbed space learns nothing; the next word's context is right (`,` keeps the
+  link to "hola", `.` / `?` / `!` start a sentence).
+
+### Emoji glyph measuring off the UI thread (`EmojiPanel`)
+r11a m2: `cellsOf` ran `Paint.hasGlyph` over a whole tab on the UI thread on its first show
+(Pixel 6: Banderas 39–54 ms, Personas ~16 ms; several frames on a low-end phone).
+- EG1 A catalog tab is measured on the UI thread (the first switch to Banderas blocks a frame
+  budget). All catalog tabs are measured on one background thread with its own `Paint`, never the
+  drawing one; the log line `emoji: tab … ms=… thread=…` names a thread that is not `main`.
+- EG2 The warm-up starts late (on the tab switch) or in the wrong order: it starts as soon as the
+  catalog is set, the current / first tab first, then the rest in order.
+- EG3 A tab reached before its cells are ready shows stale cells, crashes or stays empty for good:
+  it shows an empty grid (no "Sin emojis disponibles" claim while measuring) and is laid out and
+  redrawn when its cells arrive (only if it is still the tab on screen).
+- EG4 Stale results land: a result measured for a catalog instance that is no longer the panel's
+  is dropped, and queued work for the old catalog is skipped.
+- EG5 OC17 regresses: the EMPTY catalog (⚙ before the emoji key in a fresh process) must lay out an
+  empty grid, start no measuring and cache nothing.
+- EG6 The per-panel cache is lost or re-measured: each tab is measured once per catalog instance
+  (the r11 EC5 semantics), re-opening the panel or switching tabs never measures again.
+- EG7 A chosen skin tone in a catalog tab triggers a synchronous `hasGlyph` on the UI thread: it
+  is shown once known drawable (already known from the tones popup, or measured on the same
+  background thread), the base meanwhile. Recents keep their synchronous check (few emoji).
+
+### Settings parses the emoji asset on the main thread (`SettingsActivity`, `EmojiAsset`)
+r11a-fix recheck: the privacy wipe row and "Lo que sé de ti" called `EmojiAsset.catalog(this)`
+(49 KB `assets/emoji/emoji.txt`) on the main thread on first render.
+- SA1 The catalog is parsed on the main thread by settings: it is loaded on a background thread
+  and the affected rows re-render when it arrives (the parse logs its thread).
+- SA2 The tones count lies while loading: with a non-empty `emoji_tones.txt` and no catalog yet
+  the wipe row says "Nada aprendido todavía", is disabled, or omits the tones as if there were
+  none, or "Lo que sé de ti" says "0" — while loading it shows a neutral "…" and the wipe row stays
+  enabled (the wipe deletes the file whatever its count).
+- SA3 A re-render after the activity is gone (finishing / destroyed) crashes or leaks; a
+  re-render on another page is needed only when the visible page shows tones.
+
+### Update origin across a restore, and the orphan `autoAt` (`Updater`)
+r11c minors: `restore()` hardcoded `checkedAuto = true`.
+- UR1 An update found by a MANUAL tap ("tú lo pediste" in the Libro) renders after a process
+  restart as "Comprobado al abrir el teclado". The origin is stored next to `availManifest`
+  (`availAuto`) when the answer lands, and restored with it; a manual check that an automatic one
+  in flight answered (promoted) is manual.
+- UR2 A manifest stored by 0.7.1 / 0.8.0 (no origin flag) claims an origin it cannot know: both
+  the automatic and the manual path wrote it, so it restores with the neutral "Comprobado · …",
+  never "al abrir el teclado".
+- UR3 The orphan `autoAt` (written by ≤ 0.7.0, never read since r11c) stays forever, or the
+  cleanup removes any other updater pref (attempt clock, pending download id/manifest, dismissed
+  version, the stored available manifest).
