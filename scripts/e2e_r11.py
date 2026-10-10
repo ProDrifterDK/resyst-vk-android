@@ -269,7 +269,44 @@ def know_and_forget():
     check('L7 a forgotten kept word is corrected again', field() == 'Ayer bastón ', repr(field()))
 
 
+def personal_files():
+    return sorted(run_as('ls files/personal 2>/dev/null').split())
+
+
+def push_personal(name, text):
+    local = os.path.join(OUT, name)
+    open(local, 'w', encoding='utf-8').write(text)
+    adb('push', local, f'/data/local/tmp/r11-{name}')
+    run_as(f'cp /data/local/tmp/r11-{name} files/personal/{name}')
+    sh(f'rm -f /data/local/tmp/r11-{name}', check=False)
+
+
+def seed_emoji_only():
+    """F1/F4: files/personal holds emoji data and nothing else (no learned words, no emails), so
+    the wipe row can only be enabled by the emoji recents + tone defaults, whatever ran before.
+    The tones file also carries lines the keyboard drops on read (F3 / m1): a tone of another
+    base (👎 → 👍🏽) and garbage; neither may be listed in "Lo que sé de ti"."""
+    sh(f'am force-stop {PKG}')  # PersonalStore + the keyboard's emoji memory start from the files
+    run_as('rm -rf files/personal; mkdir -p files/personal')
+    push_personal('emoji_recents.txt', '👍🏽\u001f🥹')
+    push_personal('emoji_tones.txt', '👍\t👍🏽\n👎\t👍🏽\nbasura\n')
+    sh(f'ime enable {IME}')
+    sh(f'ime set {IME}')
+    time.sleep(0.8)
+
+
 def wipe_learned():
+    seed_emoji_only()
+    files = personal_files()
+    check('E4 precondition: files/personal holds only emoji data (no words.json / values.json)',
+          files == ['emoji_recents.txt', 'emoji_tones.txt'], files)
+    # the keyboard loads the seeded default into memory before the wipe (F2: it must not survive)
+    emoji_open()
+    select_tab('Personas')
+    find_in_tab(['👍🏽'])
+    k = km()
+    check('E4 precondition: the keyboard shows the seeded default (👍 → 👍🏽)', '👍🏽' in k and '👍' not in k,
+          [d for d in k if d.startswith('👍')])
     t = settings_page('datos')
     for _ in range(6):
         if node_where(t, lambda d, _: d.startswith('Olvidar el tono elegido para')) is not None:
@@ -278,29 +315,46 @@ def wipe_learned():
         time.sleep(0.6)
         t = dump()
     shot('r11-E4-know-tones.png')
-    check('E4 "Lo que sé de ti" lists the chosen tone (👍 → 👍🏽)',
-          node_where(t, lambda d, _: d == 'Olvidar el tono elegido para 👍') is not None,
-          [n.get('content-desc') for n in t.iter('node') if 'tono' in (n.get('content-desc') or '')])
+    listed = [n.get('content-desc') for n in t.iter('node') if (n.get('content-desc') or '').startswith('Olvidar el tono elegido para')]
+    check('E4 "Lo que sé de ti" lists the chosen tone (👍 → 👍🏽)', 'Olvidar el tono elegido para 👍' in listed, listed)
+    check('E4 "Lo que sé de ti" lists only the tones the keyboard accepts (no 👎 → 👍🏽, no junk)',
+          listed == ['Olvidar el tono elegido para 👍'], listed)
     sh('input keyevent KEYCODE_BACK')
     time.sleep(0.6)
     t = settings_page('privacidad')
     row = node_where(t, lambda d, _: d.startswith('Borrar lo aprendido'))
+    shot('r11-E4-wipe-row.png')
     check('E4 "Borrar lo aprendido" row present', row is not None, '')
     if row is None:
         return
+    desc = row.get('content-desc') or ''
+    check('E4 with only emoji data kept, the wipe row is enabled (F1)',
+          row.get('enabled') == 'true' and not desc.endswith('no disponible'), {'enabled': row.get('enabled'), 'desc': desc})
+    check('E4 the wipe row says what is kept: 2 emojis recientes · 1 tono (F1)',
+          '2 emojis recientes' in desc and '1 tono' in desc and 'Nada aprendido' not in desc and 'nada sale del teléfono' in desc, desc)
     tap_node(row, 1.0)
     btn = node_where(dump(), lambda _, tt: tt.lower() == 'borrar')
+    check('E4 the wipe asks for confirmation', btn is not None)
     if btn is not None:
         tap_node(btn, 1.5)
-    files = run_as('ls files/personal 2>/dev/null').split()
+    files = personal_files()
     check('E4 the wipe deletes the tone defaults and recents files', 'emoji_tones.txt' not in files and 'emoji_recents.txt' not in files, files)
+    row = node_where(dump(), lambda d, _: d.startswith('Borrar lo aprendido'))
+    desc = (row.get('content-desc') or '') if row is not None else ''
+    shot('r11-E4-wiped.png')
+    check('E4 after the wipe the row reads "Nada aprendido todavía" and is off (F2)',
+          row is not None and 'Nada aprendido todavía' in desc and row.get('enabled') == 'false', desc)
     sh('input keyevent KEYCODE_BACK')
     time.sleep(0.6)
-    emoji_open()
+    emoji_open()  # same IME process that held 👍🏽 in memory
     select_tab('Personas')
     find_in_tab(['👍'])
     k = km()
     check('E4 after the wipe 👍 opens plain', '👍' in k and '👍🏽' not in k, [d for d in k if d.startswith('👍')])
+    select_tab('Recientes')
+    k = km()
+    check('E4 after the wipe the recents tab is empty (no 👍🏽, no 🥹)', '👍🏽' not in k and '🥹' not in k,
+          [d for d in k if len(d) <= 12][:12])
 
 
 # ── emoji ──────────────────────────────────────────────────────────────
@@ -334,22 +388,26 @@ def grid_box():
     return ty, by
 
 
-def scroll_grid(dy_frac=0.6):
+def scroll_grid(dy_frac=0.6, ms=600):
     g = grid_box()
     if g is None:
         return
     top, bottom = g
     h = bottom - top
     x = 540
-    y1 = int(bottom - h * 0.15)
+    y1 = int(bottom - h * 0.1)
     y2 = int(y1 - h * dy_frac)
-    sh(f'input swipe {x} {y1} {x} {y2} 600')
+    sh(f'input swipe {x} {y1} {x} {y2} {ms}')
     time.sleep(0.4)
 
 
-def find_in_tab(targets, max_swipes=60):
+def find_in_tab(targets, max_swipes=60, retries=2):
+    """Scrolls the current tab until every target was seen. An unchanged dump is not the bottom by
+    itself (a swipe can go unregistered, m3): it is retried with longer, slower drags first, and
+    only [retries] unchanged dumps in a row after those end the search."""
     found = {}
     seen_last = None
+    stuck = 0
     for i in range(max_swipes):
         d = set(km())
         for t in targets:
@@ -358,8 +416,13 @@ def find_in_tab(targets, max_swipes=60):
         if all(t in found for t in targets):
             break
         sig = tuple(sorted(d))
-        if sig == seen_last:  # bottom reached
-            break
+        if sig == seen_last:
+            stuck += 1
+            if stuck > retries:  # the long drags did not move the grid either: bottom reached
+                break
+            scroll_grid(0.75, 1200)
+            continue
+        stuck = 0
         seen_last = sig
         scroll_grid()
     return found
@@ -478,7 +541,7 @@ def emoji():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--serial', required=True)
-    ap.add_argument('--only', choices=['learn', 'emoji'])
+    ap.add_argument('--only', choices=['learn', 'emoji', 'wipe'], help='wipe = E4 alone (seeds its own emoji-only data)')
     ap.add_argument('--repro', action='store_true', help='write build/e2e-r11/repro.json (base-build reproduction)')
     a = ap.parse_args()
     e2e.ADB.extend(['-s', a.serial])
@@ -495,6 +558,7 @@ def main():
             know_and_forget()
         if a.only in (None, 'emoji'):
             emoji()
+        if a.only in (None, 'emoji', 'wipe'):
             wipe_learned()
     except Exception as ex:  # a crash is a failed row, never a silent pass
         check('script ran to the end', False, repr(ex))
