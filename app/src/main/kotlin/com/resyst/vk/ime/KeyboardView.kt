@@ -156,7 +156,10 @@ class KeyboardView(context: Context) : View(context) {
         private set
 
     /** The emoji panel (r8), same overlay pattern as the clipboard. */
-    val emojiPanel = EmojiPanel(resources.displayMetrics.density)
+    val emojiPanel = EmojiPanel(resources.displayMetrics.density).apply {
+        // r12 (EG3): a tab measured off the UI thread arrived while it is on screen
+        onCellsReady = { if (emojiOpen) { invalidate(); a11y.invalidateRoot() } }
+    }
     var emojiOpen = false
         private set
 

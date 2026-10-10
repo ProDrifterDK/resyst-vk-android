@@ -4,11 +4,15 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.resyst.vk.core.EmojiCatalog
 import com.resyst.vk.core.EmojiTones
 import com.resyst.vk.core.Palette
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -25,6 +29,10 @@ import kotlin.math.min
  * chosen tone ([tones]); a long-press opens its tones ([showTones]) — tap one, or slide onto it
  * and lift.
  *
+ * r12 (EG1–EG7): the measuring runs on one background thread with its own Paint, every tab of the
+ * catalog as soon as it is set (the tab on screen first); the UI thread only receives the lists. A
+ * tab reached before its cells arrive shows an empty grid and is redrawn by [onCellsReady].
+ *
  * r11b: when the GIF search may run in this field ([gif] set: a KLIPY key is built in and the field
  * is neither secret nor incognito), a last "GIF" tab hands its grid area to [GifPanel] — a
  * dedicated tab, never mixed with the emoji (KLIPY rule 5).
@@ -38,7 +46,13 @@ class EmojiPanel(private val dp: Float) {
     val bounds = RectF()
     val hits = ArrayList<Hit>()
     var catalog: EmojiCatalog = EmojiCatalog.EMPTY
-        set(v) { if (v !== field) { field = v; cache.clear() } }
+        set(v) { if (v !== field) { field = v; live = v; cache.clear(); warm(v) } }
+    /** [catalog] as the measuring thread reads it: a job for another instance stops (EG4). */
+    @Volatile private var live: EmojiCatalog = EmojiCatalog.EMPTY
+    /** The catalog tab the user is on: the measuring thread takes it next when it is not done (EG2). */
+    @Volatile private var wanted = 1
+    /** r12: cells of the tab on screen arrived (or a tone's glyph was measured): redraw if open. */
+    var onCellsReady: (() -> Unit)? = null
     var tones: EmojiTones = EmojiTones()
     /** 0 = recents, 1.. = [EmojiCatalog.groups]. */
     var tab = 1
@@ -55,9 +69,14 @@ class EmojiPanel(private val dp: Float) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    /** UI-thread glyph answers (recents, the tones popup, tones measured off-thread). Never the drawing paint. */
     private val glyphOk = HashMap<String, Boolean>()
-    /** Drawable cells per catalog tab, measured once (EC5). */
+    private val glyphPaint = Paint()
+    /** Tone variants being measured on the background thread (EG7). */
+    private val asking = HashSet<String>()
+    /** Drawable cells per catalog tab, measured once per catalog instance (EC5), filled on the UI thread. */
     private val cache = HashMap<Int, List<EmojiCatalog.Cell>>()
+    private val main = Handler(Looper.getMainLooper())
 
     private val tabH get() = 44 * dp
     private val barH get() = 46 * dp
@@ -66,7 +85,8 @@ class EmojiPanel(private val dp: Float) {
     private val cols get() = max(6, (bounds.width() / (46 * dp)).toInt())
     private val cell get() = bounds.width() / cols
 
-    private fun drawable(e: String) = glyphOk.getOrPut(e) { text.hasGlyph(e) }
+    /** Synchronous check: recents and the tones popup only (a handful of emoji), never a catalog tab (EG1). */
+    private fun drawable(e: String) = glyphOk.getOrPut(e) { glyphPaint.hasGlyph(e) }
 
     /** r11b: the GIF tab's panel, null = no GIF tab in this field. */
     var gif: GifPanel? = null
@@ -76,32 +96,86 @@ class EmojiPanel(private val dp: Float) {
 
     private fun tabCount() = catalog.groups.size + 1 + if (gif != null) 1 else 0
 
-    /** The drawable cells of catalog tab [t] (1-based), measured on first use and logged. */
-    private fun cellsOf(t: Int): List<EmojiCatalog.Cell> {
-        // r11c: the panels are laid out together (⚙ before the emoji key ever ran = EMPTY catalog);
-        // nothing to show yet, and nothing cached so the real catalog is measured once it is set
-        val g = catalog.groups.getOrNull(t - 1) ?: return emptyList()
-        return cellsOf(t, g)
+    /**
+     * The drawable cells of catalog tab [t] (1-based) once the measuring thread delivered them, else
+     * empty (EG3). r11c (OC17): the EMPTY catalog has no tab, starts nothing and caches nothing.
+     */
+    private fun cellsOf(t: Int): List<EmojiCatalog.Cell> = cache[t] ?: emptyList()
+
+    /** The catalog tab on screen has not arrived from the measuring thread yet. */
+    private val measuring get() = tab in 1..catalog.groups.size && !cache.containsKey(tab)
+
+    /**
+     * EG1/EG2/EG4: measures every tab of [c] on [WORKER] with its own Paint: the tab the user is on
+     * ([wanted]) whenever it is not done yet, else the next in order. Each list is posted to the UI
+     * thread and dropped there if the panel moved to another catalog; the job stops when it did.
+     */
+    private fun warm(c: EmojiCatalog) {
+        val n = c.groups.size
+        if (n == 0) return // EG5 (OC17): nothing to measure, nothing cached
+        wanted = if (tab in 1..n) tab else 1
+        WORKER.execute {
+            val paint = Paint() // the measuring thread's own: never the drawing paint (EG1)
+            val done = BooleanArray(n)
+            repeat(n) {
+                if (live !== c) return@execute // EG4: a newer catalog replaced this one
+                val w = wanted
+                val t = if (w in 1..n && !done[w - 1]) w else (1..n).first { !done[it - 1] }
+                done[t - 1] = true
+                val g = c.groups[t - 1]
+                val t0 = SystemClock.uptimeMillis()
+                val ok = g.cells.filter { paint.hasGlyph(it.base) }
+                Log.i(TAG, "emoji: tab ${g.id} shown=${ok.size}/${g.cells.size} ms=${SystemClock.uptimeMillis() - t0} thread=${Thread.currentThread().name}")
+                main.post { arrived(c, t, ok) }
+            }
+        }
     }
 
-    private fun cellsOf(t: Int, g: EmojiCatalog.Group): List<EmojiCatalog.Cell> = cache.getOrPut(t) {
-        val t0 = SystemClock.uptimeMillis()
-        val ok = g.cells.filter { drawable(it.base) }
-        Log.i(TAG, "emoji: tab ${g.id} shown=${ok.size}/${g.cells.size} ms=${SystemClock.uptimeMillis() - t0}")
-        ok
+    /** UI thread: a measured tab lands in the cache; the tab on screen is laid out and redrawn (EG3). */
+    private fun arrived(c: EmojiCatalog, t: Int, cells: List<EmojiCatalog.Cell>) {
+        if (c !== catalog) return // EG4: stale
+        cache[t] = cells
+        if (t == tab) { relayout(); onCellsReady?.invoke() }
+    }
+
+    /**
+     * EG7: the user's tone for a catalog cell, once known drawable; the plain emoji meanwhile (or
+     * when the font lacks the toned glyph). Unknown tones are measured on the background thread.
+     */
+    private fun toned(c: EmojiCatalog.Cell): String {
+        val s = tones.shown(c.base)
+        if (s == c.base) return s
+        return when (glyphOk[s]) {
+            true -> s
+            false -> c.base
+            null -> { measureLater(s); c.base }
+        }
+    }
+
+    private fun measureLater(e: String) {
+        if (!asking.add(e)) return
+        WORKER.execute {
+            val ok = Paint().hasGlyph(e)
+            main.post {
+                asking.remove(e)
+                glyphOk[e] = ok
+                if (ok && tab in 1..catalog.groups.size) { relayout(); onCellsReady?.invoke() }
+            }
+        }
     }
 
     /** What the grid of the current tab shows: (emoji to draw/commit, its catalog cell). */
     private fun items(): List<Pair<String, EmojiCatalog.Cell?>> =
         if (tab > catalog.groups.size) emptyList()
         else if (tab == 0) recents.filter(::drawable).map { it to catalog.cellOf(it) }
-        else cellsOf(tab).map { c -> tones.shown(c.base).takeIf(::drawable).let { (it ?: c.base) to c } }
+        else cellsOf(tab).map { c -> toned(c) to c }
 
     /** Opens on recents when there are any, else on the first category. */
     fun open(recents: List<String>) {
         this.recents = recents
         tonesOf = null
         tab = if (recents.any(::drawable)) 0 else 1
+        if (tab in 1..catalog.groups.size) wanted = tab
         scroll = 0f
         relayout()
     }
@@ -109,10 +183,14 @@ class EmojiPanel(private val dp: Float) {
     fun setRecents(r: List<String>) { recents = r; if (tab == 0) relayout() }
 
     fun selectTab(i: Int) {
+        val t0 = System.nanoTime()
         val t = i.coerceIn(0, tabCount() - 1)
         tonesOf = null
         if (t != tab) { tab = t; scroll = 0f }
+        if (t in 1..catalog.groups.size) wanted = t // EG2: the measuring thread takes it next
         relayout()
+        // r12 (EG1): what a tab switch costs the UI thread (the E2E reads it; no glyph is measured here)
+        Log.i(TAG, "emoji: switch tab=${catalog.groups.getOrNull(t - 1)?.id ?: t} ready=${!measuring} ui_us=${(System.nanoTime() - t0) / 1000} thread=${Thread.currentThread().name}")
     }
 
     fun setBounds(r: RectF) { bounds.set(r); scroll = scroll.coerceIn(0f, maxScroll()); relayout() }
@@ -307,7 +385,7 @@ class EmojiPanel(private val dp: Float) {
             drawBar(c, p, radius, typeface, pressed)
             return
         }
-        if (!any) {
+        if (!any && !measuring) { // EG3: an empty grid while the tab is measured, no "none" claim
             text.color = t.muted
             text.textSize = 13 * dp
             text.typeface = typeface(500)
@@ -392,5 +470,11 @@ class EmojiPanel(private val dp: Float) {
         c.drawText(s, cx, cy - (fm.ascent + fm.descent) / 2, text)
     }
 
-    private companion object { const val TAG = "ResystVK" }
+    private companion object {
+        const val TAG = "ResystVK"
+        /** EG1: the one thread that measures glyphs (all panels, all tabs, in order). */
+        val WORKER: ExecutorService = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "vk-emoji-glyphs").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 }
+        }
+    }
 }
