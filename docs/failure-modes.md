@@ -612,3 +612,60 @@ and could not wipe them.
   the file the same way (`EmojiTones.decode` against the catalog).
 - F4 The device check for F1 depends on test order: it passes only because an earlier section
   left learned words behind (the row was enabled by the words, not the emoji data).
+
+## Round 11c — the update check runs when the keyboard opens (`OpenCheckGate`), 0.7.1
+
+Found by Alan on device: a published update was never announced. r9 claimed the automatic check
+once per process (`AutoCheckGate`, from the IME's `onCreate`), and Android keeps the IME process
+alive for days, so after the first check the keyboard never asked again. Reproduced on the emulator
+(r11c report): 20 keyboard opens, same pid, one GET. r11c replaces it: the check is evaluated on
+every keyboard show and runs at most once per interval, persisted. Pull model unchanged: only the
+user opening the keyboard can start it; it sends nothing typed.
+
+### When the gate opens
+- OC1 Process lifetime: the gate is evaluated only at process start (the r9 bug), so a release
+  published while the IME process lives is never seen. It must be evaluated on every keyboard show
+  (`onStartInputView`, `restarting == false`, plus the first show after `onCreate`).
+- OC2 Throttle across processes: a process restart (kill, low-memory, app update, reboot) resets
+  the throttle and checks again before the interval is over. The last attempt (time + whether it
+  reached the server) lives in the updater prefs, not in memory.
+- OC3 Clock moved back: a stored last attempt in the future blocks every check until the clock
+  catches up (days, years). It counts as elapsed once and is overwritten by that attempt. Clock
+  moved forward: at most one extra check, never a burst.
+- OC4 Failure backoff: a failed attempt (offline, timeout, HTTP error, unreadable manifest) is
+  retried on every open (a phone without signal makes a request per keyboard open) or treated as
+  success (12 h without knowing). 12 h after an attempt that reached the server (any decision),
+  1 h after a failed one. A process killed mid-check counts as a failed attempt (the start is
+  written before the GET).
+- OC5 Burst: many opens while a check is in flight, or in the same second, start more than one GET.
+- OC6 Toggle off: an open makes a GET with "Buscar actualizaciones automáticamente" off, even with
+  the stored time long expired. Turning it on does not fetch from settings; the next open does if due.
+- OC7 Updater busy: a check the user started (Checking), Downloading, Verifying, Ready (a verified
+  APK waiting to install) or a pending download id from an earlier process gets clobbered by an
+  automatic check. Busy skips without consuming the interval; a later open checks once it is free.
+- OC8 Secret fields: opening the keyboard on a password / PIN field starts the GET (a request that
+  coincides with typing a password) or shows the chip there.
+- OC9 Background trigger: any timer, alarm, WorkManager / JobScheduler job, broadcast receiver or
+  service start runs the check. Only a keyboard show the user caused may.
+- OC10 Manual and automatic share one clock: a check the user started that reached the server is
+  followed by an automatic GET on the next open (redundant request). Every `Updater.check()`
+  records the attempt; there is still one network path.
+
+### What the later check shows
+- OC11 A newer release found later is not announced because this process already showed "up to
+  date": Checked(UpToDate) / Checked(Available) / Failed must count as free (not busy), and the new
+  decision must refresh the strip chip, the ⚙ dot, the quick-panel line and the settings card
+  through the existing listeners.
+- OC12 A failed later check erases what is known: the chip of an available update disappears (or
+  "Ya al día" turns into the idle button) because the network flickered. A failed automatic check
+  leaves the previous state as it was and only logs (A5 generalized).
+- OC13 Dismissed version: the periodic recheck re-announces a dismissed version every 12 h
+  (nagging). N1 / N2 unchanged: only a strictly newer version comes back.
+
+### Copy + log
+- OC14 The setting, the line under "Versión instalada", the settings card ("Comprobado …"), the
+  install-time notice or the site still say "al iniciar" / "una vez": the copy must say "al abrir
+  el teclado, como mucho una vez cada 12 horas" and that nothing typed is sent.
+- OC15 The Libro de conexiones loses history: entries stored by 0.7.0 with reason `startup` must
+  still decode and render ("al iniciar el teclado") next to the new `open` entries ("al abrir el
+  teclado"); the decoder drops unknown reasons, so removing `startup` would silently erase them.
