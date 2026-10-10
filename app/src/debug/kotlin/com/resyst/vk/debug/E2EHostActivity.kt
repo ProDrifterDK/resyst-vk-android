@@ -29,7 +29,8 @@ import java.io.File
 
 /**
  * Debug-only host for the E2E script: one focused EditText whose input type comes from
- * the "kind" extra (text, email, password, number, multiline, search, rich). Editor actions
+ * the "kind" extra (text, email, password, number, multiline, search, rich, social, handle,
+ * incognito). Editor actions
  * are logged under the tag "ResystE2E" so the script can assert them.
  *
  * Clipboard (r6): while this activity has focus, `adb shell am broadcast -a
@@ -78,7 +79,12 @@ class E2EHostActivity : Activity() {
                 else -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
                     InputType.TYPE_TEXT_FLAG_AUTO_CORRECT // explicit: without it the framework infers NO_SUGGESTIONS (0x4000) and the IME disables autocorrect
             }
-            imeOptions = if (kind == "search") EditorInfo.IME_ACTION_SEARCH else EditorInfo.IME_ACTION_DONE
+            imeOptions = when (kind) {
+                "search" -> EditorInfo.IME_ACTION_SEARCH
+                // r11: an incognito composer (browser private tab, IME_FLAG_NO_PERSONALIZED_LEARNING)
+                "incognito" -> EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+                else -> EditorInfo.IME_ACTION_DONE
+            }
             setOnEditorActionListener { _, actionId, _ ->
                 Log.i("ResystE2E", "editorAction=$actionId text=${text}")
                 true
