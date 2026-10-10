@@ -19,6 +19,7 @@ import com.resyst.vk.core.Release
 import com.resyst.vk.core.UpdateChecker
 import com.resyst.vk.core.UpdateDecision
 import com.resyst.vk.core.UpdateNotice
+import com.resyst.vk.core.UpdateOrigin
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -82,10 +83,10 @@ object Updater {
      */
     val listeners = LinkedHashSet<() -> Unit>()
 
-    /** When the current [State.Checked] result arrived, and whether a keyboard-open check made it. */
+    /** When the current [State.Checked] result arrived, and who asked for it (r12, UR1/UR2). */
     var checkedAt = 0L
         private set
-    var checkedAuto = false
+    var checkedBy = UpdateOrigin.Origin.UNKNOWN
         private set
 
     private val io = Executors.newSingleThreadExecutor()
@@ -134,27 +135,38 @@ object Updater {
     private fun restore(app: Context) {
         if (restored) return
         restored = true
-        if (state !is State.Idle) return
         val p = prefs(app)
+        // r12 (UR3): ≤ 0.7.0's `autoAt` is never read since r11c; drop it once, nothing else
+        val orphans = UpdateOrigin.cleanup(p.all.keys)
+        if (orphans.isNotEmpty()) {
+            p.edit().apply { orphans.forEach(::remove) }.apply()
+            Log.i(TAG, "update prefs: removed orphan $orphans")
+        }
+        if (state !is State.Idle) return
         val json = p.getString(AVAIL_KEY, null) ?: return
         val d = UpdateChecker.decide(json, installed(app))
         if (d is UpdateDecision.Available) {
             lastManifest = json
             checkedAt = p.getLong(AVAIL_AT_KEY, 0L)
-            checkedAuto = true
-            Log.i(TAG, "update notice restored: ${d.release.version} (no request)")
+            // r12 (UR1/UR2): the stored origin; a manifest stored by 0.7.1 / 0.8.0 has none (both paths wrote it)
+            checkedBy = UpdateOrigin.restored(p.all[UpdateOrigin.KEY])
+            Log.i(TAG, "update notice restored: ${d.release.version} by=${checkedBy.name.lowercase()} (no request)")
             state = State.Checked(d)
         } else {
-            p.edit().remove(AVAIL_KEY).remove(AVAIL_AT_KEY).apply()
+            p.edit().remove(AVAIL_KEY).remove(AVAIL_AT_KEY).remove(UpdateOrigin.KEY).apply()
         }
     }
 
-    /** Keep / forget the answer [restore] brings back. A failure keeps what was known (OC12). */
-    private fun remember(app: Context, decision: UpdateDecision?, json: String?) {
+    /**
+     * Keep / forget the answer [restore] brings back, with who asked for it ([auto] = the
+     * keyboard-open check and nobody promoted it, UR1). A failure keeps what was known (OC12).
+     */
+    private fun remember(app: Context, decision: UpdateDecision?, json: String?, auto: Boolean) {
         if (decision == null || decision is UpdateDecision.Error) return
         val e = prefs(app).edit()
-        if (decision is UpdateDecision.Available && json != null) e.putString(AVAIL_KEY, json).putLong(AVAIL_AT_KEY, System.currentTimeMillis())
-        else e.remove(AVAIL_KEY).remove(AVAIL_AT_KEY)
+        if (decision is UpdateDecision.Available && json != null) {
+            e.putString(AVAIL_KEY, json).putLong(AVAIL_AT_KEY, System.currentTimeMillis()).putBoolean(UpdateOrigin.KEY, auto)
+        } else e.remove(AVAIL_KEY).remove(AVAIL_AT_KEY).remove(UpdateOrigin.KEY)
         e.apply()
     }
 
@@ -224,10 +236,11 @@ object Updater {
             // reached = the server gave a readable answer; offline / HTTP error / bad JSON back off 1 h
             gate.end(startedAt, reached = decision != null && decision !is UpdateDecision.Error)
             logConnection(app, ConnectionLog.What.CHECK, auto, checkOutcome(decision, error))
-            remember(app, decision, json)
             main.post {
                 val asUser = !auto || promoted
                 promoted = false
+                // r12 (UR1): stored with its origin, known only here (a user tap may have promoted an automatic check)
+                remember(app, decision, json, auto = !asUser)
                 val next: State? = if (!asUser) {
                     // A5/OC12: a failed automatic check changes nothing on screen, log only
                     val kept = UpdateNotice.autoOutcome(decision)
@@ -238,7 +251,7 @@ object Updater {
                 }
                 // the user may have started a download meanwhile: never clobber it (OC7)
                 if (next != null && (state is State.Idle || state is State.Checked || state is State.Failed || state is State.Checking)) {
-                    if (next is State.Checked) { checkedAt = System.currentTimeMillis(); checkedAuto = !asUser }
+                    if (next is State.Checked) { checkedAt = System.currentTimeMillis(); checkedBy = UpdateOrigin.of(auto = !asUser) }
                     state = next
                 }
             }

@@ -227,7 +227,7 @@ class Round11UpdateCheckTest {
         assertTrue("a failure keeps what was known", remember.contains("if (decision == null || decision is UpdateDecision.Error) return"))
         val restore = src.substringAfter("private fun restore(").substringBefore("\n    }\n")
         assertFalse("restoring never touches the network", restore.contains("fetch") || restore.contains("check("))
-        assertTrue(src.substringAfter("private fun fetch(").substringBefore("\n    // ──").contains("remember(app, decision, json)"))
+        assertTrue(src.substringAfter("private fun fetch(").substringBefore("\n    // ──").contains("remember(app, decision, json, auto = !asUser)")) // r12 (UR1): with its origin
     }
 
     // ── OC14, OC15: copy and the log ──────────────────────────────────────
@@ -259,10 +259,5 @@ class Round11UpdateCheckTest {
         assertTrue("automatic checks log as OPEN", src.contains("if (auto) ConnectionLog.Why.OPEN"))
     }
 
-    /** 0.7.1 (8) shipped r11c; r11b (GIF search) lands on top as 0.8.0 (9): never reuse a published code. */
-    @Test fun versionIs080() {
-        val g = File("build.gradle.kts").readText()
-        assertTrue(g.contains("?.toInt() ?: 9"))
-        assertTrue(g.contains("?: \"0.8.0\""))
-    }
+    // r12: the version guard moved to Round12DetailsTest.versionIs081 (0.8.0 / 9 is published)
 }
