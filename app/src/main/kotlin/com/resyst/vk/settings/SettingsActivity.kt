@@ -601,7 +601,7 @@ class SettingsActivity : Activity() {
             mins < 48 * 60 -> "hace ${mins / 60} h"
             else -> "hace ${mins / (24 * 60)} días"
         }
-        return (if (Updater.checkedAuto) "Comprobado al abrir el teclado" else "Comprobado") + " · $ago"
+        return com.resyst.vk.core.UpdateOrigin.checkedLabel(Updater.checkedBy) + " · $ago"
     }
 
     /**
@@ -725,7 +725,7 @@ class SettingsActivity : Activity() {
             words = Lang.values().sumOf { w.vocabCount(it) },
             emails = v.values(FieldKind.EMAIL).size,
             emojiRecents = emojiRecents().items().size,
-            tones = emojiTones().size(),
+            tones = emojiTones()?.size(), // r12 (SA2): null = still loading the catalog, "…"
         )
         dangerRow(Ctl.FORGET_LEARNED.label, PersonalSummary.text(counts), enabled = !counts.empty, onClick = { confirmForget() })
     }
@@ -861,11 +861,33 @@ class SettingsActivity : Activity() {
      * catalog), so a stale or junk line is neither listed nor counted; forgetting one rewrites the
      * file with the remaining valid pairs only.
      */
-    private fun emojiTones(): EmojiTones =
-        runCatching { EmojiTones.decode(tonesFile.takeIf { it.exists() }?.readText(), EmojiAsset.catalog(this)) }.getOrDefault(EmojiTones())
+    private fun emojiTones(): EmojiTones? {
+        val raw = runCatching { tonesFile.takeIf { it.exists() }?.readText() }.getOrNull()
+        if (raw.isNullOrBlank()) return EmojiTones() // nothing kept: no catalog needed
+        // r12 (SA1): the 49 KB catalog is parsed off the main thread; until then the tones are unknown (SA2)
+        val catalog = EmojiAsset.cached() ?: run { loadCatalog(); return null }
+        return runCatching { EmojiTones.decode(raw, catalog) }.getOrDefault(EmojiTones())
+    }
+
+    private var catalogAsked = false
+
+    /** SA1/SA3: one background parse per activity; its answer re-renders the rows that show tones, if still alive. */
+    private fun loadCatalog() {
+        if (catalogAsked) return
+        catalogAsked = true
+        EmojiAsset.load(this) {
+            if (isFinishing || isDestroyed) return@load
+            val pg = page
+            if (pg == SettingsIA.pageOf(Ctl.FORGET_LEARNED)?.id || pg == SettingsIA.pageOf(Ctl.KNOW_EMOJI)?.id) rerender()
+        }
+    }
 
     private fun knowTones() {
         val tones = emojiTones()
+        if (tones == null) { // SA2: kept tones are being read; never "0" / nothing while loading
+            into.addView(label("Tonos de piel elegidos · ${PersonalSummary.LOADING}", 12f, t.muted, 600).apply { tag = "know-tones-loading" }, lp(top = 10f))
+            return
+        }
         val pairs = tones.entries()
         if (pairs.isEmpty()) return
         into.addView(label("Tonos de piel elegidos · ${pairs.size}", 12f, t.muted, 600), lp(top = 10f))

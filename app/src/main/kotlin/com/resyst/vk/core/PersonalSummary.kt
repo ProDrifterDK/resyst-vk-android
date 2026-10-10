@@ -8,9 +8,17 @@ package com.resyst.vk.core
 object PersonalSummary {
     const val LOCAL = "nada sale del teléfono"
 
-    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int) {
-        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones <= 0
+    /**
+     * r12 (SA2): [tones] = null while settings still loads the emoji catalog the tones are decoded
+     * against and the tones file has content: some may be kept, so the row is not empty and the
+     * count reads "…" (never 0).
+     */
+    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int?) {
+        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones != null && tones <= 0
     }
+
+    /** The tones count while loading (SA2). */
+    const val LOADING = "…"
 
     /** "12 palabras · 1 correo · 8 emojis recientes · 2 tonos · nada sale del teléfono" (zero parts left out). */
     fun text(c: Counts): String {
@@ -19,7 +27,7 @@ object PersonalSummary {
             part(c.words, "palabra", "palabras"),
             part(c.emails, "correo", "correos"),
             part(c.emojiRecents, "emoji reciente", "emojis recientes"),
-            part(c.tones, "tono", "tonos"),
+            if (c.tones == null) "$LOADING tonos" else part(c.tones, "tono", "tonos"),
         )
         return (parts + LOCAL).joinToString(" · ")
     }
