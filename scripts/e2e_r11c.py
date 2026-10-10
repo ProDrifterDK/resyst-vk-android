@@ -3,9 +3,10 @@
 
 Every `update check: GET release.json` log line is one real HTTPS GET of kv.resyst.cl/release.json
 (Updater logs it right before the fetch), so requests are counted from logcat and attributed to the
-IME process id. The live manifest advertises 0.7.0 / code 7:
-  --uptodate-apk  a 0.7.1 debug build (code 8)        → "up to date"
-  --old-apk       the same code stamped 0.6.0 / code 6 → "0.7.0 available" (the chip)
+IME process id. The version the live manifest advertises (LIVE, read once from release.json at
+the start; 0.7.0 when r11c was written, 0.7.1 since it shipped) decides the two builds:
+  --uptodate-apk  a debug build at/above LIVE          → "up to date"
+  --old-apk       the same code stamped below LIVE    → "LIVE available" (the chip)
 Both are this branch's code; only the version stamp differs. Nothing in the release logic is
 sped up: the stored last attempt is moved back inside the live process by the debug-only
 E2EUpdateClock receiver (a run-as edit of the prefs file is overwritten by the process's own
@@ -32,6 +33,7 @@ import os
 import re
 import sys
 import time
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 import e2e  # noqa: E402
@@ -46,6 +48,12 @@ rows = []
 all_gets = []  # every GET line seen during the run (logcat is cleared per read)
 log_seen = []
 SCREEN_H = 2400
+LIVE = '0.7.0'  # set in main() from the live manifest
+
+
+def book_row(x, why):
+    """A Libro row title: r11c's 'what · why', or since r11b 'what · host · why'."""
+    return x in (f'Consulta de versión · {why}', f'Consulta de versión · kv.resyst.cl · {why}')
 
 
 def check(section, name, ok, detail=''):
@@ -236,6 +244,11 @@ def main():
     ap.add_argument('--uptodate-apk', required=True, help='debug build at/above the live manifest')
     ap.add_argument('--opens', type=int, default=20)
     a = ap.parse_args()
+    global LIVE
+    # the site refuses urllib's default User-Agent (403)
+    req = urllib.request.Request('https://kv.resyst.cl/release.json', headers={'User-Agent': 'ResystVK-E2E'})
+    LIVE = json.load(urllib.request.urlopen(req, timeout=15))['version']
+    print(f'live manifest: {LIVE}', flush=True)
     e2e.ADB.extend(['-s', a.serial])
     os.makedirs(OUT, exist_ok=True)
     m = re.search(r'(\d+)x(\d+)', sh('wm size'))
@@ -315,7 +328,7 @@ def main():
     k, chip, x, gear = strip(tree)
     w.read()
     check('C', 'rewound 13 h → exactly 1 new GET, same pid', len(w.gets) == 1 and pid() == pid_b, f'pid={pid()} gets={w.gets}')
-    check('C', 'the later check announces: chip "Resyst VK 0.7.0 disponible"', chip == 'Resyst VK 0.7.0 disponible. Toca para actualizar', chip)
+    check('C', f'the later check announces: chip "Resyst VK {LIVE} disponible"', chip == f'Resyst VK {LIVE} disponible. Toca para actualizar', chip)
     shot('r11c-C-chip.png')
     for _ in range(4):
         open_kb('multiline')
@@ -329,7 +342,7 @@ def main():
     e2e.type_word('ho', k)
     time.sleep(0.6)
     k2, chip2, _, gear2 = strip(dump())
-    check('D', 'after typing: chip steps down to the amber ⚙ dot', chip2 is None and gear2 == 'Ajustes de Resyst VK. Actualización 0.7.0 disponible', f'{chip2} | {gear2}')
+    check('D', 'after typing: chip steps down to the amber ⚙ dot', chip2 is None and gear2 == f'Ajustes de Resyst VK. Actualización {LIVE} disponible', f'{chip2} | {gear2}')
     shot('r11c-D-dot.png')
     if gear2:
         pid_d = pid()
@@ -337,7 +350,7 @@ def main():
         time.sleep(0.9)
         t = dump()
         check('D', '⚙ opens the quick panel without killing the IME (OC17)', pid() == pid_d and find(t, lambda d, x: d == 'Volver al teclado') is not None, f'pid {pid_d}→{pid()}')
-        line = find(t, lambda d, x: d == 'Resyst VK 0.7.0 disponible · ver')
+        line = find(t, lambda d, x: d == f'Resyst VK {LIVE} disponible · ver')
         check('D', 'quick panel shows the update line', line is not None, [d for d in keys(t)][:8])
         shot('r11c-D-quick.png')
         back = find(t, lambda d, x: d == 'Volver al teclado')
@@ -371,8 +384,8 @@ def main():
     wait_line(w, 'update open-check: Available', 15)
     time.sleep(0.8)
     k6, chip6, _, gear6 = strip(dump())
-    check('E', 'a later check (1 GET) does not bring the dismissed 0.7.0 back', len(w.gets) == 1 and chip6 is None and gear6 == 'Ajustes de Resyst VK', f'gets={len(w.gets)} {chip6} | {gear6}')
-    check('E', 'dismissed version stored', 'name="dismissed">0.7.0<' in prefs())
+    check('E', f'a later check (1 GET) does not bring the dismissed {LIVE} back', len(w.gets) == 1 and chip6 is None and gear6 == 'Ajustes de Resyst VK', f'gets={len(w.gets)} {chip6} | {gear6}')
+    check('E', 'dismissed version stored', f'name="dismissed">{LIVE}<' in prefs())
 
     # ── F: toggle off → no GET even when long due; on again → next open checks ──
     open_about()
@@ -459,15 +472,15 @@ def main():
     time.sleep(1.5)
     w.read()
     check('I', 'new process inside 12 h → 0 GETs', len(w.gets) == 0, w.gets)
-    check('I', 'known update restored without a request', w.has('update notice restored: 0.7.0 (no request)'), w.lines[-3:])
+    check('I', 'known update restored without a request', w.has(f'update notice restored: {LIVE} (no request)'), w.lines[-3:])
     open_about()
     n, t = scroll_find(lambda d, x: x.startswith('Nueva versión disponible'))
-    check('I', 'settings still offers 0.7.0 after the restart (no GET)', n is not None and len(w.read().gets) == 0, n.get('text') if n is not None else None)
+    check('I', f'settings still offers {LIVE} after the restart (no GET)', n is not None and len(w.read().gets) == 0, n.get('text') if n is not None else None)
 
     # ── J: Libro de conexiones ──────────────────────────────────────────────────
-    n_new, t = scroll_find(lambda d, x: x == 'Consulta de versión · al abrir el teclado')
+    n_new, t = scroll_find(lambda d, x: book_row(x, 'al abrir el teclado'))
     shot('r11c-J-libro.png')
-    n_old, t2 = scroll_find(lambda d, x: x == 'Consulta de versión · al iniciar el teclado', swipes=30)
+    n_old, t2 = scroll_find(lambda d, x: book_row(x, 'al iniciar el teclado'), swipes=30)
     if n_old is not None:
         shot('r11c-J-libro-old.png')
     check('J', 'Libro lists "Consulta de versión · al abrir el teclado"', n_new is not None)
@@ -480,7 +493,7 @@ def main():
     passed = sum(r['ok'] for r in rows)
     result = {
         'device': sh('getprop ro.product.model').strip(), 'avd': avd, 'serial': a.serial,
-        'api': sh('getprop ro.build.version.sdk').strip(), 'manifest': 'https://kv.resyst.cl/release.json (live)',
+        'api': sh('getprop ro.build.version.sdk').strip(), 'manifest': f'https://kv.resyst.cl/release.json (live, {LIVE})',
         'old_apk': os.path.basename(a.old_apk), 'uptodate_apk': os.path.basename(a.uptodate_apk),
         'gets_total': len(all_gets), 'get_lines': all_gets, 'seconds': round(time.time() - started),
         'passed': passed, 'total': len(rows), 'rows': rows, 'update_log': log_seen,
