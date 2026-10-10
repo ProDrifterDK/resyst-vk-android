@@ -120,6 +120,43 @@ object Updater {
 
     private val gate = OpenCheck.Gate(attempts)
 
+    private const val AVAIL_KEY = "availManifest"
+    private const val AVAIL_AT_KEY = "availAt"
+    @Volatile private var restored = false
+
+    /**
+     * OC16: an announced update outlives the process. r9 re-checked on every process start; with
+     * the throttle a restart inside the interval would hide the chip for up to 12 h. The manifest
+     * of the last "available" answer is kept in prefs and re-decided against the installed version
+     * here, without network (updated meanwhile → no longer available → forgotten).
+     */
+    private fun restore(app: Context) {
+        if (restored) return
+        restored = true
+        if (state !is State.Idle) return
+        val p = prefs(app)
+        val json = p.getString(AVAIL_KEY, null) ?: return
+        val d = UpdateChecker.decide(json, installed(app))
+        if (d is UpdateDecision.Available) {
+            lastManifest = json
+            checkedAt = p.getLong(AVAIL_AT_KEY, 0L)
+            checkedAuto = true
+            Log.i(TAG, "update notice restored: ${d.release.version} (no request)")
+            state = State.Checked(d)
+        } else {
+            p.edit().remove(AVAIL_KEY).remove(AVAIL_AT_KEY).apply()
+        }
+    }
+
+    /** Keep / forget the answer [restore] brings back. A failure keeps what was known (OC12). */
+    private fun remember(app: Context, decision: UpdateDecision?, json: String?) {
+        if (decision == null || decision is UpdateDecision.Error) return
+        val e = prefs(app).edit()
+        if (decision is UpdateDecision.Available && json != null) e.putString(AVAIL_KEY, json).putLong(AVAIL_AT_KEY, System.currentTimeMillis())
+        else e.remove(AVAIL_KEY).remove(AVAIL_AT_KEY)
+        e.apply()
+    }
+
     /** A download id from this or an earlier process, or a flow of the user's on screen (OC7). */
     private fun busy(app: Context): Boolean =
         prefs(app).getLong("id", -1) >= 0 || state is State.Checking || state is State.Downloading ||
@@ -133,6 +170,7 @@ object Updater {
     fun onKeyboardShown(context: Context, enabled: Boolean, secret: Boolean): OpenCheck.Verdict {
         val app = context.applicationContext
         appContext = app
+        restore(app)
         val now = System.currentTimeMillis()
         val v = gate.claim(now, enabled, secret, busy(app))
         if (v == OpenCheck.Verdict.RUN) {
@@ -173,8 +211,9 @@ object Updater {
         io.execute {
             var decision: UpdateDecision? = null
             var error: Exception? = null
+            var json: String? = null
             try {
-                val json = fetchManifest()
+                json = fetchManifest()
                 lastManifest = json
                 decision = UpdateChecker.decide(json, installed)
             } catch (e: Exception) {
@@ -184,6 +223,7 @@ object Updater {
             // reached = the server gave a readable answer; offline / HTTP error / bad JSON back off 1 h
             gate.end(startedAt, reached = decision != null && decision !is UpdateDecision.Error)
             logConnection(app, ConnectionLog.What.CHECK, auto, checkOutcome(decision, error))
+            remember(app, decision, json)
             main.post {
                 val asUser = !auto || promoted
                 promoted = false
@@ -340,6 +380,8 @@ object Updater {
      */
     fun resume(context: Context) {
         val app = context.applicationContext
+        appContext = app
+        restore(app)
         if (!started) {
             started = true
             if (prefs(app).getLong("id", -1) < 0) File(app.cacheDir, UPDATES_DIR).deleteRecursively()

@@ -6,5 +6,9 @@
             android:name="com.resyst.vk.debug.E2EHostActivity"
             android:exported="true"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <!-- r11c E2E: move the stored update attempt inside the live process (see E2EUpdateClock). -->
+        <receiver
+            android:name="com.resyst.vk.debug.E2EUpdateClock"
+            android:exported="true" />
     </application>
 </manifest>

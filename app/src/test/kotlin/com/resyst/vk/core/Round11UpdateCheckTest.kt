@@ -214,6 +214,22 @@ class Round11UpdateCheckTest {
         assertFalse("never back to Idle from an automatic failure", fetch.contains("?: State.Idle"))
     }
 
+    @Test fun anAnnouncedUpdateSurvivesARestartInsideTheInterval() { // OC16
+        val manifest = """{"available":true,"version":"0.7.1","versionCode":8,"sha256":"${"a".repeat(64)}","url":"/download/resyst-vk-0.7.1.apk","minSdk":26}"""
+        // the stored answer, re-decided offline after a restart: still available on 0.7.0 …
+        assertTrue(UpdateChecker.decide(manifest, Installed(7, "0.7.0", 34)) is UpdateDecision.Available)
+        // … and no longer once 0.7.1 is installed (it is forgotten instead of announced)
+        assertFalse(UpdateChecker.decide(manifest, Installed(8, "0.7.1", 34)) is UpdateDecision.Available)
+        val src = File("src/main/kotlin/com/resyst/vk/settings/Updater.kt").readText()
+        val shown = src.substringAfter("fun onKeyboardShown(").substringBefore("\n    }\n")
+        assertTrue("restored before the gate is asked", shown.indexOf("restore(app)") in 0 until shown.indexOf("gate.claim("))
+        val remember = src.substringAfter("private fun remember(").substringBefore("\n    }\n")
+        assertTrue("a failure keeps what was known", remember.contains("if (decision == null || decision is UpdateDecision.Error) return"))
+        val restore = src.substringAfter("private fun restore(").substringBefore("\n    }\n")
+        assertFalse("restoring never touches the network", restore.contains("fetch") || restore.contains("check("))
+        assertTrue(src.substringAfter("private fun fetch(").substringBefore("\n    // ──").contains("remember(app, decision, json)"))
+    }
+
     // ── OC14, OC15: copy and the log ──────────────────────────────────────
     @Test fun copySaysWhenAndHowOften() { // OC14
         assertEquals("Buscar actualizaciones automáticamente", Ctl.UPDATE_AUTO.label)

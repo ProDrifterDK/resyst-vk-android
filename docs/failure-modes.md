@@ -661,6 +661,12 @@ user opening the keyboard can start it; it sends nothing typed.
   leaves the previous state as it was and only logs (A5 generalized).
 - OC13 Dismissed version: the periodic recheck re-announces a dismissed version every 12 h
   (nagging). N1 / N2 unchanged: only a strictly newer version comes back.
+- OC16 The throttle hides a known update: r9 re-checked on every process start, so an announced
+  update came back after a process kill; with a 12 h interval a restart inside it would leave the
+  chip gone until the next check. The manifest of the last "available" answer is kept in the
+  updater prefs and re-decided against the installed version at the next show, without a request
+  (installed meanwhile → no longer available → forgotten; an "up to date" / "not published" answer
+  forgets it; a failure keeps it).
 
 ### Copy + log
 - OC14 The setting, the line under "Versión instalada", the settings card ("Comprobado …"), the
