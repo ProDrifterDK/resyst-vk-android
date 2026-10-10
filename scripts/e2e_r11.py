@@ -13,10 +13,12 @@ only (not in either lexicon). Starts by wiping the DEBUG package's learned files
   L4 bilingual: words learned while English was detected are offered / protected in Spanish
   L5 prose field with NO_SUGGESTIONS ("social"): learned words are offered, nothing is learned
   L6 password field: nothing offered, nothing learned
+  L7 "Lo que sé de ti" marks kept words; forgetting one makes it correctable again
   E1 emoji tabs (9 Unicode groups + recents) with per-tab counts (logcat) and screenshots
   E2 spot-check list visible in the grid: 🥹 🫠 🫶 🥲 🤌 🫡 🫣 🫂 ❤️‍🔥 🇳🇱
   E3 skin tone: long-press 👍 → tones; pick one → committed, remembered as 👍's default, in recents;
      an incognito field neither commits a new default nor writes recents
+  E4 "Borrar lo aprendido" wipes the tone defaults (👍 opens plain again)
 
 Artifacts: build/e2e-r11/r11-e2e.json (+ repro.json in --repro mode) and PNGs.
 Usage: scripts/e2e_r11.py --serial SERIAL [--only learn|emoji] [--repro]
@@ -31,7 +33,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 import e2e  # noqa: E402
 import e2e_r10_bilingual as bl  # noqa: E402  (space flick → keyboard language)
-from e2e import adb, sh, dump, keys, center, bounds, PKG, IME  # noqa: E402
+from e2e import adb, sh, dump, keys, center, bounds, PKG, IME, SETTINGS  # noqa: E402
 
 OUT = os.path.join(e2e.ROOT, 'build', 'e2e-r11')
 e2e.OUT = OUT
@@ -238,6 +240,56 @@ def learned_words():
     check('L6 password text is never learned', 'glimworp' not in allv and 'zumba' not in allv, sorted(allv))
 
 
+def settings_page(page):
+    sh(f'am start -W -f 0x10008000 -n {SETTINGS} --es com.resyst.vk.page {page}')
+    time.sleep(2.0)
+    return dump()
+
+
+def node_where(tree, pred):
+    for n in tree.iter('node'):
+        if n.get('package') == PKG and pred(n.get('content-desc') or '', n.get('text') or ''):
+            return n
+    return None
+
+
+def know_and_forget():
+    # L7 — "Lo que sé de ti": the kept word says so; ✕ forgets it and space corrects it again
+    t = settings_page('datos')
+    shot('r11-L7-know.png')
+    texts = [n.get('text') or '' for n in t.iter('node') if n.get('package') == PKG]
+    check('L7 "Lo que sé de ti" marks a kept word (conservada)', any('conservada' in x for x in texts), [x for x in texts if 'vez' in x or 'veces' in x][:8])
+    x = node_where(t, lambda d, _: d == 'Borrar la palabra bastiono')
+    check('L7 the kept word has its ✕', x is not None)
+    if x is not None:
+        tap_node(x, 2.5)
+    sh('input keyevent KEYCODE_BACK')
+    time.sleep(0.6)
+    fresh(); words_typed('ayer', 'bastiono')
+    check('L7 a forgotten kept word is corrected again', field() == 'Ayer bastón ', repr(field()))
+
+
+def wipe_learned():
+    t = settings_page('privacidad')
+    row = node_where(t, lambda d, _: d.startswith('Borrar lo aprendido'))
+    check('E4 "Borrar lo aprendido" row present', row is not None, '')
+    if row is None:
+        return
+    tap_node(row, 1.0)
+    btn = node_where(dump(), lambda _, tt: tt.lower() == 'borrar')
+    if btn is not None:
+        tap_node(btn, 1.5)
+    files = run_as('ls files/personal 2>/dev/null').split()
+    check('E4 the wipe deletes the tone defaults and recents files', 'emoji_tones.txt' not in files and 'emoji_recents.txt' not in files, files)
+    sh('input keyevent KEYCODE_BACK')
+    time.sleep(0.6)
+    emoji_open()
+    select_tab('Personas')
+    find_in_tab(['👍'])
+    k = km()
+    check('E4 after the wipe 👍 opens plain', '👍' in k and '👍🏽' not in k, [d for d in k if d.startswith('👍')])
+
+
 # ── emoji ──────────────────────────────────────────────────────────────
 SPOT = ['🥹', '🫠', '🫶', '🥲', '🤌', '🫡', '🫣', '🫂', '❤️‍🔥', '🇳🇱']
 
@@ -427,8 +479,10 @@ def main():
     try:
         if a.only in (None, 'learn'):
             learned_words()
+            know_and_forget()
         if a.only in (None, 'emoji'):
             emoji()
+            wipe_learned()
     except Exception as ex:  # a crash is a failed row, never a silent pass
         check('script ran to the end', False, repr(ex))
     finally:
