@@ -1010,6 +1010,12 @@ Written before the code; each one names what the replay / a JVM test / the devic
   reports per-keystroke handling time before / after. No new heap structure over 1 MB.
 - NW10 The r8 synthetic gates (LexiconEvalTest Q1–Q4) regress on the shipped lists; a typo that
   lands on a valid word now counts as a real word (protected by RW1), the thresholds stay.
+- NW11 (found probing ~150 Chilean words through the r13 corrector after the first replay) Chilean
+  words outside RLA-ES are replaced by a rare valid form or a far list word one edit away:
+  zapallo → zápalo and chupalla → chúpala (a doubled ll / rr is Spanish spelling, never a cheap
+  slip), chascón → chasco and cachái → cachai (an accent typed by long-press is deliberate: a fix
+  that drops it is never applied), piscola → pistola, voh → voy, lesera → mesera, ramadas →
+  armadas, chorito → chorlito (curated into regional/es-CL.txt, protected by RW2).
 
 ### R4 — late rejection (`KeyboardEngine` field memory, `Rejections`, files/personal/rejections.json)
 - LR1 The user deletes a word VK autocorrected (later in the same field, or after leaving the

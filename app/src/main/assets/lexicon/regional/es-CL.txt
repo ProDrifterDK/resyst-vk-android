@@ -94,6 +94,26 @@ whatsapp 2000
 tqm 6000
 tkm 8000
 
+# — r13 (RW2): palabras chilenas que el diccionario Hunspell (RLA-ES) no trae y que la corrección
+#   r13 reemplazaba por una forma válida rara a una tecla (zapallo → zápalo, piscola → pistola):
+#   aquí son palabras, el espacio no las toca
+zapallo 6000
+zapallos 9000
+piscola 6000
+piscolas 9000
+voh 6000
+wuena 8000
+chupalla 8000
+chorito 8000
+choritos 8000
+pitutos 9000
+lesera 6000
+leseras 8000
+ramada 8000
+ramadas 6000
+chascón 8000
+chascona 8000
+
 # — formas peninsulares que en Chile casi no se escriben (siguen conocidas)
 -fresa
 -fresas

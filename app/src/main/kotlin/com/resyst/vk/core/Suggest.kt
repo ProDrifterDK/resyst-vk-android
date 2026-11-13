@@ -240,11 +240,23 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         val sorted = groups.values.sortedBy { it.total }
         val best = sorted[0]
         val rival = sorted.getOrNull(1)?.total ?: Float.MAX_VALUE
-        val confident = best.cost == 0f || sure(best, rival - best.total, sorted.size == 1, len)
+        val word = committedForm(best, v)
+        val confident = keepsTypedAccents(t, word) && (best.cost == 0f || sure(best, rival - best.total, sorted.size == 1, len))
         trace?.invoke(sorted.take(4).joinToString(" ") { g ->
             "%s(%s d=%d c=%.2f t=%.2f%s)".format(java.util.Locale.ROOT, g.spelling, if (g.rare) "rare" else "#${g.rank}", g.dist, g.cost, g.total, if (g.other) " other" else "")
         })
-        return Candidate(committedForm(best, v), confident)
+        return Candidate(word, confident)
+    }
+
+    /**
+     * NW5: an accent typed by long-press is deliberate — a fix that drops it (chascón → chasco,
+     * cachái → cachai) is never applied by space.
+     */
+    private fun keepsTypedAccents(typed: String, fix: String): Boolean {
+        if (typed.none { it in ACCENTED }) return true
+        val left = fix.toMutableList()
+        for (c in typed) if (c in ACCENTED && !left.remove(c)) return false
+        return true
     }
 
     /**
@@ -431,6 +443,8 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             else Suggest(words, lang)
 
         private val MARKS = Regex("\\p{Mn}+")
+        /** Letters that only a long-press types (ñ is a key of its own, not an accent). */
+        private const val ACCENTED = "áéíóúüàèìòùâêîôûäëïö"
 
         /** ≤ 2 edits, by length: 1–2 letters never, 3–6 one edit, 7+ two (A5). */
         fun maxDistance(len: Int): Int = when {

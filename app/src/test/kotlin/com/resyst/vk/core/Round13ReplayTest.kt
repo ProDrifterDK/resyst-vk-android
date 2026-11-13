@@ -180,6 +180,17 @@ class Round13ReplayTest {
         assertEquals("grapheneos", replay("Me gusta ", "grapheneos").committed)
     }
 
+    @Test fun chileanWordsSurvive() { // RW2, NW11: everyday Chilean words outside Hunspell stay as typed
+        val chilean = ("cachai fome pololo altiro pucha filo carrete lucas flaite cuico pega copete guagua pituto pitutos chela " +
+            "caleta pana chanta piola jote pasao pelao cachar chamullo chuta harto nica pololear tincar tuto wena weón wn " +
+            "voh wuena sipo piscola zapallo pichanga polola quiltro chupalla guata chorito palta porotos choclo humita pebre " +
+            "sopaipilla liceo profe finde lesera ramadas chascón cachái pelusón").split(" ")
+        val changed = chilean.mapNotNull { w -> replay("Oye, ", w).committed.takeIf { it.lowercase() != w }?.let { "$w→$it" } }
+        assertEquals("changed: $changed", emptyList<String>(), changed)
+        // accent completion of slang the region lists with its accent is still welcome (R2 / A2)
+        assertEquals("bacán", replay("Estuvo ", "bacan").committed)
+    }
+
     @Test fun singleAccentVariantsAreApplied() { // AC1, AC4
         assertEquals("soberanía", replay("Eso es lo que buscamos, ", "soberania").committed)
         assertEquals("pusiésemos", replay("anduvieron y ", "pusiesemos").committed)

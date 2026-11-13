@@ -24,7 +24,10 @@ object TypoModel {
     const val ENYE = 0.2f
     /** A Spanish same-sound spelling (s/z/c, y/ll, h, b/v, g/j, k/c/qu). */
     const val PHON = 0.45f
-    /** A letter typed twice / omitted from a double letter. */
+    /**
+     * A letter typed twice / omitted from a double letter. Not for Spanish ll / rr: those are
+     * letters of their own (zapallo is not a slip for zápalo, chupalla not for chúpala).
+     */
     const val DOUBLED = 0.4f
     /** An extra key next to the letter before or after it (the thumb brushed two keys); above the ≤ 4-letter allowance. */
     const val EXTRA_NEAR = 0.65f
@@ -126,7 +129,7 @@ object TypoModel {
         /** Cost of typed[k] being an extra key. */
         private fun extra(k: Int): Float {
             val c = typed[k]
-            if (k > 0 && typed[k - 1] == c) return DOUBLED
+            if (k > 0 && typed[k - 1] == c && !digraph(c)) return DOUBLED
             if (spanish && c == 'h' && (k == 0 || typed[k - 1] != 'c')) return PHON // silent h written
             if (k == n - 1 && c in ABOVE_SPACE && n >= 5) return EXTRA_SPACE
             if ((k > 0 && near(pos, typed[k - 1], c)) || (k < n - 1 && near(pos, typed[k + 1], c))) return EXTRA_NEAR
@@ -144,7 +147,7 @@ object TypoModel {
             val wi = w[i]; val di = d[i]; val wp = w[i - 1]; val dp = d[i - 1]
             val prevC = if (i >= 2) cand[i - 2] else '\u0000'
             val omit = when {
-                prevC == c -> DOUBLED
+                prevC == c && !digraph(c) -> DOUBLED
                 spanish && c == 'h' && prevC != 'c' -> PHON // silent h left out
                 else -> OMIT
             }
@@ -218,6 +221,9 @@ object TypoModel {
             for (ch in candidate) if (!push(ch)) return false
             return within
         }
+
+        /** Spanish ll / rr: doubling them is spelling, not a slip. */
+        private fun digraph(c: Char) = spanish && (c == 'l' || c == 'r')
 
         /** Soft c / g before e or i written with their sound twin (ce ↔ se/ze, ge ↔ je), either way. */
         private fun softPair(c0: Char, c1: Char, t0: Char, t1: Char): Boolean {
