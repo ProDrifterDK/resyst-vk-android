@@ -931,7 +931,8 @@ Written before the code; each one names what a test or a measurement must catch.
   when the APK stores it uncompressed, one `ByteArray` otherwise), ≤ 12 MB of heap for both.
 - VW10 Slow: loaded on the main thread, built lazily at the first lookup, load > 300 ms or a
   lookup > 50 µs on the JVM test machine. Loaded on the existing `Lexicon` io thread next to the
-  frequency list; no index is built after load.
+  frequency list; no index is built after load; the first (cold, interpreted) call is made on the
+  io thread right after loading, so the first word typed never pays it.
 - VW11 Broken or missing asset crashes the keyboard: wrong magic / version, truncated file or a
   failed `openFd` (entry compressed) must fall back (read into one array) or leave the set absent
   (null) with today's behaviour, never throw on the io thread or at a lookup.

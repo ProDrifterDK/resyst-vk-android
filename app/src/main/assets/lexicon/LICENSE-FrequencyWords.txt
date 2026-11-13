@@ -1,4 +1,20 @@
-MIT License
+FrequencyWords — word frequency lists by Hermit Dave
+(project: github.com/hermitdave/FrequencyWords; built from the OpenSubtitles 2018 corpus)
+
+The project has two licenses:
+  - its word lists ("content"): Creative Commons Attribution-ShareAlike 4.0 International
+    (CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
+  - its code: the MIT License, reproduced below.
+
+Resyst VK's es.txt and en.txt in this directory are adapted from the FrequencyWords Spanish and
+English lists (the most frequent 25 000 / 20 000 entries, lowercased and filtered to letter words
+with inner apostrophes; scripts/gen_lexicon_assets.py). They are distributed under CC BY-SA 4.0,
+the license of the lists they come from. Attribution: Hermit Dave, FrequencyWords. Changes: cut to
+the top entries and filtered as described above; the Spanish list is also re-ranked at runtime by
+the rules in regional/ (Resyst VK's own).
+
+-------------------------------------------------------------------------------
+MIT License (FrequencyWords code)
 
 Copyright (c) 2016 Hermit Dave
 

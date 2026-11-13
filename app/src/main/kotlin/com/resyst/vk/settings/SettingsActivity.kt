@@ -1350,7 +1350,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun footer() {
-        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (MIT)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
+        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (CC BY-SA 4.0) · diccionarios Hunspell RLA-ES (MPL) y SCOWL (en_US)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
         root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
     }
 

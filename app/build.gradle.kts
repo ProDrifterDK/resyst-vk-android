@@ -26,6 +26,12 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        // r13a (VW9): the valid-word sets are memory-mapped from the APK (Lexicon.loadValid), which
+        // needs them stored uncompressed (~1 MB for both languages).
+        noCompress += "dawg"
+    }
+
     signingConfigs {
         create("release") {
             // keystore/ is gitignored; CI or a fresh clone provides it out of band.
