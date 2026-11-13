@@ -80,6 +80,37 @@ class ValidWords private constructor(
         }
     }
 
+    /**
+     * r13 (NW4/NW9): every lowercase member whose folded spelling [rows] accepts, walked in place in
+     * the mapped arcs (no per-word objects besides the answers). [rows] was [TypoModel.EditRows.reset]
+     * for the typed word; a prefix it rejects is not entered. Entries with a capital letter (names,
+     * `iPhone`) are skipped: a lowercase typo is not corrected into a name. [visit] gets the stored
+     * form (accents kept), the weighted cost and the edit distance.
+     */
+    fun near(rows: TypoModel.EditRows, visit: (String, Float, Int) -> Unit) {
+        rows.rewind()
+        walkNear(root, rows, StringBuilder(TypoModel.EditRows.MAX), visit)
+    }
+
+    private fun walkNear(node: Int, rows: TypoModel.EditRows, sb: StringBuilder, visit: (String, Float, Int) -> Unit) {
+        var a = node
+        while (true) {
+            val arc = arcs.get(a)
+            val label = arc and LABEL
+            val key = labelKey[label]
+            if (!key.isUpperCase() && rows.push(key)) {
+                sb.append(alphabet[label])
+                if (arc and FINAL != 0 && rows.within) visit(sb.toString(), rows.cost, rows.distance)
+                val t = arc ushr TARGET_SHIFT
+                if (t != 0) walkNear(t, rows, sb, visit)
+                sb.setLength(sb.length - 1)
+                rows.pop()
+            }
+            if (arc and LAST != 0) return
+            a++
+        }
+    }
+
     /** Exact walk (labels are sorted inside a node: stop at the first larger one). */
     private fun has(w: String): Boolean {
         var node = root

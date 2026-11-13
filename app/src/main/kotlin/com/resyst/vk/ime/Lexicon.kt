@@ -5,8 +5,8 @@ import android.os.SystemClock
 import android.util.Log
 import com.resyst.vk.core.Lang
 import com.resyst.vk.core.Region
-import com.resyst.vk.core.Regional
 import com.resyst.vk.core.Suggest
+import com.resyst.vk.core.TypoModel
 import com.resyst.vk.core.ValidWords
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -20,7 +20,8 @@ import java.util.concurrent.Executors
  * through [Regional]); English ignores it. A region change loads Spanish again (once) and drops
  * the previous region's list.
  * r13a: the same io task then maps the language's valid-word set ([valid]); region-independent,
- * loaded once per process.
+ * loaded once per process. r13: the set is attached to the language's [Suggest] (R1–R3 read it);
+ * until it is mapped, corrections take the r12 path (RW3).
  */
 class Lexicon(context: Context) {
     private val assets = context.applicationContext.assets
@@ -41,13 +42,20 @@ class Lexicon(context: Context) {
         io.execute {
             val words = read("lexicon/${lang.code}.txt")?.lineSequence()
                 ?.map { it.trim() }?.filter { it.isNotEmpty() }?.toList() ?: emptyList()
-            val ranked = if (lang == Lang.ES) Regional.forRegion(words, r) { read("lexicon/regional/$it.txt") } else words
-            ready[k] = Suggest(ranked, lang)
+            // r13 (RW2): the region's rule words are protected from space-correction too
+            val lex = Suggest.build(lang, words, r) { read("lexicon/regional/$it.txt") }
+            lex.prepare() // NW9: the correction scan's index, built here and not at the first word typed
+            validSets[lang]?.let { lex.valid = it } // a region reload: the set is already mapped
+            ready[k] = lex
             if (lang == Lang.ES) {
                 ready.keys.removeIf { it.startsWith("es:") && it != k }
                 loading.removeIf { it.startsWith("es:") && it != k }
             }
-            if (!validSets.containsKey(lang)) loadValid(lang)?.let { validSets[lang] = it }
+            if (!validSets.containsKey(lang)) loadValid(lang)?.let { set ->
+                validSets[lang] = set
+                // r13: from here on this lexicon corrects with R1–R3 (until now: the r12 path, RW3)
+                ready[k]?.valid = set
+            }
         }
     }
 
@@ -77,6 +85,8 @@ class Lexicon(context: Context) {
         // it here on the io thread, not at the first word typed
         set?.contains("que")
         set?.accentVariants("que")
+        // r13 (NW9): the same for the correction walk (own rows: the lexicon's are main-thread only)
+        set?.let { v -> TypoModel.EditRows(lang).also { it.reset("qje", 1, 1.7f) }.let { rows -> v.near(rows) { _, _, _ -> } } }
         Log.i(TAG, "lexicon: valid-${lang.code} words=${set?.size} mapped=$mapped ms=${SystemClock.uptimeMillis() - t0} thread=${Thread.currentThread().name}")
         return set
     }
@@ -86,10 +96,7 @@ class Lexicon(context: Context) {
     /** Only if already loaded (never triggers a load): the bilingual guard's other lexicon. */
     fun peek(lang: Lang): Suggest? = ready[key(lang)]
 
-    /**
-     * r13a: [lang]'s full-form valid-word set once [warm] has loaded it, else null (never triggers
-     * a load). No correction reads it in r13a (VW12).
-     */
+    /** r13a: [lang]'s full-form valid-word set once [warm] has loaded it, else null (never triggers a load). */
     fun valid(lang: Lang): ValidWords? = validSets[lang]
 
     private companion object {

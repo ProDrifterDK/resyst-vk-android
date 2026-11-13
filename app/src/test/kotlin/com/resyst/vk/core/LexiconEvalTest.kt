@@ -3,6 +3,8 @@ package com.resyst.vk.core
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import kotlin.random.Random
 
 /**
@@ -16,6 +18,11 @@ import kotlin.random.Random
  * Q2 wrong corrections (a different word than intended) stay ≤ 4 % of attempts, at every length.
  * Q3 short words (≤ 4): wrong corrections ≤ 4 % — the its/it's class of disaster.
  * Q4 no lexicon word is ever "corrected" to another word (only accent re-spelling).
+ *
+ * r13 (NW10): the same gates, same thresholds, on the shipped r13 corrector too (valid-word sets
+ * attached, regional words protected). One reason changes there, not a threshold: a synthetic typo
+ * that is itself a valid word of an enabled language — or that word without its accents (R2) —
+ * counts as a real word (RW1 never replaces it), exactly like a frequency-list word always did.
  */
 class LexiconEvalTest {
     private val dir = File(System.getProperty("vk.lexDir") ?: "src/main/assets/lexicon")
@@ -41,17 +48,29 @@ class LexiconEvalTest {
 
     private class Score { var tries = 0; var fixed = 0; var wrong = 0; var realWord = 0 }
 
-    /** r10: [region] re-ranks Spanish (RG6); [guard] adds the other language's lexicon (BL5). */
-    private fun evaluate(lang: String, sample: Int = 1600, region: Region = Region.ES_ES, guard: Boolean = false, tag: String = ""): Map<String, Score> {
+    private fun validSet(code: String): ValidWords = FileChannel.open(File(dir, "valid-$code.dawg").toPath(), StandardOpenOption.READ).use {
+        ValidWords.read(it.map(FileChannel.MapMode.READ_ONLY, 0, it.size()))!!
+    }
+
+    /**
+     * r10: [region] re-ranks Spanish (RG6); [guard] adds the other language's lexicon (BL5).
+     * r13: [r13] builds the lexicons as the IME does now (Suggest.build + the valid-word sets).
+     */
+    private fun evaluate(lang: String, sample: Int = 1600, region: Region = Region.ES_ES, guard: Boolean = false, tag: String = "", r13: Boolean = false): Map<String, Score> {
         val raw = File(dir, "$lang.txt").readLines().map { it.trim() }.filter { it.isNotEmpty() }
-        val words = if (lang == "es") Regional.forRegion(raw, region) { File(dir, "regional/$it.txt").takeIf { f -> f.exists() }?.readText() } else raw
+        val rule = { name: String -> File(dir, "regional/$name.txt").takeIf { f -> f.exists() }?.readText() }
+        val words = if (lang == "es") Regional.forRegion(raw, region, rule) else raw
         this.lang = if (lang == "es") Lang.ES else Lang.EN
-        val s = Suggest(words, this.lang)
+        val s = if (r13) Suggest.build(this.lang, raw, region, rule).also { it.valid = validSet(lang) } else Suggest(words, this.lang)
+        val other = if (lang == "es") "en" else "es"
         if (guard) {
-            val other = if (lang == "es") "en" else "es"
             s.foreign = Suggest(File(dir, "$other.txt").readLines().map { it.trim() }.filter { it.isNotEmpty() }, if (lang == "es") Lang.EN else Lang.ES)
+                .also { if (r13) it.valid = validSet(other) }
         }
         val known = words.map(Suggest::fold).toHashSet()
+        // r13 (RW1/R2): a typo that is a valid word (or one without its accents) is a real word
+        val sets = if (r13) listOfNotNull(s.valid, s.foreign?.valid) else emptyList()
+        fun real(t: String) = t in known || sets.any { v -> v.contains(t) || v.contains(t.replaceFirstChar { it.uppercaseChar() }) } || (r13 && s.accentForms(t).isNotEmpty())
         val rnd = Random(8)
         val out = linkedMapOf<String, Score>()
         // targets: real words people write, from the top of the list (rank < 12000), letters only
@@ -67,7 +86,7 @@ class LexiconEvalTest {
             val kc = out.getOrPut("$bucket/$kind") { Score() }
             for (x in listOf(sc, kc)) {
                 x.tries++
-                if (t in known) { x.realWord++; continue }
+                if (real(t)) { x.realWord++; continue }
                 val c = s.correction(t, sentenceStart = false)
                 if (c == null) continue
                 if (Suggest.fold(c) == f) x.fixed++ else x.wrong++
@@ -111,10 +130,24 @@ class LexiconEvalTest {
         for (b in listOf("len≤4", "len5-6", "len≥7")) assertTrue("Q2 $b wrong ${rate(r[b]) { it.wrong }}", rate(r[b]) { it.wrong } <= 0.04)
     }
 
-    @Test fun lexiconWordsAreNeverReplacedByOtherWords() { // Q4
+    // r13 (NW10): the shipped r13 corrector under the same gates
+    @Test fun spanishThumbTyposR13() = gates(evaluate("es", r13 = true, tag = "-r13"))
+
+    @Test fun englishThumbTyposR13() = gates(evaluate("en", r13 = true, tag = "-r13"))
+
+    @Test fun chileanBilingualThumbTyposR13() {
+        gates(evaluate("es", region = Region.ES_CL, guard = true, tag = "-cl-guard-r13", r13 = true))
+        gates(evaluate("en", guard = true, tag = "-guard-r13", r13 = true))
+    }
+
+    @Test fun lexiconWordsAreNeverReplacedByOtherWordsR13() = q4(r13 = true)
+
+    @Test fun lexiconWordsAreNeverReplacedByOtherWords() = q4(r13 = false)
+
+    private fun q4(r13: Boolean) { // Q4
         for (lang in listOf("es", "en")) {
             val words = File(dir, "$lang.txt").readLines().filter { it.isNotBlank() }
-            val s = Suggest(words)
+            val s = Suggest(words).also { if (r13) it.valid = validSet(lang) }
             for (w in words.filterIndexed { i, _ -> i % 7 == 0 }) {
                 if (!w.all { it.isLetter() }) continue
                 val c = s.correction(w, false) ?: continue

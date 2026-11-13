@@ -131,13 +131,18 @@ class Round13ValidWordsTest {
         assertTrue(settings.contains("FrequencyWords (CC BY-SA 4.0)") && settings.contains("RLA-ES (MPL)") && settings.contains("SCOWL"))
     }
 
-    // ── VW10/VW12: loaded with the lexicon off the main thread; nothing corrects with it yet ──
-    @Test fun wiredButNotUsedByCorrection() {
+    // ── VW10/VW12: loaded with the lexicon off the main thread ──
+    // Phase A's gate was "nothing corrects with it yet" (VW12); phase B (r13 R1–R3) wires it into
+    // Suggest by design, so the gate now pins WHERE it is read: attached by the loader on its io
+    // thread, read by Suggest only (the engine / learner / personal model never see it).
+    @Test fun wiredIntoTheCorrectorOnly() {
         val lexicon = File("src/main/kotlin/com/resyst/vk/ime/Lexicon.kt").readText()
         assertTrue(lexicon.contains("io.execute") && lexicon.contains("ValidWords.read("))
+        assertTrue("attached to the language's Suggest", lexicon.contains(".valid = set"))
         assertTrue("mapped from an uncompressed APK entry", File("build.gradle.kts").readText().contains("noCompress += \"dawg\""))
-        for (f in listOf("Suggest.kt", "Bar.kt", "KeyboardEngine.kt", "Learner.kt", "PersonalModel.kt")) {
-            assertFalse("$f reads the valid set in phase A", File("src/main/kotlin/com/resyst/vk/core/$f").readText().contains("ValidWords"))
+        assertTrue(File("src/main/kotlin/com/resyst/vk/core/Suggest.kt").readText().contains("var valid: ValidWords?"))
+        for (f in listOf("Bar.kt", "KeyboardEngine.kt", "Learner.kt", "PersonalModel.kt")) {
+            assertFalse("$f reads the valid set", File("src/main/kotlin/com/resyst/vk/core/$f").readText().contains("ValidWords"))
         }
     }
 

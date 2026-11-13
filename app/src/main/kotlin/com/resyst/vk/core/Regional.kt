@@ -79,6 +79,25 @@ object Regional {
         return out
     }
 
+    /**
+     * r13 (RW2): every word [region]'s rule files promote or insert (`w N`, `w = other`) — the
+     * curated regional vocabulary (cachai, fome, bacán) space never replaces. Demoted words (`-w`)
+     * are not included.
+     */
+    fun protectedWords(region: Region, read: (String) -> String?): Set<String> {
+        val out = LinkedHashSet<String>()
+        for (name in region.rules) {
+            val text = read(name) ?: continue
+            for (raw in text.lineSequence()) {
+                val line = raw.substringBefore('#').trim()
+                if (line.isEmpty() || line.startsWith("-")) continue
+                val w = (if ('=' in line) line.substringBefore('=') else line.split(Regex("\\s+"))[0]).trim().lowercase()
+                if (valid(w)) out += w
+            }
+        }
+        return out
+    }
+
     /** [words] re-ranked by every rule file of [region], read through [read] (missing file = no rules). */
     fun forRegion(words: List<String>, region: Region, read: (String) -> String?): List<String> {
         var list = words
