@@ -73,10 +73,14 @@ class Round12DetailsTest {
         assertTrue(src.substringAfter("private fun restore(").substringBefore("\n    }\n").contains("UpdateOrigin.cleanup(p.all.keys)"))
     }
 
-    /** 0.8.0 (9) is published; r12 ships as 0.8.1 (10): never reuse a published code. */
-    @Test fun versionIs081() {
+    /**
+     * 0.8.0 (9) is published; r12 shipped as 0.8.1 (10): never reuse a published code. r13 moves the
+     * defaults on (Round13CoreTest VR1 pins 0.9.0 / 11); this guard keeps them above 0.8.1.
+     */
+    @Test fun versionIsAbove081() {
         val g = File("build.gradle.kts").readText()
-        assertTrue(g.contains("?.toInt() ?: 10"))
-        assertTrue(g.contains("?: \"0.8.1\""))
+        val code = Regex("""\?\.toInt\(\) \?: (\d+)""").find(g)!!.groupValues[1].toInt()
+        assertTrue("versionCode $code must be above the published 10", code > 10)
+        assertTrue(!g.contains("?: \"0.8.1\""))
     }
 }
