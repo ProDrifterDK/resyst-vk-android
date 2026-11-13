@@ -602,8 +602,8 @@ def generate(lang, base, log):
         log(f'[es] RLA-ES enclitic forms not generated (sample): {miss[::max(1, len(miss) // 40)][:40]}')
         log(f'[es] generated forms Hunspell rejects (sample): {wrong[::max(1, len(wrong) // 40)][:40]}')
         log(f'[es] enclitic check over {len(flagged)} verbs with RLA-ES enclitic flags: '
-            f'RLA-ES forms reproduced {len(hun & gen)}/{len(hun)} ({100 * len(hun & gen) / len(hun):.1f}%), '
-            f'generated forms Hunspell also accepts {len(gen & plain)}/{len(gen)} ({100 * len(gen & plain) / len(gen):.1f}%)')
+            f'RLA-ES forms reproduced {len(hun & gen)}/{len(hun)} ({100 * len(hun & gen) / max(1, len(hun)):.1f}%), '
+            f'generated forms Hunspell also accepts {len(gen & plain)}/{len(gen)} ({100 * len(gen & plain) / max(1, len(gen)):.1f}%)')
     return kept, plain, extra
 
 

@@ -1,0 +1,45 @@
+# lexicon-src — sources of the valid-word sets (r13a)
+
+`scripts/gen_valid_words.py` turns the pinned Hunspell files in `hunspell/` into
+`app/src/main/assets/lexicon/valid-{es,en}.dawg` and writes `valid-words.manifest` (file, sha256,
+words, arcs, bytes). The outputs are committed: a Gradle build never runs Python.
+`Round13ValidWordsTest` fails if a shipped asset no longer matches the manifest (hand edit, or a
+generator change that was not re-run).
+
+## Regenerate / check
+
+```
+python3 scripts/gen_valid_words.py            # rewrite the assets + manifest (stdlib only, ~20 s, ~0.7 GB RAM)
+python3 scripts/gen_valid_words.py --check    # regenerate in memory, fail if the committed files differ
+python3 scripts/gen_valid_words.py --dump DIR # also write the word lists, then:
+<venv with spylls 0.1.7>/bin/python scripts/verify_valid_words.py DIR
+```
+
+Deterministic: sorted input, no hash-order output, no dates; two runs give byte-identical files.
+
+## Recorded outputs (r13a)
+
+| file | sha256 | words | arcs | bytes |
+|---|---|---|---|---|
+| `valid-es.dawg` | `085aaf968e56b26f32757b6955d292d9c930ff0de12efd6dd7e00828784d8ef9` | 2 267 583 | 115 825 | 463 704 |
+| `valid-en.dawg` | `d7070048a31249f66957b7bd4e52f9d6c3452debb40ee46383f266ef7c2a2b8a` | 166 768 | 140 814 | 563 624 |
+
+Spanish = 656 262 Hunspell forms + 1 611 322 verb + clitic forms the dictionary does not list
+(1 669 307 generated, the rest already in Hunspell); one form with periods (`DD.HH.`) is left
+out. English = 166 788 Hunspell forms minus 20 digit forms (`1st`, `2nd`, …).
+
+Checks at generation time (generator log): the enclitic layer reproduces 34 051 of the 34 092
+forms RLA-ES's own enclitic flags produce (99.9 %); the 41 it does not are RLA-ES misspellings
+such as `traiéndolo` (for trayéndolo) and `segúyalo` (for síguelo). `verify_valid_words.py`:
+every plain form (656 262 es, 166 788 en) is accepted by spylls on the same files, and every word
+of the shipped 25k / 20k frequency lists that spylls accepts is in the set.
+
+## Licenses of the derived files
+
+- `valid-es.dawg`: MPL-1.1+ (RLA-ES, Santiago Bosio), see `hunspell/NOTICE-es.txt` and the
+  shipped `assets/lexicon/LICENSE-Hunspell-es.txt`. This directory plus the generator is its
+  source form.
+- `valid-en.dawg`: SCOWL copyright and permission notice, see `hunspell/NOTICE-en_US-SCOWL.txt`
+  and the shipped `assets/lexicon/LICENSE-Hunspell-en_US.txt`.
+
+Each asset also carries its notice in its header (`ValidWords.notice`).
