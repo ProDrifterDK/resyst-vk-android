@@ -26,13 +26,18 @@ object Bar {
     /**
      * The space-correction for [word]: the lexicon's, unless the user habitually types [word].
      * r10 [clean] (V1): never a correction INTO an offensive word the user hasn't made theirs.
+     * r13: the user's learned casing comes first (R5: grapheneos → GrapheneOS), and a fix the user
+     * rejected before is never applied again ([rejected], LR5).
      */
     fun correction(
         word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang,
-        clean: Boolean = false, vocab: List<Lang> = listOf(lang),
+        clean: Boolean = false, vocab: List<Lang> = listOf(lang), rejected: Rejections? = null,
     ): String? {
+        // R5: a reverted casing is a lowercase use, which contradicts it for good (LC3)
+        personal?.casing(vocab, word, sentenceStart)?.let { return it }
         val fix = lexicon?.correction(word, sentenceStart) ?: return null
         if (personal?.owns(vocab, word, HABIT) == true) return null // B5, K1 (kept), BL8 (either table)
+        if (rejected?.rejects(word, fix) == true) return null // LR5
         return if (clean && !allowed(fix, vocab, personal)) null else fix
     }
 
@@ -87,6 +92,8 @@ object Bar {
         val mine = personal?.completions(vocab, word, ctx.prev, limit) ?: emptyList()
         // (word, from the lexicon) in bar order before the one-offs go in
         val items = ArrayList<Pair<String, Boolean>>()
+        // r13 (R5, A12): the learned casing space would apply leads the bar
+        personal?.casing(vocab, word, Suggest.sentenceStart(before, word))?.let { items += it to false }
         if (confident) items += if (habit) word to false else static[0] to true
         for (c in mine) if (c.strong) items += Suggest.matchCase(c.word, word) to false
         if (habit) items += static[0] to true

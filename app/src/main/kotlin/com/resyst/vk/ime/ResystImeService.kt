@@ -53,6 +53,8 @@ import com.resyst.vk.core.KeyboardLayouts
 import com.resyst.vk.core.Layer
 import com.resyst.vk.core.LayoutSpec
 import com.resyst.vk.core.Learner
+import com.resyst.vk.core.Tokens
+import com.resyst.vk.core.Writing
 import com.resyst.vk.core.UpdateSurface
 import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Out
@@ -100,7 +102,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** r11 (X6): the learned model for OFFERING (read): also open in prose fields that opted out of suggestions. */
     private fun personalRead() = PersonalStore.words?.takeIf { policy.offerWords(s) }
     /** r11 (BL8): the vocabularies offered / protected: the writing language first, both with bilingual on. */
-    private fun vocabLangs(): List<Lang> = if (s.bilingual && s.suggest) listOf(writeLang, BiLang.other(writeLang)) else listOf(writeLang)
+    private fun vocabLangs(): List<Lang> = writing.vocab()
     private fun personalValues() = PersonalStore.values?.takeIf { policy.personalValues(s) }
     /** Remembers this field's final value once (action key, then field exit). */
     private var valueSession = ValueMemory.Session(null, FieldKind.TEXT)
@@ -274,6 +276,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         hideSystemImeSwitcher()
     }
 
+    /** r13: the editor the keyboard was last started in (package / field id / input type). */
+    private var lastFieldKey: String? = null
+
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
@@ -311,7 +316,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             }
         val autoCap = fieldKind == FieldKind.TEXT && info.inputType and (
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
-        engine.start(FieldInfo(fieldKind, multiLine, action, autoCap))
+        // r13 (LR1/LR6): coming back to the same editor keeps its correction memory; another one drops it
+        val fieldKey = "${info.packageName}/${info.fieldId}/${info.inputType}"
+        engine.start(FieldInfo(fieldKind, multiLine, action, autoCap), sameField = fieldKey == lastFieldKey)
+        lastFieldKey = fieldKey
         fieldEnter = enterIcon(action, multiLine) to enterDesc(action, multiLine)
         view?.setEnter(fieldEnter.first, fieldEnter.second)
         subtypes.enableAllOnce()
@@ -362,10 +370,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         engine.autoCapEnabled = st.autoCap
         engine.doubleSpacePeriod = st.doubleSpace
         writeLang = st.lang
-        engine.corrector = if (st.suggest && st.spaceCorrects && !noSuggestField) {
-            // r10 (bet 4): correct in the language being written (writeLang), guarded by the other one
-            Corrector { word, sentenceStart -> Bar.correction(word, sentenceStart, lexiconFor(writeLang), personalRead(), writeLang, clean = st.profanityFilter, vocab = vocabLangs()) }
-        } else null
+        // r10 (bet 4): correct in the language being written (writeLang), guarded by the other one;
+        // r13: the wiring lives in core/Writing (the session replay runs the same object)
+        writing.settings = st
+        writing.suggestField = !noSuggestField
+        engine.corrector = writing.corrector()
         v.setStyle(st, Palette.of(st.theme, st.accent))
         refreshMemory()
         sound?.configure(st.sound, st.soundPack)
@@ -414,15 +423,27 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onKeyCommit(key: Key) {
         if (gifSearching) { onGifKey(key); return } // r11b (GQ1): the GIF box owns the keys
         val ic = currentInputConnection ?: return
+        val t0 = if (timing) SystemClock.elapsedRealtimeNanos() else 0L
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
-        val after = if (key.type == KeyType.SPACE) ic.getTextAfterCursor(1, 0) ?: "" else ""
+        // r13 (LR7): ⌫ needs the word under the cursor (a correction may be deleted from its middle)
+        val after = when (key.type) {
+            KeyType.SPACE -> ic.getTextAfterCursor(1, 0) ?: ""
+            KeyType.BACKSPACE -> if (engine.fieldCorrections > 0) ic.getTextAfterCursor(Tokens.MAX_LEN, 0) ?: "" else ""
+            else -> ""
+        }
         val layerBefore = engine.layer
         if (key.type == KeyType.SPACE) writeLang = detectLang(before) // the corrector reads it
+        if (key.type == KeyType.BACKSPACE && engine.fieldCorrections > 0) {
+            ic.getSelectedText(0)?.takeIf { it.isNotEmpty() }?.let { engine.deleting(before, after, it) } // a selection deleted
+        }
         var outs = engine.press(key, before, SystemClock.uptimeMillis(), after)
         if (key.type == KeyType.BACKSPACE) {
             // r10 (UX-6): a held ⌫ speeds up to whole words after 8 repeats — never in secret fields (W4)
             val span = TextEdit.backspaceSpan(before, bsRepeats++, policy.secret)
-            if (outs == listOf(Out.Backspace) && span > 2 && ic.getSelectedText(0).isNullOrEmpty()) outs = listOf(Out.DeleteBefore(span))
+            if (outs == listOf(Out.Backspace) && span > 2 && ic.getSelectedText(0).isNullOrEmpty()) {
+                outs = listOf(Out.DeleteBefore(span))
+                engine.deleting("", "", before.takeLast(span)) // r13 (LR7): every word the span takes
+            }
         }
         if (key.type == KeyType.CHAR && offer != null) { typedSinceStart = true; refreshClip() }
         if (key.type == KeyType.CHAR && !typedForUpdate) { typedForUpdate = true; refreshUpdate() }
@@ -431,8 +452,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         val kept = engine.takeReverted()
-        if (kept != null) keep(before, outs, kept) // r11 (K1): ⌫ right after a space-correction
+        if (kept != null) keep(before, outs, kept) // r11 (K1): ⌫ right after a space-correction; r13 (LR1): a late retype
         else learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
+        rejected(late = key.type == KeyType.SPACE)
         if (key.type == KeyType.SPACE) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
@@ -440,6 +462,35 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (outs.any { it is Out.Action || it == Out.EnterKey }) rememberValue()
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
+        if (timing) keyTimer.add(SystemClock.elapsedRealtimeNanos() - t0, space = key.type == KeyType.SPACE)
+    }
+
+    // ── r13 (NW9): handling time, debuggable builds only (E2E latency before / after) ──
+    private val timing by lazy { applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 }
+    /** onKeyCommit: read, engine (the space-correction), commit, learn. */
+    private val keyTimer = KeyClock("key")
+    /** refreshContext: the bar (completions + the correction it shows first), after every edit. */
+    private val barTimer = KeyClock("bar")
+
+    /** One log line per sample (debuggable builds): the kind and the time, never the text. */
+    private class KeyClock(val name: String) {
+        fun add(t: Long, space: Boolean = false) {
+            Log.i(TAG, "keytime: $name${if (space) " space" else ""} us=${t / 1000}")
+        }
+    }
+
+    /**
+     * r13 (LR5): the correction the user just rejected (⌫ right after it, ↶, or [late]: deleted
+     * later and retyped) is stored so space never applies it again — same write gate as learning
+     * (nothing from secret / incognito / opted-out fields). A late retype also takes back the
+     * learn the wrong fix got when it was applied (M10, one use).
+     */
+    private fun rejected(late: Boolean) {
+        val (typed, fix) = engine.takeRejection() ?: return
+        val model = personalWords() ?: return
+        val store = PersonalStore.rejections ?: return
+        if (late) model.unlearn(learnedLang, null, fix, false)
+        if (store.add(typed, fix) || late) PersonalStore.changed()
     }
 
     override fun onVariant(text: String) {
@@ -499,30 +550,29 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     // ── languages inside Resyst (r10, bet 4) ────────────────────────────
+    /**
+     * r13: language detection, lexicon guard and the space corrector, shared with the JVM replay.
+     * The personal / rejection gates are read on every call (X1–X3).
+     */
+    private val writing = Writing(get = { lexicon?.get(it) }, peek = { lexicon?.peek(it) }).also { w ->
+        w.personal = { personalRead() }
+        w.rejections = { PersonalStore.rejections?.takeIf { policy.offerWords(s) } }
+    }
+
     /** The language the user is writing in right now: the keyboard's, or the other by [BiLang]. */
-    private var writeLang = com.resyst.vk.core.Lang.ES
+    private var writeLang: com.resyst.vk.core.Lang
+        get() = writing.lang
+        set(v) { writing.lang = v }
     /** The language of the last learning edit (its ⌫ undo must hit the same table). */
     private var learnedLang = com.resyst.vk.core.Lang.ES
 
     private fun detectLang(before: CharSequence): com.resyst.vk.core.Lang {
-        val st = s
-        if (!st.bilingual || !st.suggest || noSuggestField) return st.lang
-        val lex = lexicon ?: return st.lang
-        val personal = personalRead()
-        return BiLang.detect(
-            BiLang.recentWords(before, windowFull = before.length >= WINDOW), st.lang,
-            rank = { l, w -> lex.peek(l)?.rank(w) },
-            knows = { l, w -> personal?.knows(l, w, Bar.HABIT) == true },
-        )
+        writing.suggestField = !noSuggestField
+        return writing.detect(before, windowFull = before.length >= WINDOW)
     }
 
     /** [lang]'s lexicon with the other language as its guard (BL4); without bilingual, no guard (BL6). */
-    private fun lexiconFor(lang: com.resyst.vk.core.Lang): Suggest? {
-        val lex = lexicon ?: return null
-        val main = lex.get(lang) ?: lex.get(s.lang) ?: return null
-        main.foreign = if (s.bilingual) lex.peek(BiLang.other(lang)) else null
-        return main
-    }
+    private fun lexiconFor(lang: com.resyst.vk.core.Lang): Suggest? = writing.lexiconFor(lang)
 
     /** A vertical flick on space: ES ⇄ EN, phone-wide, pushed to the system subtype (FL1/FL5). */
     override fun onSpaceFlick() {
@@ -1194,6 +1244,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     /** Re-reads the text around the cursor: auto-capitalization + suggestions. */
     private fun refreshContext() {
+        if (!timing) { refreshContextNow(); return }
+        val t0 = SystemClock.elapsedRealtimeNanos()
+        refreshContextNow()
+        barTimer.add(SystemClock.elapsedRealtimeNanos() - t0)
+    }
+
+    private fun refreshContextNow() {
         val ic = currentInputConnection ?: return
         val v = view ?: return
         val info = currentInputEditorInfo
@@ -1249,6 +1306,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ic.endBatchEdit()
         val kept = engine.takeReverted()
         if (kept != null) keep(before, outs, kept) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
+        rejected(late = false) // r13 (LR5)
         engine.endProvisional() // r12 (PS4)
         feedback(null)
     }
@@ -1291,10 +1349,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EditOp.PASTE -> { ic.performContextMenuAction(android.R.id.paste); selecting = false }
             EditOp.DELETE_WORD -> {
                 val sel = ic.getSelectedText(0)
-                if (!sel.isNullOrEmpty()) ic.commitText("", 1)
+                if (!sel.isNullOrEmpty()) { engine.deleting("", "", sel); ic.commitText("", 1) } // r13 (LR7)
                 else {
                     val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
                     val n = if (policy.secret) TextEdit.backspaceSpan(before, 0, secret = true) else TextEdit.wordBefore(before)
+                    if (n > 0) engine.deleting("", "", before.takeLast(n)) // r13 (LR7): the word the swipe takes
                     if (n > 0) ic.deleteSurroundingText(n, 0) else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
                 }
                 learner.reset()

@@ -12,6 +12,10 @@ fun interface Corrector {
  *
  * r12: the space a suggestion pick adds is provisional (Gboard-style): closing punctuation next
  * takes its place ("Hola " + "," → "Hola, "), a space next is absorbed; anything else keeps it.
+ *
+ * r13 (LR1–LR7): the corrections space applied in this field are remembered (memory only); when
+ * the user deletes one later and types the same word again, space keeps it ([takeReverted]) and
+ * the rejected pair is handed out once ([takeRejection]).
  */
 class KeyboardEngine {
     var layer: Layer = Layer.LETTERS
@@ -38,6 +42,18 @@ class KeyboardEngine {
     private var rejected: String? = null
     /** r11: the typed word the last [press] / [undoCorrection] restored (read once by [takeReverted]). */
     private var reverted: String? = null
+    /** r13 (LR5): the correction the user just rejected (typed → fix), read once by [takeRejection]. */
+    private var rejection: Pair<String, String>? = null
+
+    /** r13: one correction space applied in this field; [deleted] = the user deleted (part of) it. */
+    private class Applied(val typed: String, val fixed: String) {
+        var deleted = false
+        /** Words finished since the deletion; the retype must come soon (LR3). */
+        var since = 0
+    }
+
+    /** r13 (LR6): this field's corrections, oldest first, at most [FIELD_MEMORY]; never persisted. */
+    private val applied = ArrayList<Applied>()
     /**
      * r12 (PS1–PS6): the text a suggestion pick (or a punctuation swap after it) left right before
      * the cursor, ending in its provisional space ("Hola "), or null. Only while the text before the
@@ -48,7 +64,13 @@ class KeyboardEngine {
 
     val upper: Boolean get() = shift != ShiftState.OFF
 
-    fun start(info: FieldInfo) {
+    /**
+     * [sameField] (r13, LR1): the editor is the one the keyboard was just in (a restart, or the user
+     * came back to it): its correction memory is kept. Any other field starts with none (LR6).
+     */
+    fun start(info: FieldInfo, sameField: Boolean = false) {
+        if (!sameField) applied.clear()
+        rejection = null
         field = info
         layer = if (info.kind == FieldKind.NUMBER || info.kind == FieldKind.PHONE) Layer.NUMPAD else Layer.LETTERS
         shift = ShiftState.OFF
@@ -115,7 +137,7 @@ class KeyboardEngine {
             KeyType.CHAR -> typed(key.text).let { t -> if (prov != null && closes(t)) swap(prov, t) else listOf(Out.Commit(t)) }
             KeyType.SPACE -> space(before, now, after)
             KeyType.ENTER -> listOf(enter())
-            KeyType.BACKSPACE -> revert(pendingUndo, before) ?: listOf(Out.Backspace)
+            KeyType.BACKSPACE -> revert(pendingUndo, before) ?: run { deleting(before, after); listOf(Out.Backspace) }
             KeyType.LAYER -> { layer = key.target ?: Layer.LETTERS; emptyList() }
             KeyType.SHIFT, KeyType.SPACER, KeyType.EMOJI -> emptyList()
         }
@@ -186,8 +208,11 @@ class KeyboardEngine {
         if (armed) return listOf(Out.DeleteBefore(1), Out.Commit(". "))
         val fix = correctionFor(before, after)
         rejected = null
+        afterWord()
         if (fix != null) {
             undo = fix
+            applied += Applied(fix.first, fix.second)
+            while (applied.size > FIELD_MEMORY) applied.removeAt(0)
             return listOf(Out.DeleteBefore(fix.first.length), Out.Commit(fix.second + " "))
         }
         return listOf(Out.Commit(" "))
@@ -199,6 +224,13 @@ class KeyboardEngine {
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return null // A11
         val word = Suggest.currentWord(before)
         if (word.isEmpty() || word == rejected || !Suggest.standalone(before, word)) return null
+        // r13 (LR1): the user deleted a correction of this very word and typed it again: keep it
+        lateRejection(word)?.let { a ->
+            applied.remove(a)
+            rejection = a.typed to a.fixed
+            reverted = word
+            return null
+        }
         val fix = c.fix(word, Suggest.sentenceStart(before, word)) ?: return null
         return if (fix != word) word to fix else null
     }
@@ -228,8 +260,53 @@ class KeyboardEngine {
         if (!before.endsWith(tail)) return null
         rejected = typedWord
         reverted = typedWord
+        rejection = typedWord to fixed // r13 (LR5)
+        applied.indexOfLast { it.typed == typedWord && it.fixed == fixed }.takeIf { it >= 0 }?.let { applied.removeAt(it) }
         return listOf(Out.DeleteBefore(tail.length), Out.Commit(typedWord))
     }
+
+    /**
+     * r13 (LR7): text is about to be deleted at the cursor — [before] / [after] the cursor now — by
+     * ⌫, the held-⌫ word mode or the ⌫ swipe: a correction of this field whose word is the one under
+     * the cursor is marked deleted. [selected] = a selection being deleted (each of its words counts).
+     */
+    fun deleting(before: CharSequence, after: CharSequence = "", selected: CharSequence? = null) {
+        if (applied.isEmpty()) return
+        val words = ArrayList<String>(4)
+        if (!selected.isNullOrEmpty()) words += selected.split(WORD_SPLIT).filter { it.isNotEmpty() }
+        else {
+            var i = before.length
+            while (i > 0 && Tokens.isWordChar(before[i - 1])) i--
+            var j = 0
+            while (j < after.length && Tokens.isWordChar(after[j])) j++
+            val w = before.subSequence(i, before.length).toString() + after.subSequence(0, j)
+            if (w.isNotEmpty()) words += w
+        }
+        for (w in words) {
+            val k = Tokens.key(w.trim('\''))
+            for (a in applied) if (Tokens.key(a.fixed) == k) { a.deleted = true; a.since = 0 }
+        }
+    }
+
+    /** The deleted correction of [word] still waiting for its retype (LR1/LR3), or null. */
+    private fun lateRejection(word: String): Applied? {
+        val k = Tokens.key(word)
+        return applied.lastOrNull { it.deleted && Tokens.key(it.typed) == k }
+    }
+
+    /** A word was finished: a deletion whose retype did not come within [RETYPE_WORDS] words is over (LR3). */
+    private fun afterWord() {
+        for (a in applied) if (a.deleted && ++a.since > RETYPE_WORDS) a.deleted = false
+    }
+
+    /**
+     * r13 (LR5): the correction the user just rejected — ⌫ right after it, the ↶ chip, or a late
+     * retype — as (typed, fix), or null. Cleared by the read.
+     */
+    fun takeRejection(): Pair<String, String>? = rejection.also { rejection = null }
+
+    /** r13: corrections remembered for this field (tests, diagnostics). */
+    val fieldCorrections: Int get() = applied.size
 
     /**
      * r11 (K1/K2): the word the user just kept by reverting its space-correction (⌫ right after
@@ -248,5 +325,10 @@ class KeyboardEngine {
         const val DOUBLE_SPACE_MS = 1500L
         /** r12 (PS1): marks that close what comes before them and take a pick's provisional space. */
         const val CLOSING = ",.;:!?)]}»”…"
+        /** r13 (LR6): corrections remembered per field. */
+        const val FIELD_MEMORY = 16
+        /** r13 (LR3): words the user may finish between deleting a correction and retyping its word. */
+        const val RETYPE_WORDS = 3
+        private val WORD_SPLIT = Regex("[^\\p{L}\\p{N}']+")
     }
 }

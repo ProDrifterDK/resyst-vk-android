@@ -6,14 +6,16 @@ import android.os.Looper
 import android.util.AtomicFile
 import android.util.Log
 import com.resyst.vk.core.PersonalModel
+import com.resyst.vk.core.Rejections
 import com.resyst.vk.core.ValueMemory
 import java.io.File
 import java.util.concurrent.Executors
 
 /**
  * The learned data, one instance per process: the IME service learns into it, the settings
- * screen wipes it ("Borrar lo aprendido"), so both must see the same objects. Two separate
- * stores — [words] (n-grams) and [values] (whole field values) — in private files under
+ * screen wipes it ("Borrar lo aprendido"), so both must see the same objects. Three separate
+ * stores — [words] (n-grams), [values] (whole field values) and, since r13, [rejections] (the
+ * corrections the user rejected, LR5) — in private files under
  * filesDir/personal (excluded from backup + device transfer by the res/xml backup rules),
  * read off the main thread, written atomically (AtomicFile) and debounced. Everything is
  * touched on the main thread; only file I/O runs on [io].
@@ -23,6 +25,7 @@ object PersonalStore {
     private const val DIR = "personal"
     private const val WORDS = "words.json"
     private const val VALUES = "values.json"
+    private const val REJECTIONS = "rejections.json"
     private const val SAVE_DELAY_MS = 1500L
 
     private val io = Executors.newSingleThreadExecutor()
@@ -36,6 +39,11 @@ object PersonalStore {
         private set
     var values: ValueMemory? = null
         private set
+    /** r13 (LR5): typed → fix pairs space never applies again. */
+    var rejections: Rejections? = null
+        private set
+    /** rejections.json exists (read at load, or written since): an emptied store must overwrite it. */
+    private var rejectionsFile = false
 
     fun init(context: Context) {
         if (dir != null) return
@@ -45,10 +53,13 @@ object PersonalStore {
         io.execute {
             val w = read(File(d, WORDS))?.let(PersonalModel::fromJson) ?: PersonalModel()
             val v = read(File(d, VALUES))?.let(ValueMemory::fromJson) ?: ValueMemory()
+            val rText = read(File(d, REJECTIONS))
+            val r = rText?.let(Rejections::fromJson) ?: Rejections()
             main.post {
                 if (gen != generation) return@post
                 if (words == null) words = w
                 if (values == null) values = v
+                if (rejections == null) { rejections = r; rejectionsFile = rText != null }
             }
         }
     }
@@ -71,9 +82,13 @@ object PersonalStore {
         val d = dir ?: return@Runnable
         val w = words?.toJson()
         val v = values?.toJson()
+        // r13: an empty rejection store writes no file (a user who never rejected anything has none)
+        val r = rejections?.let { if (it.isEmpty() && !rejectionsFile) null else it.toJson() }
+        if (r != null) rejectionsFile = true
         io.execute {
             if (w != null) write(File(d, WORDS), w)
             if (v != null) write(File(d, VALUES), v)
+            if (r != null) write(File(d, REJECTIONS), r)
         }
     }
 
@@ -84,7 +99,7 @@ object PersonalStore {
     val wiped = LinkedHashSet<() -> Unit>()
 
     /**
-     * Wipes everything under filesDir/personal (words, values, emoji recents, tone defaults), in
+     * Wipes everything under filesDir/personal (words, values, rejections, emoji recents, tone defaults), in
      * memory and on disk; a load still in flight is discarded (X4). [wiped] runs after the delete.
      */
     fun clear(context: Context) {
@@ -93,6 +108,8 @@ object PersonalStore {
         main.removeCallbacks(saveNow)
         words = PersonalModel()
         values = ValueMemory()
+        rejections = Rejections()
+        rejectionsFile = false
         val d = dir ?: File(context.applicationContext.filesDir, DIR).also { dir = it }
         io.execute {
             d.listFiles()?.forEach { it.delete() }

@@ -84,6 +84,8 @@ enum class Ctl(
 
     // r10 (F-4): "Lo que sé de ti" — see and delete, one by one, what the keyboard keeps
     KNOW_WORDS(null, Scope.DEVICE, "Palabras aprendidas"),
+    /** r13 (LR5): the corrections the user undid, never applied again (files/personal/rejections.json). */
+    KNOW_REJECTIONS(null, Scope.DEVICE, "Correcciones que deshiciste"),
     KNOW_EMAILS(null, Scope.DEVICE, "Correos recordados"),
     KNOW_EMOJI(null, Scope.DEVICE, "Emojis recientes"),
     KNOW_CLIP(null, Scope.DEVICE, "Portapapeles guardado"),
@@ -142,8 +144,8 @@ object SettingsIA {
             Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.GIF_SEARCH, Ctl.GIF_NEW_ID, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
         ), summary = "Historial del portapapeles, búsqueda de GIF y lo que el teclado aprendió"),
         SettingsPage("datos", "Lo que sé de ti", Scope.DEVICE, listOf(
-            Ctl.KNOW_WORDS, Ctl.KNOW_EMAILS, Ctl.KNOW_EMOJI, Ctl.KNOW_CLIP,
-        ), summary = "Ver y borrar, una a una, las palabras, correos y emojis que guardo · solo en este teléfono"),
+            Ctl.KNOW_WORDS, Ctl.KNOW_REJECTIONS, Ctl.KNOW_EMAILS, Ctl.KNOW_EMOJI, Ctl.KNOW_CLIP,
+        ), summary = "Ver y borrar, una a una, las palabras, correcciones, correos y emojis que guardo · solo en este teléfono"),
         SettingsPage("acerca", "Acerca de", Scope.DEVICE, listOf(
             Ctl.UPDATES, Ctl.UPDATE_AUTO, Ctl.CONNECTIONS, Ctl.RESET_ALL,
         ), summary = "Versión, actualizaciones, libro de conexiones, restablecer"),

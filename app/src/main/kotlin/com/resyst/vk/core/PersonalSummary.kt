@@ -2,8 +2,9 @@ package com.resyst.vk.core
 
 /**
  * r11a-fix (F1): what "Borrar lo aprendido" says it will erase — everything the keyboard keeps in
- * files/personal/ (learned words, remembered emails, emoji recents, chosen skin tones). The row is
- * enabled when any of them is there; "Nada aprendido todavía" only when all are empty.
+ * files/personal/ (learned words, remembered emails, emoji recents, chosen skin tones, and since r13
+ * the corrections the user rejected, rejections.json). The row is enabled when any of them is
+ * there; "Nada aprendido todavía" only when all are empty.
  */
 object PersonalSummary {
     const val LOCAL = "nada sale del teléfono"
@@ -13,8 +14,8 @@ object PersonalSummary {
      * against and the tones file has content: some may be kept, so the row is not empty and the
      * count reads "…" (never 0).
      */
-    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int?) {
-        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones != null && tones <= 0
+    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int?, val rejections: Int = 0) {
+        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones != null && tones <= 0 && rejections <= 0
     }
 
     /** The tones count while loading (SA2). */
@@ -28,6 +29,7 @@ object PersonalSummary {
             part(c.emails, "correo", "correos"),
             part(c.emojiRecents, "emoji reciente", "emojis recientes"),
             if (c.tones == null) "$LOADING tonos" else part(c.tones, "tono", "tonos"),
+            part(c.rejections, "corrección rechazada", "correcciones rechazadas"),
         )
         return (parts + LOCAL).joinToString(" · ")
     }

@@ -455,6 +455,7 @@ class SettingsActivity : Activity() {
             Ctl.FORGET_LEARNED -> forgetRow()
 
             Ctl.KNOW_WORDS -> knowWords()
+            Ctl.KNOW_REJECTIONS -> knowRejections()
             Ctl.KNOW_EMAILS -> knowEmails()
             Ctl.KNOW_EMOJI -> knowEmoji()
             Ctl.KNOW_CLIP -> knowClip()
@@ -726,6 +727,7 @@ class SettingsActivity : Activity() {
             emails = v.values(FieldKind.EMAIL).size,
             emojiRecents = emojiRecents().items().size,
             tones = emojiTones()?.size(), // r12 (SA2): null = still loading the catalog, "…"
+            rejections = PersonalStore.rejections?.size ?: 0, // r13 (LR5): files/personal/rejections.json
         )
         dangerRow(Ctl.FORGET_LEARNED.label, PersonalSummary.text(counts), enabled = !counts.empty, onClick = { confirmForget() })
     }
@@ -733,7 +735,7 @@ class SettingsActivity : Activity() {
     private fun confirmForget() {
         AlertDialog.Builder(this)
             .setTitle("¿Borrar lo aprendido?")
-            .setMessage("Se olvidan las palabras, los correos, los emojis recientes y los tonos de piel que el teclado guardó de ti, en todos los temas. No se puede deshacer.")
+            .setMessage("Se olvidan las palabras, las correcciones que deshiciste, los correos, los emojis recientes y los tonos de piel que el teclado guardó de ti, en todos los temas. No se puede deshacer.")
             .setPositiveButton("Borrar") { _, _ ->
                 PersonalStore.clear(this) // the row re-counts when the files are gone (personalListener)
                 rerender()
@@ -805,6 +807,18 @@ class SettingsActivity : Activity() {
                 }
             }
             if (n > wordsShown) link("Mostrar más (${n - wordsShown}) ›") { wordsShown += KNOW_WORDS_STEP * 4; rerender() }
+        }
+    }
+
+    /** r13 (LR5): each correction the user undid (typed → fix), with ✕ to let space apply it again. */
+    private fun knowRejections() {
+        val r = PersonalStore.rejections
+        if (r == null) { knowHead(Ctl.KNOW_REJECTIONS.label, "Cargando…"); return }
+        val list = r.items()
+        knowHead(Ctl.KNOW_REJECTIONS.label, if (list.isEmpty()) "Ninguna. Si deshaces una corrección (⌫ justo después, ↶, o borras la palabra y la escribes de nuevo), el espacio no la vuelve a aplicar."
+            else "${list.size} · el espacio ya no las aplica")
+        for (e in list) knowRow("${e.typed} → ${e.fix}", null, "la corrección de ${e.typed} a ${e.fix}", "rejection.${e.typed}.${e.fix}") {
+            if (r.forget(e.typed, e.fix)) { PersonalStore.changed(); rerender() }
         }
     }
 

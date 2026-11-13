@@ -139,7 +139,8 @@ class Round11LearnedTest {
         assertEquals(listOf("hola"), m.predict(es, null, true, 3))
         assertFalse(m.kept(es, "pololo"))
         val saved = m.toJson()
-        assertTrue(saved.startsWith("{\"v\":2,\"clock\":9,"))
+        // saved in the current format (r11: v2; r13 adds the casing evidence: v3, LC5)
+        assertTrue(saved.startsWith("{\"v\":${PersonalModel.VERSION},\"clock\":9,"))
         assertEquals(saved, PersonalModel.fromJson(saved).toJson())
         // junk in the v2 flag means "not kept"; malformed / foreign JSON is still an empty model
         val junk = PersonalModel.fromJson("{\"v\":2,\"clock\":1,\"langs\":{\"es\":{\"vocab\":[[\"zeta\",\"zeta\",1,1,\"yes\"],[\"kept\",\"kept\",1,1,1]]}}}")

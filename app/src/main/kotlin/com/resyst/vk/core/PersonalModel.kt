@@ -20,9 +20,18 @@ package com.resyst.vk.core
  * strong completion, evicted last (K1–K3). Completions come in two tiers ([Completion.strong]): a
  * continuation of the previous word, a word used [COMPLETE_MIN]+ times, or a kept word; and the
  * one-offs (typed once), which the bar ranks after the first lexicon candidate (N1/N2).
+ *
+ * r13 (v3, R5): each word carries its casing evidence ([Word.cap]): how many times the user wrote
+ * it with exactly its cased form (GrapheneOS, Google, Pixel) — never counting a capital that only
+ * came from a sentence start or ALL-CAPS — or [CONTRADICTED] once it was also written lowercase or
+ * with another casing. [casing] gives the learned casing back after [CAP_MIN] consistent uses.
  */
 class PersonalModel {
-    private class Word(var form: String, val folded: String, var count: Int, var stamp: Long, var kept: Boolean = false)
+    private class Word(var form: String, val folded: String, var count: Int, var stamp: Long, var kept: Boolean = false, var cap: Int = 0) {
+        /** [cap] / [form] before the last [learn] of this word, for its immediate [unlearn] (not persisted). */
+        var capBefore: Int = cap
+        var formBefore: String = form
+    }
     private class Cont(val key: String, var count: Int, var stamp: Long)
     private class Tables {
         val vocab = LinkedHashMap<String, Word>()
@@ -46,10 +55,11 @@ class PersonalModel {
         val w = t.vocab[k]
         if (w != null) {
             w.count++; w.stamp = now
-            if (form != null) w.form = form
+            w.capBefore = w.cap; w.formBefore = w.form
+            if (form != null) { w.cap = nextCap(w, form); w.form = form }
         } else {
             evictVocab(t)
-            t.vocab[k] = Word(form ?: k, Suggest.fold(k), 1, now)
+            t.vocab[k] = Word(form ?: k, Suggest.fold(k), 1, now, cap = if (form != null && cased(form)) 1 else if (form != null) CONTRADICTED else 0)
         }
         if ((t.vocab[k]?.count ?: 0) > COUNT_CAP) for (v in t.vocab.values) v.count = halve(v.count)
         if (sentenceStart) bump(t.starters, k, now, STARTER_CAP)
@@ -101,7 +111,7 @@ class PersonalModel {
         val k = Tokens.key(word)
         // undoing the very learn that kept a word (count 1) drops it with its mark: the user is
         // editing the word again; a later use's undo leaves the mark (K3)
-        t.vocab[k]?.let { if (--it.count <= 0) t.vocab.remove(k) }
+        t.vocab[k]?.let { it.cap = it.capBefore; it.form = it.formBefore; if (--it.count <= 0) t.vocab.remove(k) }
         if (sentenceStart) drop(t.starters, k)
         val p = prev?.let(Tokens::key) ?: return
         val list = t.next[p] ?: return
@@ -163,6 +173,29 @@ class PersonalModel {
         return strong.values.take(limit).map { Completion(it, true) } + weak.values.take(limit).map { Completion(it, false) }
     }
 
+    /**
+     * r13 (R5, LC1–LC4): the user's own casing of [word] when they typed it all lowercase (or with
+     * only the sentence-start capital): written that way at least [CAP_MIN] times and never
+     * otherwise, in every table of [within] that knows it. null = leave the word as typed.
+     */
+    fun casing(within: List<Lang>, word: String, sentenceStart: Boolean): String? {
+        if (word.isEmpty() || !Tokens.learnable(word)) return null
+        val lower = word.none { it.isUpperCase() }
+        val initial = sentenceStart && word[0].isUpperCase() && word.drop(1).none { it.isUpperCase() }
+        if (!lower && !initial) return null // the user chose capitals here (A3, LC4)
+        val k = Tokens.key(word)
+        var found: String? = null
+        for (l in within.distinct()) {
+            val w = langs[l]?.vocab?.get(k) ?: continue
+            if (w.cap == CONTRADICTED) return null
+            if (w.cap >= CAP_MIN && cased(w.form)) {
+                if (found != null && found != w.form) return null
+                found = w.form
+            }
+        }
+        return found?.takeIf { it != word }
+    }
+
     /** Whether the user has typed [word] at least [minCount] times (space never "corrects" it, B5). */
     fun knows(lang: Lang, word: String, minCount: Int = 1): Boolean =
         (langs[lang]?.vocab?.get(Tokens.key(word))?.count ?: 0) >= minCount
@@ -211,6 +244,15 @@ class PersonalModel {
         langs[lang]?.next?.get(Tokens.key(prev))?.firstOrNull { it.key == Tokens.key(word) }?.count ?: 0
 
     // ── helpers ─────────────────────────────────────────────────────────
+    /** Casing evidence after a use spelled [form] (case information present). */
+    private fun nextCap(w: Word, form: String): Int = when {
+        w.cap == CONTRADICTED -> CONTRADICTED
+        !cased(form) -> CONTRADICTED // written lowercase: no learned casing, ever (LC3)
+        w.cap == 0 -> 1
+        w.form == form -> w.cap + 1
+        else -> CONTRADICTED // another casing
+    }
+
     private fun ranked(list: List<Cont>): List<Cont> =
         list.sortedWith(compareByDescending<Cont> { it.count }.thenByDescending { it.stamp })
 
@@ -248,7 +290,7 @@ class PersonalModel {
             b.append(MiniJson.quote(lang.code)).append(":{\"vocab\":[")
             t.vocab.entries.forEachIndexed { i, (k, w) ->
                 if (i > 0) b.append(',')
-                b.append('[').append(MiniJson.quote(k)).append(',').append(MiniJson.quote(w.form)).append(',').append(w.count).append(',').append(w.stamp).append(',').append(if (w.kept) 1 else 0).append(']')
+                b.append('[').append(MiniJson.quote(k)).append(',').append(MiniJson.quote(w.form)).append(',').append(w.count).append(',').append(w.stamp).append(',').append(if (w.kept) 1 else 0).append(',').append(w.cap).append(']')
             }
             b.append("],\"starters\":")
             conts(b, t.starters)
@@ -275,9 +317,19 @@ class PersonalModel {
     }
 
     companion object {
-        /** r11: v2 adds the kept flag as a 5th vocabulary field; v1 files load unchanged (K4). */
-        const val VERSION = 2
+        /**
+         * r11: v2 adds the kept flag as a 5th vocabulary field; v1 files load unchanged (K4).
+         * r13: v3 adds the casing evidence as a 6th; v1 / v2 files load with none (LC5).
+         */
+        const val VERSION = 3
         private const val V1 = 1
+        private const val V2 = 2
+        /** r13 (R5): consistent cased uses before the casing is applied to a lowercase typing. */
+        const val CAP_MIN = 2
+        /** r13: the word was also written lowercase or with another casing. */
+        const val CONTRADICTED = -1
+
+        private fun cased(form: String) = form.any { it.isUpperCase() }
         const val NEXT_CAP = 8
         const val STARTER_CAP = 16
         const val PREV_CAP = 1500
@@ -303,7 +355,7 @@ class PersonalModel {
             val m = PersonalModel()
             val root = runCatching { MiniJson.parse(text) }.getOrNull() as? Map<*, *> ?: return m
             val v = root["v"]
-            if (v !is Number || (v.toLong() != VERSION.toLong() && v.toLong() != V1.toLong())) return m
+            if (v !is Number || v.toLong() !in listOf(V1.toLong(), V2.toLong(), VERSION.toLong())) return m
             val langs = root["langs"] as? Map<*, *> ?: return m
             var maxStamp = 0L
             for ((code, raw) in langs) {
@@ -319,7 +371,9 @@ class PersonalModel {
                     if (!Tokens.learnable(k) || k != Tokens.key(k) || Tokens.key(form) != k || count <= 0 || t.vocab.size >= VOCAB_CAP) continue
                     // v2 5th field: 1 = kept; anything else (absent in v1, junk) = not kept
                     val kept = (a.getOrNull(4) as? Number)?.toLong() == 1L
-                    t.vocab[k] = Word(form, Suggest.fold(k), count.coerceAtMost(COUNT_CAP), stamp, kept)
+                    // v3 6th field: casing evidence (−1 contradicted, 0 none, n uses); junk = none
+                    val cap = (a.getOrNull(5) as? Number)?.toLong()?.takeIf { it in CONTRADICTED.toLong()..COUNT_CAP.toLong() }?.toInt() ?: 0
+                    t.vocab[k] = Word(form, Suggest.fold(k), count.coerceAtMost(COUNT_CAP), stamp, kept, if (cap > 0 && !cased(form)) 0 else cap)
                     maxStamp = maxOf(maxStamp, stamp)
                 }
                 readConts(o["starters"], STARTER_CAP).let { t.starters += it; it.forEach { c -> maxStamp = maxOf(maxStamp, c.stamp) } }
