@@ -871,3 +871,70 @@ r11c minors: `restore()` hardcoded `checkedAuto = true`.
 - UR3 The orphan `autoAt` (written by ≤ 0.7.0, never read since r11c) stays forever, or the
   cleanup removes any other updater pref (attempt clock, pending download id/manifest, dismissed
   version, the stored available manifest).
+
+## Round 13a — the valid-word set (`ValidWords`, scripts/gen_valid_words.py, lexicon-src/hunspell)
+
+VK 0.8.1 decides whether a word exists only from the 25k / 20k frequency lists, so a real word it
+does not know is "corrected" (bastion→bastón ×4, anduvieron→mantuvieron, soberania→soberano,
+pusiesemos→pudiésemos in session s1). r13a ships a full-form valid-word set per language, expanded
+from pinned Hunspell sources, as data for the r13 correction policy. Phase A changes no correction.
+Written before the code; each one names what a test or a measurement must catch.
+
+### Coverage (generator)
+- VW1 Real forms are missing. Hunspell es itself rejects `configurarlo`: rla-es puts infinitive
+  enclitic flags on only 2114 of its 9246 conjugated verbs (`configurar/REDÄ`), so a plain
+  expansion leaves most verb + clitic forms out, and 172 words of the shipped 25k list are
+  imperative / infinitive + clitic forms Hunspell rejects (permíteme, pruébalo, hagámoslo,
+  mantenlo, vámonos …). The generator adds enclitics (infinitive, gerund, tú / usted / ustedes /
+  nosotros / vosotros imperatives) to every conjugated verb. The shipped set must contain
+  `bastión anduvieron soberanía pusiésemos condujéramos configurarlo dámelo caído también` (es) and
+  `bastion without fighting` (en).
+- VW2 Typo forms leak in (over-generation). An enclitic rule that guesses a stem or an accent
+  invents non-words (`cóntala` for contar, `dícelo` for decir, `hácelo` for hacer), and a typo of
+  a common word then counts as "valid". Enclitic bases are taken only from forms the verb's own
+  Hunspell paradigm produces (never guessed from the infinitive), irregular tú imperatives come
+  from a closed table, and the layer is measured against rla-es's own enclitic forms for the
+  verbs that carry them (precision / recall in the generator log). These must stay invalid:
+  `calna listl busvamos impoetsnte pkxel clnfkgurarlo`.
+- VW3 Hunspell features expanded wrong: a twofold suffix (continuation class) or a
+  prefix × suffix cross product is dropped or applied without its condition; en_US ordinal
+  compounds (`1st`, `21st`, COMPOUNDRULE) are infinite and digit pieces are ONLYINCOMPOUND. Every
+  plain-expansion form must be accepted by a reference Hunspell (spylls), and every word of the
+  shipped 25k / 20k lists that Hunspell accepts must be in the set (both checked by the
+  generator's `--verify`); forms with digits are left out.
+- VW4 Case rules wrong. Lowercase `chile` accepted because `Chile` is in the set, a
+  sentence-initial `Casa` / `Caído` rejected, ALL-CAPS `CASA` rejected, or a capitalized-only
+  entry rejected in its own form. Hunspell's rules: lowercase input matches lowercase entries
+  only; Initial-cap input matches itself or its lowercase entry; ALL-CAPS matches any casing of
+  the same letters; mixed case (`iPhone`) matches exactly.
+- VW5 Accent folding wrong. ñ folded to n (`ano` must not offer `año`), ü not folded to u
+  (`pinguino` → `pingüino`), input in NFD (a + U+0301) or with ’ instead of ' never matches the NFC
+  asset. `accentVariants` returns every member equal after removing acute / grave / circumflex /
+  diaeresis (ñ kept), under the same case rules: `caido`→[caído], `que`→[que, qué],
+  `bastion` (es)→[bastión].
+
+### Reproducibility + licenses
+- VW6 The output drifts: the generator reads the system dictionaries (an OS upgrade silently
+  changes the APK), iterates a set / dict in hash order, sorts by locale, or stamps a date. It
+  reads only `lexicon-src/hunspell/`, checks `SHA256SUMS` first and refuses on a mismatch; two runs
+  give byte-identical assets; the asset sha256 is recorded in `lexicon-src/README.md` and a JVM
+  test checks the shipped asset against it (a hand edit fails).
+- VW7 License drift: derived files ship without their license (es data is MPL-1.1+ and must stay
+  MPL with source available; en needs the SCOWL notice), FrequencyWords stays credited as MIT only
+  (its word lists are CC-BY-SA-4.0), or the credit copy implies the app downloads or connects to
+  anything.
+
+### Runtime (IME process)
+- VW8 Asset too big: both languages add more than 4 MB to the APK.
+- VW9 Heap blow-up: the set becomes a `HashSet<String>` / per-word objects (a million forms is
+  well over 100 MB) or is copied more than once. One immutable buffer per language (memory-mapped
+  when the APK stores it uncompressed, one `ByteArray` otherwise), ≤ 12 MB of heap for both.
+- VW10 Slow: loaded on the main thread, built lazily at the first lookup, load > 300 ms or a
+  lookup > 50 µs on the JVM test machine. Loaded on the existing `Lexicon` io thread next to the
+  frequency list; no index is built after load.
+- VW11 Broken or missing asset crashes the keyboard: wrong magic / version, truncated file or a
+  failed `openFd` (entry compressed) must fall back (read into one array) or leave the set absent
+  (null) with today's behaviour, never throw on the io thread or at a lookup.
+- VW12 Behaviour changes in phase A: the set is loaded and reachable (`Lexicon.valid(lang)`) but no
+  correction reads it; the full JVM suite passes unchanged and `Suggest` / `Bar` /
+  `KeyboardEngine` / `Learner` / `PersonalModel` are not edited.
