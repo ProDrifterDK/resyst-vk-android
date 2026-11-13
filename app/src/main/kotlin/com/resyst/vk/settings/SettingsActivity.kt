@@ -816,7 +816,7 @@ class SettingsActivity : Activity() {
         if (r == null) { knowHead(Ctl.KNOW_REJECTIONS.label, "Cargando…"); return }
         val list = r.items()
         knowHead(Ctl.KNOW_REJECTIONS.label, if (list.isEmpty()) "Ninguna. Si deshaces una corrección (⌫ justo después, ↶, o borras la palabra y la escribes de nuevo), el espacio no la vuelve a aplicar."
-            else "${list.size} · el espacio ya no las aplica")
+            else if (list.size == 1) "1 · el espacio ya no la aplica" else "${list.size} · el espacio ya no las aplica")
         for (e in list) knowRow("${e.typed} → ${e.fix}", null, "la corrección de ${e.typed} a ${e.fix}", "rejection.${e.typed}.${e.fix}") {
             if (r.forget(e.typed, e.fix)) { PersonalStore.changed(); rerender() }
         }

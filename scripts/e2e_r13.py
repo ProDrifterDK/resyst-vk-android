@@ -9,13 +9,15 @@ Types through the DRAWN keys (accessibility tree, like scripts/e2e.py) into the 
      words.json keep-marks calna; a NEW field keeps "calna" too
   D  learned capitalization (R5): "GrapheneOS" written twice mid-sentence, then "grapheneos" + Espacio
      → "GrapheneOS"
+  F  the learned-data surfaces count the new store (after C): "Lo que sé de ti" lists calna → calma
+     under "Correcciones que deshiciste"; "Borrar lo aprendido" counts "1 corrección rechazada"
   E  latency: the same sentence typed on --before-apk (r13a phase A + the same timing log) and on
      --apk; the IME's own "keytime" lines (debuggable builds: per key, handler time, never text)
      give median / p90 per kind (key, key space, bar)
 
 Writes build/e2e-r13/r13-e2e.json + PNGs + logcat excerpts. Debug package only (com.resyst.vk.debug);
 the default input method is restored at the end.
-Usage: scripts/e2e_r13.py --serial SERIAL [--apk PATH] [--before-apk PATH] [--only A,B,C,D,E]
+Usage: scripts/e2e_r13.py --serial SERIAL [--apk PATH] [--before-apk PATH] [--only A,B,C,D,F,E]
 """
 import argparse
 import json
@@ -175,6 +177,39 @@ def section_d():
     check('D', 'the two written uses stay as written', f.count('GrapheneOS') == 3, repr(f))
 
 
+# ── F: the learned-data surfaces (repo rule: every file under files/personal/ is counted) ──
+def texts():
+    return [n.get('text', '') + ' ' + n.get('content-desc', '') for n in dump().iter('node')]
+
+
+def scroll_to(needle, swipes=8):
+    """Scrolls the settings page up until a node's text contains [needle]; returns all texts seen."""
+    seen = []
+    for _ in range(swipes + 1):
+        t = texts()
+        seen += t
+        if any(needle in x for x in t):
+            return seen
+        sh('input swipe 540 1700 540 700 350')
+        time.sleep(0.8)
+    return seen
+
+
+def section_f():
+    sh(f'am start -W -f 0x10008000 -n {e2e.SETTINGS} --es com.resyst.vk.page datos')
+    time.sleep(1.5)
+    t = scroll_to('calna → calma')
+    shot('r13-F1-lo-que-se-de-ti.png')
+    check('F', '"Lo que sé de ti" has the rejections section', any('Correcciones que deshiciste' in x for x in t), [x for x in t if 'orrecci' in x][:4])
+    check('F', 'the rejected pair is listed with its delete target', any('calna → calma' in x for x in t) and any('Borrar la corrección de calna a calma' in x for x in t),
+          [x for x in t if 'calna' in x][:4])
+    sh(f'am start -W -f 0x10008000 -n {e2e.SETTINGS} --es com.resyst.vk.page privacidad')
+    time.sleep(1.5)
+    t = texts()
+    shot('r13-F2-borrar-lo-aprendido.png')
+    check('F', '"Borrar lo aprendido" counts the rejection', any('1 corrección rechazada' in x for x in t), [x for x in t if 'aprend' in x.lower() or 'rechaz' in x][:4])
+
+
 # ── E: latency before / after ────────────────────────────────────────────
 SENTENCE = 'hoy quiero probar el teclado en serio y ver si corrige calna listl y busvamos sin romper cachai ni fome '
 WARMUP = 'ayer en la tarde estuvimos revisando el pixel con calma '
@@ -236,7 +271,7 @@ def main():
     ap.add_argument('--serial', required=True)
     ap.add_argument('--apk', default=os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
     ap.add_argument('--before-apk')
-    ap.add_argument('--only', default='A,B,C,D,E')
+    ap.add_argument('--only', default='A,B,C,D,F,E')
     a = ap.parse_args()
     if a.serial in FORBIDDEN:
         sys.exit(f'refusing to run on {a.serial}')
@@ -258,7 +293,7 @@ def main():
         log = adb('logcat', '-d', '-v', 'brief', '-s', 'ResystVK:I')
         loads = re.findall(r'lexicon: valid-(\w+) words=(\d+) mapped=(\w+) ms=(\d+)', log)
         check('setup', 'valid-word sets mapped off the main thread', len(loads) >= 1, loads)
-        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d)):
+        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('F', section_f)):
             if sec in only:
                 try:
                     fn()
