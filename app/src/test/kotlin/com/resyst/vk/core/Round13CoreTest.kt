@@ -142,7 +142,10 @@ class Round13CoreTest {
         val back = PersonalModel.fromJson(m.toJson())
         assertEquals("GrapheneOS", back.casing(listOf(es), "grapheneos", false))
         assertEquals(m.toJson(), back.toJson())
-        // a v2 file (r11/r12) has no evidence yet: two new uses needed
+        // still v2 (LC5): an r11 / r12 reader takes 5 fields of [key, form, count, stamp, kept, cap]
+        assertTrue(m.toJson().startsWith("{\"v\":2,"))
+        assertTrue(m.toJson().contains("[\"grapheneos\",\"GrapheneOS\",2,"))
+        // a file written by r11/r12 (5 fields) has no evidence yet: two new uses needed
         val v2 = PersonalModel.fromJson("{\"v\":2,\"clock\":3,\"langs\":{\"es\":{\"vocab\":[[\"pixel\",\"Pixel\",5,3,0]],\"starters\":[],\"next\":[]}}}")
         assertTrue(v2.knows(es, "pixel", 5))
         assertNull(v2.casing(listOf(es), "pixel", false))
@@ -150,7 +153,8 @@ class Round13CoreTest {
         v2.learn(es, null, "Pixel", false)
         assertEquals("Pixel", v2.casing(listOf(es), "pixel", false))
         // junk evidence is none
-        assertNull(PersonalModel.fromJson("{\"v\":3,\"clock\":1,\"langs\":{\"es\":{\"vocab\":[[\"pixel\",\"pixel\",5,1,0,99]],\"starters\":[],\"next\":[]}}}").casing(listOf(es), "pixel", false))
+        assertNull(PersonalModel.fromJson("{\"v\":2,\"clock\":1,\"langs\":{\"es\":{\"vocab\":[[\"pixel\",\"Pixel\",5,1,0,99]],\"starters\":[],\"next\":[]}}}").casing(listOf(es), "pixel", false))
+        assertNull(PersonalModel.fromJson("{\"v\":2,\"clock\":1,\"langs\":{\"es\":{\"vocab\":[[\"pixel\",\"Pixel\",5,1,0,\"x\"]],\"starters\":[],\"next\":[]}}}").casing(listOf(es), "pixel", false))
         // Olvidar drops it (LC5)
         assertTrue(m.forget(es, "grapheneos"))
         assertNull(m.casing(listOf(es), "grapheneos", false))

@@ -21,7 +21,7 @@ package com.resyst.vk.core
  * continuation of the previous word, a word used [COMPLETE_MIN]+ times, or a kept word; and the
  * one-offs (typed once), which the bar ranks after the first lexicon candidate (N1/N2).
  *
- * r13 (v3, R5): each word carries its casing evidence ([Word.cap]): how many times the user wrote
+ * r13 (R5): each word carries its casing evidence ([Word.cap]): how many times the user wrote
  * it with exactly its cased form (GrapheneOS, Google, Pixel) — never counting a capital that only
  * came from a sentence start or ALL-CAPS — or [CONTRADICTED] once it was also written lowercase or
  * with another casing. [casing] gives the learned casing back after [CAP_MIN] consistent uses.
@@ -319,11 +319,12 @@ class PersonalModel {
     companion object {
         /**
          * r11: v2 adds the kept flag as a 5th vocabulary field; v1 files load unchanged (K4).
-         * r13: v3 adds the casing evidence as a 6th; v1 / v2 files load with none (LC5).
+         * r13: the casing evidence is a 6th field and the file stays v2 (LC5): r11 / r12 readers take
+         * the first five fields and ignore it, so going back to 0.8.1 keeps every learned word; a file
+         * without it loads with no evidence.
          */
-        const val VERSION = 3
+        const val VERSION = 2
         private const val V1 = 1
-        private const val V2 = 2
         /** r13 (R5): consistent cased uses before the casing is applied to a lowercase typing. */
         const val CAP_MIN = 2
         /** r13: the word was also written lowercase or with another casing. */
@@ -355,7 +356,7 @@ class PersonalModel {
             val m = PersonalModel()
             val root = runCatching { MiniJson.parse(text) }.getOrNull() as? Map<*, *> ?: return m
             val v = root["v"]
-            if (v !is Number || v.toLong() !in listOf(V1.toLong(), V2.toLong(), VERSION.toLong())) return m
+            if (v !is Number || (v.toLong() != VERSION.toLong() && v.toLong() != V1.toLong())) return m
             val langs = root["langs"] as? Map<*, *> ?: return m
             var maxStamp = 0L
             for ((code, raw) in langs) {
@@ -371,7 +372,7 @@ class PersonalModel {
                     if (!Tokens.learnable(k) || k != Tokens.key(k) || Tokens.key(form) != k || count <= 0 || t.vocab.size >= VOCAB_CAP) continue
                     // v2 5th field: 1 = kept; anything else (absent in v1, junk) = not kept
                     val kept = (a.getOrNull(4) as? Number)?.toLong() == 1L
-                    // v3 6th field: casing evidence (−1 contradicted, 0 none, n uses); junk = none
+                    // r13 6th field: casing evidence (−1 contradicted, 0 none, n uses); absent / junk = none
                     val cap = (a.getOrNull(5) as? Number)?.toLong()?.takeIf { it in CONTRADICTED.toLong()..COUNT_CAP.toLong() }?.toInt() ?: 0
                     t.vocab[k] = Word(form, Suggest.fold(k), count.coerceAtMost(COUNT_CAP), stamp, kept, if (cap > 0 && !cased(form)) 0 else cap)
                     maxStamp = maxOf(maxStamp, stamp)

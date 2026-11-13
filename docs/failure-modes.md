@@ -1046,8 +1046,9 @@ Written before the code; each one names what the replay / a JVM test / the devic
   with another casing, or reverted an applied casing (⌫ / ↶).
 - LC4 The casing lands where the user chose: a word typed with capitals / mixed case, a word of
   another key, a secret / incognito field (personal read gate).
-- LC5 Persistence: words.json v3 keeps the evidence; v2 files load unchanged (no evidence yet);
-  "Olvidar" drops it with the word.
+- LC5 Persistence: words.json keeps the evidence as a 6th vocabulary field and stays v2, so an
+  r11 / r12 reader (a downgrade to 0.8.1) still loads every learned word; files without it load
+  unchanged (no evidence yet); "Olvidar" drops it with the word.
 
 ### Version
 - VR1 0.9.0 / versionCode 11 are the build defaults.
