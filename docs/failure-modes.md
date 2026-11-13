@@ -939,3 +939,109 @@ Written before the code; each one names what a test or a measurement must catch.
 - VW12 Behaviour changes in phase A: the set is loaded and reachable (`Lexicon.valid(lang)`) but no
   correction reads it; the full JVM suite passes unchanged and `Suggest` / `Bar` /
   `KeyboardEngine` / `Learner` / `PersonalModel` are not edited.
+
+## Round 13a phase B — the correction core (`TypoModel`, `Suggest`, `Bar.correction`, `KeyboardEngine`, `Rejections`, `PersonalModel` v3)
+
+Alan's live session s1 (Pixel 8 Pro, VK 0.8.1, evidence/items_phon.json) is the oracle: VK rewrote
+real words it did not know (bastion→bastón ×4, anduvieron→mantuvieron, soberania→soberano,
+pusiesemos→pudiésemos), left one-key thumb slips (calna, listl, ñarte, busvamos, peha, xaza,
+impoetsnte, pillae), and a correction the user deleted later and retyped was corrected again
+forever unless ⌫ came right after it. Phase B uses phase A's valid-word sets; no language model.
+Written before the code; each one names what the replay / a JVM test / the device run must catch.
+
+### R1 — never rewrite a real word
+- RW1 A word valid in an enabled language is replaced by space. Enabled = the writing language,
+  plus the other one with "Sugerencias en dos idiomas" on (the vocabularies the bar already reads,
+  BL8). `anduvieron` (es) and `bastion` (en) stay; `pr` / `ls` (valid en abbreviations) stay too,
+  by design, even though s1 meant por / los. A lowercase name (`english`, `chile`, `google`) is the
+  user's word: the lowercase form of a capitalized-only entry counts as valid.
+- RW2 Slang and coinages outside Hunspell are rewritten (the experiment broke cachai→caca,
+  fome→come, autocorrector→autocorrectivo). Protected besides the valid sets: every word the
+  region's rule files promote or insert (`regional/es-CL.txt`, `es-419.txt`), every word of the
+  frequency list (r8 A2: only an accent re-spelling may replace it, and only through R2), and the
+  user's own words (typed `Bar.HABIT` times or kept, B5/K1).
+- RW3 Half-loaded state: before the valid sets are mapped (the first ~100 ms of a process) the r12
+  path must run unchanged (a null set = today's behaviour), never R2/R3 against a missing set. The
+  other language's protection falls back to its frequency list (BL4) while its set is missing.
+- RW4 A protected word loses its bar: it still gets accent variants, completions and the close
+  match (not applied).
+
+### R2 — accent completion
+- AC1 A non-word with exactly ONE valid accent / diaeresis variant in the writing language is left
+  bare (caido, condujeramos, soberania, pusiesemos) or loses to an edit candidate
+  (soberania→soberano, pusiesemos→pudiésemos): the single variant wins before any R3 candidate.
+- AC2 A word with several valid variants gets one forced (que/qué, esta/está, publico/público/
+  publicó): nothing is applied; the bar offers the variants. A valid word never gets here (RW1).
+- AC3 `bastion`: the bare form is valid in the other enabled language and the accented one in the
+  writing language: nothing is applied and the bar offers `bastión` FIRST.
+- AC4 Casing lost: the variant takes the typed casing (`Caido` at a sentence start → `Caído`);
+  ALL-CAPS / mixed case / a capitalized word mid-sentence are never touched (A3).
+- AC5 ñ treated as an accent: `ano` never becomes `año` through R2 (ñ is a letter); a non-word
+  like `manana` may still get ñ through R3 as a cheap typo.
+
+### R3 — non-word correction (keyboard geometry + Spanish sound + frequency)
+- NW1 A thumb typo survives: neighbour key (calna, listl, ñarte, busvamos, peha, xaza, pillae), an
+  extra key (seriom, tuvom, ltan, acambia, respaldoss), an omission (revisndo, tampco, condueramos),
+  two neighbour slips on a long word (impoetsnte, clnfkgurarlo). Gate: ≥ 40 / 47 of s1_typo
+  (VK 0.8.1 35, experiment S1 38); every miss listed in the report.
+- NW2 The error model ignores the real keyboard: costs come from key-centre distance on the drawn
+  layout (evidence/layout.json, Pixel 8 Pro: key pitch 99.7 px, row pitch 123.5 px, so a key above
+  or below is 1.24 key widths away, farther than a side neighbour); ES has ñ at the end of the home
+  row (ñ↔p, ñ↔l touch), EN's home row is offset by half a key; an extra bottom-row key at the end
+  of a word is the thumb aiming at space (tuvom, seriom).
+- NW3 Same-sound misspellings are not candidates or cost like a far key (provlema, tamvien,
+  suherencia): Spanish only, seseo s/c/z (c before e/i), yeísmo y/ll, silent h (never the h of
+  ch), b/v, soft g/j before e/i, k/c/qu — each costs about one neighbour slip.
+- NW4 A rare valid form outranks the common word meant: the valid sets are ~90× the 25k list. The
+  frequency rank is the prior; a form outside the list needs a long word, a cheap edit and a clear
+  margin.
+- NW5 Coinages broken by far fixes (autocorrector, grapheneos): the edit budget is bounded by
+  length (1 edit under 7 letters, 2 from 7) and two-edit fixes must be thumb-shaped or land on a
+  frequency-list word; cachai / fome are safe through RW2, not through luck.
+- NW6 Short-word disasters (its/it's class, porq→por): ≤ 4 letters keep the r8 gates (target in
+  the top list, cheap typo only, wide margin).
+- NW7 R3 adds an accent R2 would not add (pkxel→píxel when `pixel` is valid; esya→está): R3 fixes
+  letters; the committed form of the winning word is its bare form when that is valid in an enabled
+  language, else its single accented variant, else the frequency list's spelling.
+- NW8 English typos in a Spanish sentence (vuild, checl, goohle, commmit): with bilingual on the
+  other language's words are candidates too, one notch behind the writing language's.
+- NW9 Slow or heavy: the valid-set search runs bounded by edit distance in place in the mapped
+  DAWG (no per-word objects), only for non-words; measured per word on the JVM; the device run
+  reports per-keystroke handling time before / after. No new heap structure over 1 MB.
+- NW10 The r8 synthetic gates (LexiconEvalTest Q1–Q4) regress on the shipped lists; a typo that
+  lands on a valid word now counts as a real word (protected by RW1), the thresholds stay.
+
+### R4 — late rejection (`KeyboardEngine` field memory, `Rejections`, files/personal/rejections.json)
+- LR1 The user deletes a word VK autocorrected (later in the same field, or after leaving the
+  field and coming back to it), retypes the typed form, and space corrects it again.
+- LR2 After that the word is corrected again in a NEW field: the retyped form must be keep-marked
+  (K1) in the language it was written in.
+- LR3 False rejection: retyping a typo whose fix the user kept (the fix still in the text) is not
+  a rejection; deleting a word VK did not correct is not one; deleting a correction and typing
+  something else is not one.
+- LR4 The r10/r11 paths break: ⌫ right after the correction restores the typed word (A10), the ↶
+  chip (U1/U2), K1/K2 keep-marks, M10 unlearn.
+- LR5 Rejected pairs (typed → fix) are not remembered, so the same fix is applied again once the
+  keep-mark is gone (forgotten, evicted): the pair is stored and never applied by space again
+  (still offered in the bar). Bounded, atomic, under files/personal/ (excluded from backup),
+  removed by "Borrar lo aprendido", counted on its row, listed one by one with ✕ in "Lo que sé de
+  ti"; nothing stored from secret / incognito / opted-out fields (X1–X3, K6).
+- LR6 The field memory of corrections leaks: typed text kept in memory only (never disk, never
+  logs), bounded per field and in number of fields, dropped for another field.
+- LR7 A delete path is missed: ⌫ char by char, held ⌫ word mode, the ⌫ swipe (delete word), a
+  selection deleted with ⌫, the cursor placed inside the corrected word.
+
+### R5 — learned capitalization (`PersonalModel` v3)
+- LC1 GrapheneOS / Google / Pixel / Bastión written with that casing twice (mid-sentence, or
+  with inner capitals anywhere) and never otherwise: a later lowercase typing does not commit the
+  learned casing.
+- LC2 Sentence-initial capitals or ALL-CAPS count as casing evidence (`Hoy`, `ESTO`).
+- LC3 A contradicted casing is applied: the user also wrote the word lowercase mid-sentence, or
+  with another casing, or reverted an applied casing (⌫ / ↶).
+- LC4 The casing lands where the user chose: a word typed with capitals / mixed case, a word of
+  another key, a secret / incognito field (personal read gate).
+- LC5 Persistence: words.json v3 keeps the evidence; v2 files load unchanged (no evidence yet);
+  "Olvidar" drops it with the word.
+
+### Version
+- VR1 0.9.0 / versionCode 11 are the build defaults.
