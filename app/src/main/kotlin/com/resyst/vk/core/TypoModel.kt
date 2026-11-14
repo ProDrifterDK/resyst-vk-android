@@ -42,6 +42,11 @@ object TypoModel {
     const val TRANSPOSE = 0.6f
     /** Added to a substitution of the first letter that is not a same-sound spelling. */
     const val FIRST = 0.2f
+    /**
+     * r13d (TB1): typing the key a touch landed on the border of ([TouchKeys]) instead of the intended
+     * one — a substitution at distance 0 ([SUB_BASE]), with no first-letter penalty: the touch says it.
+     */
+    const val BORDER = SUB_BASE
     /** Keys whose lower edge touches the space bar (both layouts). */
     private const val ABOVE_SPACE = "cvbnm"
 
@@ -134,10 +139,17 @@ object TypoModel {
         /** Extra-key cost of each typed position (depends on the typed word only). */
         private val extraCost = FloatArray(MAX + 1)
 
-        /** Starts a search for folded [t]; a word longer than [MAX] − [maxD] matches nothing. */
-        fun reset(t: String, maxD: Int, maxCost: Float) {
+        /**
+         * r13d (TB1): per typed position, the other letter keys its touch landed on the border of (null =
+         * no touch record): a candidate letter among them costs [BORDER] there.
+         */
+        private var near: Array<String>? = null
+
+        /** Starts a search for folded [t]; a word longer than [MAX] − [maxD] matches nothing. [near]: see [TouchKeys]. */
+        fun reset(t: String, maxD: Int, maxCost: Float, near: Array<String>? = null) {
             typed = if (t.length + maxD > MAX) CharArray(0) else t.toCharArray()
             n = typed.size
+            this.near = near?.takeIf { it.size == n }
             this.maxD = maxD
             this.maxCost = maxCost
             depth = 0
@@ -183,7 +195,9 @@ object TypoModel {
                 val t = typed[j - 1]
                 var dv = minOf(dp[j] + 1, di[j - 1] + 1)
                 var wv = minOf(wp[j] + omit, wi[j - 1] + extraCost[j])
-                val s = subCost(c, t).let { if (i == 1 && j == 1 && it > 0f && it != PHON) it + FIRST else it }
+                var s = subCost(c, t).let { if (i == 1 && j == 1 && it > 0f && it != PHON) it + FIRST else it }
+                val nk = near
+                if (nk != null && s > BORDER && nk[j - 1].indexOf(c) >= 0) s = BORDER // r13d (TB1)
                 dv = minOf(dv, dp[j - 1] + if (c == t) 0 else 1)
                 wv = minOf(wv, wp[j - 1] + s)
                 if (i >= 2 && j >= 2) {

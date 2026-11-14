@@ -48,9 +48,8 @@ class Round13cWordsTest {
         assertEquals("diccionario", commit("no cómo escribe un ", "dkcionafio"))
     }
 
-    @Test fun fiveLettersKeepOneEdit() { // TW4: the brief's report rows
-        assertEquals("gjsga", commit("GrapheneOS me ", "gjsga"))
-        assertEquals("jaryo", commit("GrapheneOS me gusta ", "jaryo"))
+    @Test fun fiveLettersWithTwoSlips() { // TW4 → r13d W5-1: five letters now search two slips (the brief's report rows)
+        assertEquals("r13d W5-1: two vertical slips, the only plausible word", "gusta", commit("GrapheneOS me ", "gjsga"))
         assertEquals("twemknadl", commit("Habríamos ", "twemknadl")) // four slips
     }
 

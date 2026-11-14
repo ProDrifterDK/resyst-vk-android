@@ -795,7 +795,7 @@ class SettingsActivity : Activity() {
         val w = PersonalStore.words
         if (w == null) { knowHead(Ctl.KNOW_WORDS.label, "Cargando…"); return }
         val total = Lang.values().sumOf { w.vocabCount(it) }
-        knowHead(Ctl.KNOW_WORDS.label, if (total == 0) "Ninguna todavía. Las aprende al escribir, solo en campos normales (nunca en contraseñas ni en modo incógnito)." else "$total palabras y cuántas veces las usaste")
+        knowHead(Ctl.KNOW_WORDS.label, if (total == 0) "Ninguna todavía. Las aprende al escribir, solo en campos normales: nunca en contraseñas ni en modo incógnito, y donde la app pidió no recibir sugerencias usa lo que ya sabe pero no guarda nada." else "$total palabras y cuántas veces las usaste")
         val langs = Lang.values().filter { w.vocabCount(it) > 0 }
         for (lang in langs) {
             val n = w.vocabCount(lang)

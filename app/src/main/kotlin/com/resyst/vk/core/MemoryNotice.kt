@@ -4,7 +4,8 @@ package com.resyst.vk.core
 enum class NoMemory(val label: String, val detail: String) {
     SECRET("Sin memoria · contraseña", "Campo de contraseña: el teclado no aprende, no sugiere y no guarda nada de lo que escribes aquí."),
     INCOGNITO("Sin memoria · incógnito", "La app pidió modo incógnito: nada de lo que escribes aquí se aprende ni se recuerda."),
-    OPTED_OUT("Sin memoria en este campo", "La app pidió no recibir sugerencias aquí: el teclado no aprende de este campo."),
+    // r13d (OR6): an opted-out field still READS what was learned elsewhere; it only never stores
+    OPTED_OUT("No guarda lo que escribes aquí", "La app pidió no recibir sugerencias en este campo: el teclado usa lo que ya aprendió de ti (tus palabras, mayúsculas y correcciones), pero no guarda nada de lo que escribes aquí."),
     MODE("Sin memoria · modo", "El modo encendido no aprende lo que escribes. Al apagarlo vuelve tu ajuste."),
     SETTING_OFF("Sin memoria", "«Sugerencias personales» está apagado: el teclado no aprende de ti en ningún campo."),
 }
@@ -12,7 +13,8 @@ enum class NoMemory(val label: String, val detail: String) {
 /**
  * r10 (F-6, V8–V10): the "sin memoria" dot. It shows exactly when the privacy gate keeps
  * personal data closed in a field where the user writes words — so it never claims "memory on"
- * where nothing is learned, and stays out of number / URL / phone fields that have no words to
+ * where nothing is learned (r13d, OR6: in an opted-out field the learned words are still read, and
+ * the dot says that nothing typed there is stored), and stays out of number / URL / phone fields that have no words to
  * learn (a permanent dot there would be noise). Pure: the IME passes the field policy and both the
  * effective settings ([s], a mode applied) and the user's own ([user]) to tell a mode from a switch.
  */

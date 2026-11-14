@@ -92,6 +92,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private var sound: KeySoundPlayer? = null
     private var lexicon: Lexicon? = null
     private var currentWord = ""
+    /**
+     * r13d (TB1–TB2): the word being typed with the border keys of each letter's touch (memory only, never
+     * logged): space and the bar read it through [writing]; any drift from the text clears it.
+     */
+    private val touchTrail = com.resyst.vk.core.TouchTrail()
+    /** r13d (TB1): the border keys KeyboardView reported for the letter about to commit. */
+    private var pendingNear = ""
     private var policy = FieldPolicy(FieldKind.TEXT, suggestions = false, incognito = false)
     private val fieldKind get() = policy.kind
     private val noSuggestField get() = !policy.suggestions
@@ -295,6 +302,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             Log.i(TAG, "field: pkg=${info.packageName} ${FieldPolicy.describe(info.inputType, info.imeOptions)} restarting=$restarting")
         }
         learner.reset()
+        touchTrail.reset()
         endGifSearch(rebuild = false)
         view?.hideClipboard()
         view?.hideEmoji()
@@ -359,6 +367,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         view?.reset()
         currentWord = ""
         learner.reset()
+        touchTrail.reset()
         PersonalStore.flush()
         view?.setSuggestions(emptyList())
     }
@@ -427,7 +436,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
     }
 
+    override fun onKeyNear(near: String) { pendingNear = near }
+
     override fun onKeyCommit(key: Key) {
+        val near = pendingNear
+        pendingNear = ""
         if (gifSearching) { onGifKey(key); return } // r11b (GQ1): the GIF box owns the keys
         val ic = currentInputConnection ?: return
         val t0 = if (timing) SystemClock.elapsedRealtimeNanos() else 0L
@@ -465,6 +478,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         afterKey(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY, late = ends)
+        trail(key.type, outs, near)
         if (ends) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
@@ -473,6 +487,21 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
         if (timing) keyTimer.add(SystemClock.elapsedRealtimeNanos() - t0, if (key.type == KeyType.SPACE) " space" else if (ends) " end" else "")
+    }
+
+    /**
+     * r13d (TB2): keeps [touchTrail] in step with the key just handled: a letter appended adds itself with
+     * [near], a one-character ⌫ drops the last letter, shift / layer keys change nothing, anything else
+     * (a word end — after its correction read the record —, a digit, an undo, a withdrawn period) clears it.
+     */
+    private fun trail(type: KeyType, outs: List<Out>, near: String) {
+        val one = (outs.singleOrNull() as? Out.Commit)?.text?.singleOrNull()
+        when {
+            type == KeyType.CHAR && one != null && one.isLetter() -> touchTrail.add(one, near)
+            type == KeyType.BACKSPACE && outs == listOf(Out.Backspace) -> touchTrail.pop()
+            type == KeyType.SHIFT || type == KeyType.LAYER || type == KeyType.SPACER -> Unit
+            else -> touchTrail.reset()
+        }
     }
 
     // ── r13 (NW9): handling time, debuggable builds only (E2E latency before / after) ──
@@ -530,6 +559,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         afterKey(before, outs, Learner.Edit.KEY, late = ends)
+        trail(KeyType.CHAR, outs, "") // r13d (TB2): an accented letter has no touch record of its own
         view?.setShift(engine.shift)
     }
 
@@ -558,6 +588,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val outs = engine.pickSuggestion(word, currentWord)
+        touchTrail.reset()
         ic.beginBatchEdit()
         run(outs, ic)
         ic.endBatchEdit()
@@ -585,6 +616,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private val writing = Writing(get = { lexicon?.get(it) }, peek = { lexicon?.peek(it) }).also { w ->
         w.personal = { personalRead() }
         w.rejections = { PersonalStore.rejections?.takeIf { policy.offerWords(s) } }
+        w.touch = { touchTrail }
     }
 
     /** The language the user is writing in right now: the keyboard's, or the other by [BiLang]. */
@@ -1340,7 +1372,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (!st.suggest || noSuggestField) { currentWord = ""; v.setSuggestions(offers); return }
         val after = ic.getTextAfterCursor(1, 0) ?: ""
         currentWord = if (after.isNotEmpty() && after[0].isLetter()) "" else Suggest.currentWord(before)
-        val sugg = Bar.words(before, after, before.length >= WINDOW, writeLang, lexiconFor(writeLang), personalRead(), engine.shift, clean = st.profanityFilter, vocab = vocabLangs())
+        if (!touchTrail.spells(currentWord)) touchTrail.reset() // r13d (TB2): a cursor move, a paste, an app edit
+        val sugg = Bar.words(
+            before, after, before.length >= WINDOW, writeLang, lexiconFor(writeLang), personalRead(), engine.shift,
+            clean = st.profanityFilter, vocab = vocabLangs(), near = writing.near(currentWord),
+        )
         v.setSuggestions((offers + sugg).take(Bar.LIMIT))
     }
 

@@ -71,18 +71,56 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         set(v) {
             if (v === field) return
             field = v
-            lastQuery = null; lastBest = null
+            lastQuery = null; lastBest = null; mineHere = null
         }
+
+    /**
+     * r13d (OR1): the user's own words as correction targets, spelled as space would commit them
+     * (`GrapheneOS`), set by [Writing] through the personal READ gate (empty = none: incognito, secret,
+     * personal suggestions off). Only those that are no word of this lexicon compete ([mineTargets]).
+     */
+    var mine: List<String> = emptyList()
+        set(v) {
+            if (v === field) return
+            field = v
+            lastQuery = null; lastBest = null; mineHere = null
+        }
+
+    /** [mine] without this lexicon's words, folded → spelling; rebuilt when [mine], [valid] or [foreign] change. */
+    private var mineHere: List<Pair<String, String>>? = null
+    private var mineValid: ValidWords? = null
+
+    private fun mineTargets(v: ValidWords): List<Pair<String, String>> {
+        val cached = mineHere
+        if (cached != null && mineValid === v) return cached
+        val out = ArrayList<Pair<String, String>>()
+        for (m in mine) {
+            val f = fold(m)
+            if (f.length < MIN_LEN || f.length > MAX_LEN || !f.all { it.isLetter() } || isWordHere(f, v)) continue
+            out += f to m
+        }
+        mineHere = out
+        mineValid = v
+        return out
+    }
+
+    /** A word of an enabled language for folded [f]: in a list, valid, regional, or one of its accented spellings is valid. */
+    private fun isWordHere(f: String, v: ValidWords): Boolean =
+        rankOf[f] != null || foldRank[f] != null || protectedWord(f, v) || accentForms(f, v).isNotEmpty()
 
     private fun isForeign(typed: String): Boolean {
         val f = foreign ?: return false
         return rankOf[typed] == null && (f.rank(typed) ?: Int.MAX_VALUE) < FOREIGN_RANK
     }
 
-    /** A close lexicon word for a typed one; [confident] = safe to apply without asking. */
-    data class Candidate(val word: String, val confident: Boolean)
+    /**
+     * A close lexicon word for a typed one; [confident] = safe to apply without asking. r13d (WC3): [alt] =
+     * the next reading when it is close to [word] and nothing is applied — the bar offers both.
+     */
+    data class Candidate(val word: String, val confident: Boolean, val alt: String? = null)
 
-    fun suggest(typed: String, limit: Int = 3): List<String> {
+    /** [near]: the touch record of [typed] ([TouchTrail.forWord]), or null. */
+    fun suggest(typed: String, limit: Int = 3, near: Array<String>? = null): List<String> {
         if (typed.isEmpty() || typed.length > MAX_LEN || !typed.all { it.isLetter() || it == '\'' }) return emptyList()
         val p = typed.lowercase()
         val fp = fold(p)
@@ -103,9 +141,9 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             }
             if (exact.size >= limit && corrections.size >= limit) break
         }
-        val fix = best(p)
+        val fix = best(p, near)
         val head = if (fix?.confident == true) listOf(fix.word) else emptyList()
-        val tail = if (fix != null && !fix.confident) listOf(fix.word) else emptyList()
+        val tail = if (fix != null && !fix.confident) listOfNotNull(fix.word, fix.alt) else emptyList()
         return (head + corrections + exact + loose + tail).distinct().take(limit).map { matchCase(it, typed) }
     }
 
@@ -114,7 +152,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      * Case gates (A3): a capitalized word mid-sentence is a name the user meant; ALL-CAPS
      * (acronyms) and mixed case (iPhone) are never touched.
      */
-    fun correction(typed: String, sentenceStart: Boolean): String? {
+    fun correction(typed: String, sentenceStart: Boolean, near: Array<String>? = null): String? {
         // r13c (SW1, TW5): with the valid-word set two-letter words and words up to MAX_LEN are looked at
         val v = valid
         val min = if (v != null) SHORT_LEN else MIN_LEN
@@ -122,25 +160,29 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         if (typed.length < min || typed.length > max || !typed.all { it.isLetter() }) return null
         if (typed.drop(1).any { it.isUpperCase() }) return null
         if (typed[0].isUpperCase() && !sentenceStart) return null
-        val c = best(typed.lowercase()) ?: return null
+        val c = best(typed.lowercase(), near) ?: return null
         return if (c.confident) matchCase(c.word, typed) else null
     }
 
     private var lastQuery: String? = null
     private var lastBest: Candidate? = null
+    private var lastNear: Array<String>? = null
 
     /**
      * Closest lexicon word for a lowercase [typed] word, or null when [typed] is itself a word
      * (A2) or nothing is near enough (A5). A word in the lexicon is only re-spelled when its
      * accented twin is ≥ [ACCENT_RATIO]× more frequent ("tambien" → "también", never
-     * "esta" → "está").
+     * "esta" → "está"). r13d (TB1): [near] = the touch record of [typed] (per letter, the keys its
+     * touch was on the border of), or null; the r12 path ignores it.
      */
-    fun best(typed: String): Candidate? {
+    fun best(typed: String, near: Array<String>? = null): Candidate? {
         val v = valid
-        if (typed == lastQuery && v === lastValid) return lastBest
-        val r = if (v == null) compute(typed) else compute13(typed, v)
+        val n = near?.takeIf { it.size == typed.length && it.any { s -> s.isNotEmpty() } }
+        if (typed == lastQuery && v === lastValid && n.contentEquals(lastNear)) return lastBest
+        val r = if (v == null) compute(typed) else compute13(typed, v, n)
         lastQuery = typed
         lastValid = v
+        lastNear = n
         lastBest = r
         return r
     }
@@ -156,12 +198,15 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     /**
      * RW1/RW2: never replaced by space — valid here or in the other enabled language, a regional
      * word, or (while the other language's set is not mapped yet) a common word there (BL4).
+     * r13d (FW1): the other language's NAMES (capitalized-only entries: the surname `Auer`, one slip from
+     * `ayer`) protect a lowercase typing only when that lowercase form is in its frequency list (any
+     * rank: `google`, `english`); this language's own names keep r13a's rule (`chile`, `maria`).
      */
     private fun protectedWord(t: String, v: ValidWords): Boolean {
         if (v.word(t) || t in regional) return true
         val f = foreign ?: return false
         val fv = f.valid
-        if (fv != null && fv.word(t)) return true
+        if (fv != null && (fv.contains(t) || (f.rank(t) != null && fv.word(t)))) return true
         return rankOf[t] == null && (f.rank(t) ?: Int.MAX_VALUE) < FOREIGN_RANK
     }
 
@@ -198,8 +243,8 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         return out.toList()
     }
 
-    private fun compute13(t: String, v: ValidWords): Candidate? {
-        if (t.length == SHORT_LEN) return shortWord(t, v) // r13c (SW1–SW5)
+    private fun compute13(t: String, v: ValidWords, near: Array<String>?): Candidate? {
+        if (t.length == SHORT_LEN) return shortWord(t, v, near) // r13c (SW1–SW5)
         if (t.length < MIN_LEN || t.length > MAX_LEN || !t.all { it.isLetter() }) return null
         if (protectedWord(t, v)) return null // R1
         val forms = accentForms(t, v)
@@ -210,7 +255,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             val twin = enyeTwin(fold(t)) ?: return null
             return if (words[twin] != t && twin.toLong() * ACCENT_RATIO <= own && v.word(words[twin])) Candidate(words[twin], true) else null
         }
-        return nonWord(t, v)
+        return nonWord(t, v, near)
     }
 
     /**
@@ -221,7 +266,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      * two-letter strings. Ties stay: every list word one touching key away (any rank, and the other
      * language's common words one notch behind) competes, and the best must lead by [SHORT_GAP2].
      */
-    private fun shortWord(t: String, v: ValidWords): Candidate? {
+    private fun shortWord(t: String, v: ValidWords, near: Array<String>?): Candidate? {
         if (!t.all { it.isLetter() }) return null
         if (v.word(t) || t in regional || rankOf[t] != null) return null
         val f = foreign
@@ -237,9 +282,12 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         }
         for (i in 0..1) for (c in centres.keys) {
             val typedC = t[i]
-            if (c == typedC || !TypoModel.near(centres, typedC, c)) continue
+            // r13d (TB1): a key the touch was on the border of is a neighbour too (a corner: i ↔ j)
+            val border = near != null && near[i].indexOf(c) >= 0
+            if (c == typedC || !(border || TypoModel.near(centres, typedC, c))) continue
             val w = if (i == 0) "$c${t[1]}" else "${t[0]}$c"
-            val slip = TypoModel.sub(centres, c, typedC, spanish).let { s -> if (i == 0 && s != TypoModel.PHON) s + TypoModel.FIRST else s }
+            val slip = if (border) TypoModel.BORDER
+            else TypoModel.sub(centres, c, typedC, spanish).let { s -> if (i == 0 && s != TypoModel.PHON) s + TypoModel.FIRST else s }
             rankOf[w]?.let { r -> consider(w, slip + FREQ_WEIGHT * ln(r + 1.0).toFloat(), r < SHORT_TOP) }
             f?.rank(w)?.takeIf { it < FOREIGN_RANK }?.let { r -> consider(w, slip + FREQ_WEIGHT * ln(r + 1.0).toFloat() + OTHER_LANG, false) }
         }
@@ -262,29 +310,33 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     }
 
     /** R3 (NW1–NW8): the likeliest word for the non-word [t], and whether it is safe to apply. */
-    private fun nonWord(t: String, v: ValidWords): Candidate? {
+    private fun nonWord(t: String, v: ValidWords, touch: Array<String>?): Candidate? {
         val ft = fold(t)
         val len = ft.length
+        val near = touch?.takeIf { it.size == len }
         val maxD = maxDistance13(len)
         val groups = HashMap<String, Group>()
-        collect(ft, v, maxD, maxD * SEARCH_COST, groups)
-        var answer = decide(t, len, groups, v)
+        collect(ft, v, maxD, maxD * SEARCH_COST, groups, near)
+        // r13d (W5-1): two edits on five letters are two SLIPS (keys mis-hit or swapped, same length); an
+        // extra / missing key plus another edit leaves too many readings (cahai: casi, pkxel: piel)
+        if (len == 5) groups.values.removeAll { it.dist >= 2 && it.fold.length != len }
+        var answer = decide(t, ft, groups, v, near)
         if (len >= THREE_LEN && answer?.confident != true) {
             // r13c (TW7): a long word with three cheap slips (impoersnte → importante, dkcionafio →
             // diccionario): a second pass within three edits, bounded by cost, added to the first
             val far = HashMap<String, Group>()
-            collect(ft, v, 3, THREE_SLIP + THREE_SEEN, far)
+            collect(ft, v, 3, THREE_SLIP + THREE_SEEN, far, near)
             for ((f, g) in far) if (g.dist == 3 && f !in groups) groups[f] = g
-            answer = decide(t, len, groups, v)
+            answer = decide(t, ft, groups, v, near)
         }
         return answer
     }
 
     /** Every spelling family within [maxD] edits / [maxCost] of folded [ft], into [groups] (NW9 walk). */
-    private fun collect(ft: String, v: ValidWords, maxD: Int, maxCost: Float, groups: HashMap<String, Group>) {
+    private fun collect(ft: String, v: ValidWords, maxD: Int, maxCost: Float, groups: HashMap<String, Group>, near: Array<String>?) {
         val len = ft.length
         val r = rows
-        r.reset(ft, maxD, maxCost)
+        r.reset(ft, maxD, maxCost, near)
         fun offer(fold: String, spelling: String, cost: Float, dist: Int, rank: Int, rare: Boolean, other: Boolean) {
             val prior = if (rare) RARE_PRIOR else FREQ_WEIGHT * ln(rank + 1.0).toFloat()
             val total = cost + prior + if (other) OTHER_LANG else 0f
@@ -322,11 +374,18 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         // NW8: the other language's common words compete (vuild → build); its rare forms do not
         foreign?.let { scan(it, other = true) }
         r.sounds(lang != Lang.EN)
+        // r13d (OR1): the user's own words no dictionary knows (GrapheneOS) compete like a list word
+        // (never the typed word itself: whether the user's own typing stays is B5's call, with TS3b's strikes)
+        if (mine.isNotEmpty()) for ((f, spelling) in mineTargets(v)) {
+            if (f == ft || abs(f.length - len) > maxD || f in groups) continue
+            if (r.score(f)) offer(f, spelling, r.cost, r.distance, USER_RANK, rare = false, other = false)
+        }
     }
 
-    /** The answer over [groups] for typed [t] ([len] folded letters): the best family and whether it is safe. */
-    private fun decide(t: String, len: Int, groups: Map<String, Group>, v: ValidWords): Candidate? {
+    /** The answer over [groups] for typed [t] (folded [ft]): the best family and whether it is safe. */
+    private fun decide(t: String, ft: String, groups: Map<String, Group>, v: ValidWords, near: Array<String>?): Candidate? {
         if (groups.isEmpty()) return null
+        val len = ft.length
         val sorted = groups.values.sortedBy { it.total }
         val best = sorted[0]
         // r13c (TA1): a one-slip valid form outside the list is not held back by a rival that needs
@@ -335,15 +394,38 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         val rival = sorted.asSequence().drop(1).firstOrNull { g -> !(oneSlip && g.dist > best.dist && g.cost - best.cost >= SLIP - EPS) }?.total ?: Float.MAX_VALUE
         val word = committedForm(best, v)
         val margin = rival - best.total
+        // r13d (W5-1): the spelling families two cheap slips (or less) away
+        val plausible = sorted.count { it.cost <= TWO_SLIP + EPS }
+        // r13d (WC2): the lead over the next everyday word (a list word of either language)
+        val listMargin = (sorted.asSequence().drop(1).firstOrNull { !it.rare }?.total ?: Float.MAX_VALUE) - best.total
         val confident = keepsTypedAccents(t, word) && when {
             best.cost == 0f -> true
             best.dist >= 3 -> !best.rare && best.cost <= THREE_SLIP && margin >= RARE_GAP // TW7
-            else -> sure(best, margin, sorted.size == 1, len)
+            else -> sure(best, margin, listMargin, sorted.size == 1, len, plausible) || threeLetter(ft, best, margin, near)
         }
+        // r13d (WC3): nothing applied and the next reading is close: the bar offers both
+        val alt = if (confident) null else sorted.getOrNull(1)?.takeIf { it.total - best.total < RARE_GAP }?.let { committedForm(it, v) }?.takeIf { it != word }
         trace?.invoke(sorted.take(4).joinToString(" ") { g ->
             "%s(%s d=%d c=%.2f t=%.2f%s)".format(java.util.Locale.ROOT, g.spelling, if (g.rare) "rare" else "#${g.rank}", g.dist, g.cost, g.total, if (g.other) " other" else "")
         } + if (confident) " ✓" else "")
-        return Candidate(word, confident)
+        return Candidate(word, confident, alt)
+    }
+
+    /**
+     * r13d (T3-1): a three-letter non-word one touching key from a very frequent three-letter word of this
+     * language (`pof` → `por`): the best family is one of this list's [THREE_TOP] three-letter words,
+     * reached by ONE substitution of a touching key — or of a key the touch was on the border of (TB1) —
+     * costing at most one slip ([ONE_SLIP], first-letter penalty included), and it leads every other
+     * family (an extra / missing key, the other language one notch behind) by [THREE_GAP].
+     */
+    private fun threeLetter(ft: String, best: Group, margin: Float, near: Array<String>?): Boolean {
+        if (ft.length != 3 || best.fold.length != 3 || best.rare || best.other || best.dist != 1 || best.rank >= THREE_TOP) return false
+        if (best.cost > ONE_SLIP + EPS || margin < THREE_GAP - EPS) return false
+        var at = -1
+        for (i in 0 until 3) if (ft[i] != best.fold[i]) { if (at >= 0) return false; at = i }
+        if (at < 0) return false
+        val c = best.fold[at]
+        return TypoModel.near(centres, ft[at], c) || (near != null && near[at].indexOf(c) >= 0)
     }
 
     /**
@@ -362,9 +444,14 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      * and a cheap typo for ≤ 4 letters, top [MID_RANK] for 5–6, any length 7+), each with a margin
      * over the next spelling family. A form outside the list: one cheap edit on 5+ letters, or —
      * on a long word — two neighbour slips with nothing else within two edits (clnfkgurarlo).
+     * r13d: a fix needing two edits leads the next LIST word (either language) by [RARE_GAP] at any
+     * length ([listMargin], WC2: two edits leave more readings than one — juneros: juntos 1.05 /
+     * números 1.19, both everyday words; a rare form behind keeps the length's margin: hoohle → google
+     * over hollé), and on five letters it is the only family within two cheap slips ([plausible], W5-1).
      */
-    private fun sure(best: Group, margin: Float, sole: Boolean, len: Int): Boolean {
+    private fun sure(best: Group, margin: Float, listMargin: Float, sole: Boolean, len: Int, plausible: Int): Boolean {
         if (margin < gap13(len)) return false
+        if (best.dist >= 2 && listMargin < RARE_GAP) return false // r13d (WC2)
         if (best.rare) return margin >= RARE_GAP && when (best.dist) {
             1 -> len >= RARE_MIN_LEN && best.cost <= RARE_ONE
             else -> len >= RARE_TWO_LEN && sole && best.cost <= RARE_TWO
@@ -375,9 +462,10 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             len >= 5 -> rank < MID_RANK
             else -> rank < SHORT_RANK13
         }
-        // r13c (TW1): two edits on 6 letters only as two cheap slips
+        // r13c (TW1), r13d (W5-1): two edits on 5–6 letters only as two cheap slips
         val costOk = if (len < 7 && best.dist >= 2) best.cost <= TWO_SLIP else best.cost <= allowance(len, rank)
-        return rankOk && costOk
+        val alone = len != 5 || best.dist < 2 || plausible == 1
+        return rankOk && costOk && alone
     }
 
     /**
@@ -554,10 +642,24 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         /** … and the pass sees rivals this much dearer too (the margin needs them). */
         const val THREE_SEEN = 1.0f
 
-        /** r13c (TW1): the r13 search budget: one edit under 6 letters, two from 6 (r12 path: [maxDistance]). */
+        /** r13d (T3-1): a three-letter fix lands on one of this list's this-many most frequent words … */
+        const val THREE_TOP = 200
+        /** … and leads every other reading by this much (0.45 stays for the regular ≤ 4-letter fixes). */
+        const val THREE_GAP = 0.3f
+        /**
+         * r13d (OR1): the frequency prior of the user's own word as a correction target, like a list word of
+         * this rank (an everyday word: inside r13a's ≤ 4-letter band; for 5–6 letters at r8's 1000 line, so
+         * only thumb-shaped typos — ≤ 0.8 — reach it).
+         */
+        const val USER_RANK = 1000
+
+        /**
+         * r13c (TW1), r13d (W5-1): the r13 search budget: one edit under 5 letters, two from 5 (r12 path:
+         * [maxDistance]).
+         */
         fun maxDistance13(len: Int): Int = when {
             len < MIN_LEN -> 0
-            len < 6 -> 1
+            len < 5 -> 1
             else -> 2
         }
 

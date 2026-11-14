@@ -22,6 +22,10 @@ package com.resyst.vk.core
  * — the DM is where they write their names and slang — but still never LEARNS from it
  * ([personalWords]). Handles, opted-out search boxes, secret, incognito and non-text fields stay
  * closed both ways.
+ *
+ * r13d (OR1–OR3): what the read gate opens in such a field (Google Keep's note body is one): learned
+ * casing, the user's own words as correction targets, stored rejections, personal completions. What
+ * it never does there: write — no new word, use, casing evidence, keep mark, strike or rejected pair.
  */
 data class FieldPolicy(
     val kind: FieldKind,
@@ -29,7 +33,10 @@ data class FieldPolicy(
     val incognito: Boolean,
     /** Password variations and numeric PINs: no clipboard chip, capture or history, ever (r6). */
     val secret: Boolean = kind == FieldKind.PASSWORD,
-    /** The field set TYPE_TEXT_FLAG_NO_SUGGESTIONS (personal data stays closed even if [suggestions]). */
+    /**
+     * The field set TYPE_TEXT_FLAG_NO_SUGGESTIONS: nothing typed here is ever written ([personalWords]);
+     * a prose one still reads what was learned elsewhere ([offerWords], r11 X6 / r13d OR).
+     */
     val optedOut: Boolean = false,
 ) {
 

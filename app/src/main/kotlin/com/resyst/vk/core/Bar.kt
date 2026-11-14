@@ -32,11 +32,13 @@ object Bar {
     fun correction(
         word: String, sentenceStart: Boolean, lexicon: Suggest?, personal: PersonalModel?, lang: Lang,
         clean: Boolean = false, vocab: List<Lang> = listOf(lang), rejected: Rejections? = null,
+        near: Array<String>? = null,
     ): String? {
         // R5: a reverted casing is a lowercase use, which contradicts it for good (LC3); r13c (MC2): an
         // inner capital only for a word no dictionary knows (GrapheneOS), never trae → trAe
         personal?.casing(vocab, word, sentenceStart)?.takeIf { lexicon?.casingFits(it) != false }?.let { return it }
-        val fix = lexicon?.correction(word, sentenceStart) ?: return null
+        // r13d (TB1): [near] = the touch record of [word]: the keys each letter's touch was on the border of
+        val fix = lexicon?.correction(word, sentenceStart, near) ?: return null
         // B5, K1 (kept), BL8 (either table); r13c (TS3b): a pair rejected once waits for its second
         // rejection — uses of the word while it was kept in that field do not make it the user's
         if (personal?.owns(vocab, word, HABIT) == true && (rejected?.struck(word, fix) != true || vocab.any { personal.kept(it, word) })) return null
@@ -52,12 +54,12 @@ object Bar {
     fun words(
         before: CharSequence, after: CharSequence, windowFull: Boolean, lang: Lang,
         lexicon: Suggest?, personal: PersonalModel?, shift: ShiftState, limit: Int = LIMIT,
-        clean: Boolean = false, vocab: List<Lang> = listOf(lang),
+        clean: Boolean = false, vocab: List<Lang> = listOf(lang), near: Array<String>? = null,
     ): List<String> {
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return emptyList() // B6
         val word = Suggest.currentWord(before)
         fun bar(n: Int) = if (word.isEmpty()) predictions(before, windowFull, lang, personal, shift, n)
-        else completions(before, word, windowFull, vocab.ifEmpty { listOf(lang) }, lexicon, personal, n)
+        else completions(before, word, windowFull, vocab.ifEmpty { listOf(lang) }, lexicon, personal, n, near)
         val raw = bar(limit)
         if (!clean || raw.all { allowed(it, vocab, personal, lang) }) return raw // nothing to drop: identical to r9
         // something was dropped: ask for a few more so the bar has no hole
@@ -84,13 +86,14 @@ object Bar {
 
     private fun completions(
         before: CharSequence, word: String, windowFull: Boolean, vocab: List<Lang>,
-        lexicon: Suggest?, personal: PersonalModel?, limit: Int,
+        lexicon: Suggest?, personal: PersonalModel?, limit: Int, near: Array<String>? = null,
     ): List<String> {
         val stem = before.subSequence(0, before.length - word.length)
         val ctx = Tokens.context(stem, windowFull)
-        val static = lexicon?.suggest(word, limit) ?: emptyList()
+        // r13d (TB3): the same touch record space reads
+        val static = lexicon?.suggest(word, limit, near) ?: emptyList()
         // suggest() leads with the confident fix when there is one
-        val confident = static.isNotEmpty() && lexicon?.best(word.lowercase())?.confident == true
+        val confident = static.isNotEmpty() && lexicon?.best(word.lowercase(), near)?.confident == true
         val habit = confident && personal?.owns(vocab, word, HABIT) == true
         val mine = personal?.completions(vocab, word, ctx.prev, limit) ?: emptyList()
         // (word, from the lexicon) in bar order before the one-offs go in

@@ -42,6 +42,13 @@ class PersonalModel {
     private val langs = LinkedHashMap<Lang, Tables>()
     private var clock = 0L
 
+    /**
+     * r13d (OR4): bumped by every change (learn, keep, unlearn, forget, clear), in memory only: whoever
+     * derives something from the model ([targets]) rebuilds it only when this moves.
+     */
+    var version = 0L
+        private set
+
     private fun tables(lang: Lang) = langs.getOrPut(lang) { Tables() }
 
     /** Records one finished [word]; [prev] is the previous word (any case) or null. */
@@ -51,6 +58,7 @@ class PersonalModel {
         val k = Tokens.key(word)
         val t = tables(lang)
         val now = ++clock
+        version++
         val form = formOf(word, sentenceStart)
         val w = t.vocab[k]
         if (w != null) {
@@ -85,6 +93,7 @@ class PersonalModel {
         val k = Tokens.key(word)
         val t = tables(lang)
         val w = t.vocab[k]
+        version++
         if (w != null) {
             if (w.kept) return false
             w.kept = true
@@ -108,6 +117,7 @@ class PersonalModel {
     /** Takes back one [learn] (the user immediately deleted the word it learned, M10). */
     fun unlearn(lang: Lang, prev: String?, word: String, sentenceStart: Boolean) {
         val t = langs[lang] ?: return
+        version++
         val k = Tokens.key(word)
         // undoing the very learn that kept a word (count 1) drops it with its mark: the user is
         // editing the word again; a later use's undo leaves the mark (K3)
@@ -196,6 +206,20 @@ class PersonalModel {
         return found?.takeIf { it != word }
     }
 
+    /**
+     * r13d (OR1): the user's own words in [within] — kept, or typed at least [minCount] times — spelled as
+     * space would commit them: the learned casing when its evidence holds ([casing]: GrapheneOS), else the
+     * lowercase key. Each word once (the writing language's table first). Read only.
+     */
+    fun targets(within: List<Lang>, minCount: Int): List<String> {
+        val out = LinkedHashMap<String, String>()
+        for (l in within.distinct()) {
+            val t = langs[l] ?: continue
+            for ((k, w) in t.vocab) if ((w.kept || w.count >= minCount) && k !in out) out[k] = casing(within, k, false) ?: k
+        }
+        return out.values.toList()
+    }
+
     /** Whether the user has typed [word] at least [minCount] times (space never "corrects" it, B5). */
     fun knows(lang: Lang, word: String, minCount: Int = 1): Boolean =
         (langs[lang]?.vocab?.get(Tokens.key(word))?.count ?: 0) >= minCount
@@ -207,6 +231,7 @@ class PersonalModel {
      */
     fun forget(lang: Lang, word: String): Boolean {
         val t = langs[lang] ?: return false
+        version++
         val k = Tokens.key(word)
         var changed = t.vocab.remove(k) != null
         changed = t.starters.removeAll { it.key == k } || changed
@@ -233,7 +258,7 @@ class PersonalModel {
             .toList()
     }
 
-    fun clear() { langs.clear(); clock = 0 }
+    fun clear() { langs.clear(); clock = 0; version++ }
 
     fun isEmpty(): Boolean = langs.values.all { it.vocab.isEmpty() && it.next.isEmpty() && it.starters.isEmpty() }
 

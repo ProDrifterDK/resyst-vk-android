@@ -75,6 +75,12 @@ class KeyboardView(context: Context) : View(context) {
         fun onKeyDown(key: Key)
         fun onKeyUp(key: Key)
         fun onKeyCommit(key: Key)
+        /**
+         * r13d (TB1): called right before [onKeyCommit] of a letter key with the other letter keys whose hit
+         * cell lies within [com.resyst.vk.core.TouchKeys.BORDER] key widths of where the finger lifted
+         * ("" = none): the corrector may read the touch as meaning one of them.
+         */
+        fun onKeyNear(near: String) = Unit
         fun onVariant(text: String)
         fun onLongPressOpened()
         fun onSuggestion(word: String)
@@ -383,6 +389,9 @@ class KeyboardView(context: Context) : View(context) {
         var downY = 0f
         var downAt = 0L
         var flicked = false
+        /** r13d (TB1): the last position seen (a roll-over commits a held key from here). */
+        var lastX = downX
+        var lastY = 0f
     }
     private val ptrs = LinkedHashMap<Int, Ptr>()
     private val handler = Handler(Looper.getMainLooper())
@@ -719,6 +728,24 @@ class KeyboardView(context: Context) : View(context) {
         return row.minByOrNull { min(abs(x - it.cellLeft), abs(x - it.cellRight)) }
     }
 
+    /**
+     * r13d (TB1): the other letter keys whose HIT cell (the cells [boxAt] uses: a row is `stripH + r·rowH`,
+     * a key runs to the gap midpoints) lies within [com.resyst.vk.core.TouchKeys.BORDER] key widths of
+     * ([x], [y]), for the letter key [b] the touch committed; "" for any other key. Letters only, never
+     * kept here, never logged.
+     */
+    private fun nearKeys(b: Box, x: Float, y: Float): String {
+        val hit = b.key.text.singleOrNull()?.takeIf { it.isLetter() } ?: return ""
+        val cells = ArrayList<com.resyst.vk.core.TouchKeys.Cell>(32)
+        for (row in rowBoxes) for (o in row) {
+            val l = o.key.text.singleOrNull() ?: continue
+            if (o.key.type != KeyType.CHAR || !l.isLetter()) continue
+            val top = stripH + o.row * rowH
+            cells += com.resyst.vk.core.TouchKeys.Cell(l, o.cellLeft, top, o.cellRight, top + rowH)
+        }
+        return com.resyst.vk.core.TouchKeys.near(cells, x, y, hit, b.cellRight - b.cellLeft)
+    }
+
     private fun stripAt(x: Float, y: Float): StripItem? =
         if (y >= stripH) null else stripItems.firstOrNull { x >= it.rect.left - 4 * dp && x <= it.rect.right + 4 * dp }
 
@@ -751,6 +778,7 @@ class KeyboardView(context: Context) : View(context) {
             if (p.popup == null && !p.cursorMode && b.key.type == KeyType.CHAR) {
                 handler.removeCallbacksAndMessages(p)
                 ptrs.remove(p.id)
+                listener?.onKeyNear(nearKeys(b, p.lastX, p.lastY))
                 listener?.onKeyCommit(b.key)
             }
         }
@@ -773,7 +801,7 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         val box = boxAt(x, y) ?: return
-        val p = Ptr(id, box, x).also { it.downY = y; it.downAt = SystemClock.uptimeMillis() }
+        val p = Ptr(id, box, x).also { it.downY = y; it.lastY = y; it.downAt = SystemClock.uptimeMillis() }
         ptrs[id] = p
         listener?.onKeyDown(box.key)
         when (box.key.type) {
@@ -829,6 +857,7 @@ class KeyboardView(context: Context) : View(context) {
         if (id == panelPtr) { panelMove(y); return }
         val p = ptrs[id] ?: return
         val b = p.box ?: return
+        p.lastX = x; p.lastY = y
         val popup = p.popup
         if (popup != null) {
             val s = popup.indexAt(x)
@@ -906,7 +935,10 @@ class KeyboardView(context: Context) : View(context) {
             p.cursorMode || p.longFired || p.flicked -> Unit
             b.key.type == KeyType.BACKSPACE || b.key.type == KeyType.SHIFT -> Unit
             b.key.type == KeyType.EMOJI -> listener?.onEmojiKey()
-            else -> listener?.onKeyCommit(b.key)
+            else -> {
+                if (b.key.type == KeyType.CHAR) listener?.onKeyNear(nearKeys(b, x, y))
+                listener?.onKeyCommit(b.key)
+            }
         }
         listener?.onKeyUp(b.key)
         invalidate()
