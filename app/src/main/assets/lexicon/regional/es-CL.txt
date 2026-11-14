@@ -98,6 +98,11 @@ oki 4000
 xd 3000
 wn 1500
 wsp 5000
+# r13c (SW4): abreviaturas de chat a una tecla de una palabra muy frecuente (ql → al, ws → es,
+#   td → te): aquí son palabras, el espacio no las toca
+ws 9000
+td 9000
+ql 9000
 whatsapp 2000
 tqm 6000
 tkm 8000

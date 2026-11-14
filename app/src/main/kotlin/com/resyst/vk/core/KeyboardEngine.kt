@@ -16,6 +16,10 @@ fun interface Corrector {
  * r13 (LR1–LR7): the corrections space applied in this field are remembered (memory only); when
  * the user deletes one later and types the same word again, space keeps it ([takeReverted]) and
  * the rejected pair is handed out once ([takeRejection]).
+ *
+ * r13c (EP1–EP8): every word ending corrects like space — a closing mark (`, . ; : ! ? ) ] } » ” …`,
+ * typed or long-pressed) or Enter where it inserts a new line — and the mark lands after the fix.
+ * (TS1) a word whose correction the user rejected stays as typed for the rest of this field.
  */
 class KeyboardEngine {
     var layer: Layer = Layer.LETTERS
@@ -36,8 +40,16 @@ class KeyboardEngine {
     private var lastWasSpace = false
     private var lastSpaceAt = Long.MIN_VALUE / 2
 
-    /** The correction the last space applied (typed → committed), undoable by backspace. */
-    private var undo: Pair<String, String>? = null
+    /**
+     * The correction the last word ending applied, undoable by ⌫ / ↶ right after it: [typed] →
+     * [fixed], ended by [mark] (" " for space, a closing mark, "\n").
+     */
+    private class Undo(val typed: String, val fixed: String, val mark: String) {
+        /** What the text before the cursor ends with while the undo is still on offer. */
+        val tail: String get() = fixed + mark
+    }
+
+    private var undo: Undo? = null
     /** A word the user reverted: the next space keeps it as typed. */
     private var rejected: String? = null
     /** r11: the typed word the last [press] / [undoCorrection] restored (read once by [takeReverted]). */
@@ -55,6 +67,11 @@ class KeyboardEngine {
     /** r13 (LR6): this field's corrections, oldest first, at most [FIELD_MEMORY]; never persisted. */
     private val applied = ArrayList<Applied>()
     /**
+     * r13c (TS1): the typed words ([Tokens.key]) whose correction the user rejected in this field,
+     * oldest first, at most [FIELD_MEMORY]: never corrected again here. Memory only, like [applied].
+     */
+    private val protectedHere = LinkedHashSet<String>()
+    /**
      * r12 (PS1–PS6): the text a suggestion pick (or a punctuation swap after it) left right before
      * the cursor, ending in its provisional space ("Hola "), or null. Only while the text before the
      * cursor still ends with exactly this can closing punctuation take that space's place, or a
@@ -69,7 +86,7 @@ class KeyboardEngine {
      * came back to it): its correction memory is kept. Any other field starts with none (LR6).
      */
     fun start(info: FieldInfo, sameField: Boolean = false) {
-        if (!sameField) applied.clear()
+        if (!sameField) { applied.clear(); protectedHere.clear() }
         rejection = null
         field = info
         layer = if (info.kind == FieldKind.NUMBER || info.kind == FieldKind.PHONE) Layer.NUMPAD else Layer.LETTERS
@@ -134,9 +151,15 @@ class KeyboardEngine {
         if (key.type != KeyType.SHIFT && key.type != KeyType.LAYER && key.type != KeyType.SPACER) provisional = null
         if (prov != null && key.type == KeyType.SPACE) return absorbSpace() // PS2
         val out = when (key.type) {
-            KeyType.CHAR -> typed(key.text).let { t -> if (prov != null && closes(t)) swap(prov, t) else listOf(Out.Commit(t)) }
+            KeyType.CHAR -> typed(key.text, before).let { t ->
+                when {
+                    prov != null && closes(t) -> swap(prov, t)
+                    closes(t) -> ending(before, after, t) ?: listOf(Out.Commit(t)) // EP1
+                    else -> withdraw(pendingUndo, before, t) ?: listOf(Out.Commit(t)) // EP5
+                }
+            }
             KeyType.SPACE -> space(before, now, after)
-            KeyType.ENTER -> listOf(enter())
+            KeyType.ENTER -> (if (field.multiLine) ending(before, after, "\n") else null) ?: listOf(enter()) // EP1
             KeyType.BACKSPACE -> revert(pendingUndo, before) ?: run { deleting(before, after); listOf(Out.Backspace) }
             KeyType.LAYER -> { layer = key.target ?: Layer.LETTERS; emptyList() }
             KeyType.SHIFT, KeyType.SPACER, KeyType.EMOJI -> emptyList()
@@ -149,13 +172,18 @@ class KeyboardEngine {
      * A long-press variant. [before] = the text before the cursor, so a closing variant (`.` → `…`)
      * can take a pick's provisional space too (PS1); null (the GIF search box) never swaps.
      */
-    fun variant(text: String, before: CharSequence? = null): List<Out> {
+    fun variant(text: String, before: CharSequence? = null, after: CharSequence = ""): List<Out> {
+        reverted = null
         val prov = before?.let(::pendingProvisional)
         provisional = null
         lastWasSpace = false
         undo = null
-        val t = typed(text)
-        return if (prov != null && closes(t)) swap(prov, t) else listOf(Out.Commit(t))
+        val t = typed(text, before)
+        return when {
+            prov != null && closes(t) -> swap(prov, t)
+            before != null && closes(t) -> ending(before, after, t) ?: listOf(Out.Commit(t)) // EP1: … ! ? by long-press
+            else -> listOf(Out.Commit(t))
+        }
     }
 
     /**
@@ -193,8 +221,15 @@ class KeyboardEngine {
 
     private fun closes(t: String): Boolean = t.length == 1 && t[0] in CLOSING
 
-    private fun typed(text: String): String {
-        val t = if (upper) Variants.shiftChar(text) else text
+    /**
+     * r13c (MC1): AUTO shift (the editor's caps-mode answer, possibly stale after a ⌫ or a fast edit)
+     * capitalizes only a letter that starts a word; right after a letter, digit or apostrophe it types
+     * lowercase. A shift the user pressed (ONCE / LOCKED) is never overridden.
+     */
+    private fun typed(text: String, before: CharSequence? = null): String {
+        val inWord = before != null && before.isNotEmpty() && before[before.length - 1].let { it.isLetterOrDigit() || it == '\'' }
+        val up = upper && !(shift == ShiftState.AUTO && inWord)
+        val t = if (up) Variants.shiftChar(text) else text
         if (shiftHeld) chordUsed = true
         else if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) shift = ShiftState.OFF
         return t
@@ -206,16 +241,35 @@ class KeyboardEngine {
         lastWasSpace = !armed
         lastSpaceAt = now
         if (armed) return listOf(Out.DeleteBefore(1), Out.Commit(". "))
+        return ending(before, after, " ") ?: listOf(Out.Commit(" "))
+    }
+
+    /**
+     * r13c (EP1/EP2): [mark] ends the word before the cursor — space, a closing mark or a new line:
+     * the same correction for all of them, the mark right after the fix, in one edit. null = nothing
+     * to correct (the caller commits the mark as typed).
+     */
+    private fun ending(before: CharSequence, after: CharSequence, mark: String): List<Out>? {
         val fix = correctionFor(before, after)
         rejected = null
-        afterWord()
-        if (fix != null) {
-            undo = fix
-            applied += Applied(fix.first, fix.second)
-            while (applied.size > FIELD_MEMORY) applied.removeAt(0)
-            return listOf(Out.DeleteBefore(fix.first.length), Out.Commit(fix.second + " "))
-        }
-        return listOf(Out.Commit(" "))
+        if (mark == " " || Suggest.currentWord(before).isNotEmpty()) afterWord()
+        if (fix == null) return null
+        undo = Undo(fix.first, fix.second, mark)
+        applied += Applied(fix.first, fix.second)
+        while (applied.size > FIELD_MEMORY) applied.removeAt(0)
+        return listOf(Out.DeleteBefore(fix.first.length), Out.Commit(fix.second + mark))
+    }
+
+    /**
+     * r13c (EP5): a letter or digit typed right after the `.` that just corrected a word: the period
+     * was inside a token (resyst.cl, informe.pdf), not a sentence end — the typed word comes back
+     * with its period and the key, in one edit. Not a rejection, and nothing to unlearn: a word is
+     * learned only once whitespace follows it (Tokens.finished).
+     */
+    private fun withdraw(u: Undo?, before: CharSequence, t: String): List<Out>? {
+        if (u == null || u.mark != "." || t.isEmpty() || !t[0].isLetterOrDigit() || !before.endsWith(u.tail)) return null
+        applied.indexOfLast { it.typed == u.typed && it.fixed == u.fixed }.takeIf { it >= 0 }?.let { applied.removeAt(it) }
+        return listOf(Out.DeleteBefore(u.tail.length), Out.Commit(u.typed + u.mark + t))
     }
 
     /** (typed, replacement) for the word ending at the cursor, if space should correct it. */
@@ -224,11 +278,13 @@ class KeyboardEngine {
         if (after.isNotEmpty() && (after[0].isLetter() || after[0] == '\'')) return null // A11
         val word = Suggest.currentWord(before)
         if (word.isEmpty() || word == rejected || !Suggest.standalone(before, word)) return null
+        if (Tokens.key(word) in protectedHere) return null // r13c (TS1): rejected once in this field
         // r13 (LR1): the user deleted a correction of this very word and typed it again: keep it
         lateRejection(word)?.let { a ->
             applied.remove(a)
             rejection = a.typed to a.fixed
             reverted = word
+            protect(word)
             return null
         }
         val fix = c.fix(word, Suggest.sentenceStart(before, word)) ?: return null
@@ -240,29 +296,43 @@ class KeyboardEngine {
      * that correction + space — the bar offers "↶ typed" for exactly that long (U1).
      */
     fun undoOffer(before: CharSequence): String? {
-        val (typedWord, fixed) = undo ?: return null
-        return if (before.endsWith("$fixed ")) typedWord else null
+        val u = undo ?: return null
+        return if (before.endsWith(u.tail)) u.typed else null
     }
 
-    /** The "↶" chip: restore the typed word and its space; the next space keeps it (U2). */
+    /**
+     * The "↶" chip: restore the typed word and what ended it (its space, or the mark: `lento,` →
+     * `lentl,`, EP3); the next space keeps it (U2).
+     */
     fun undoCorrection(before: CharSequence): List<Out>? {
         val u = undo ?: return null
         val outs = revert(u, before) ?: return null
         undo = null
         lastWasSpace = false
-        return outs + Out.Commit(" ")
+        return if (u.mark == " ") outs + Out.Commit(" ") else outs
     }
 
-    /** Backspace right after a space-correction restores the typed word (A10). */
-    private fun revert(u: Pair<String, String>?, before: CharSequence): List<Out>? {
-        val (typedWord, fixed) = u ?: return null
-        val tail = "$fixed "
-        if (!before.endsWith(tail)) return null
-        rejected = typedWord
-        reverted = typedWord
-        rejection = typedWord to fixed // r13 (LR5)
-        applied.indexOfLast { it.typed == typedWord && it.fixed == fixed }.takeIf { it >= 0 }?.let { applied.removeAt(it) }
-        return listOf(Out.DeleteBefore(tail.length), Out.Commit(typedWord))
+    /**
+     * Backspace right after a correction restores the typed word (A10). After space the space goes
+     * too (`lento ` → `lentl`, r10); after a mark or a new line the mark stays (`lento,` → `lentl,`,
+     * r13c EP3): one ⌫ undoes the fix, never the key the user chose.
+     */
+    private fun revert(u: Undo?, before: CharSequence): List<Out>? {
+        if (u == null || !before.endsWith(u.tail)) return null
+        rejected = u.typed
+        reverted = u.typed
+        rejection = u.typed to u.fixed // r13 (LR5)
+        protect(u.typed)
+        applied.indexOfLast { it.typed == u.typed && it.fixed == u.fixed }.takeIf { it >= 0 }?.let { applied.removeAt(it) }
+        return listOf(Out.DeleteBefore(u.tail.length), Out.Commit(if (u.mark == " ") u.typed else u.typed + u.mark))
+    }
+
+    /** r13c (TS1): [word] stays as typed for the rest of this field. */
+    private fun protect(word: String) {
+        val k = Tokens.key(word)
+        protectedHere.remove(k)
+        protectedHere += k
+        while (protectedHere.size > FIELD_MEMORY) protectedHere.remove(protectedHere.first())
     }
 
     /**
@@ -308,6 +378,9 @@ class KeyboardEngine {
     /** r13: corrections remembered for this field (tests, diagnostics). */
     val fieldCorrections: Int get() = applied.size
 
+    /** r13c (TS1): words kept as typed in this field after a rejection (tests, diagnostics). */
+    val fieldProtected: Int get() = protectedHere.size
+
     /**
      * r11 (K1/K2): the word the user just kept by reverting its space-correction (⌫ right after
      * it, or the ↶ chip), or null. Cleared by the read and by the next key press.
@@ -323,8 +396,11 @@ class KeyboardEngine {
     companion object {
         const val DOUBLE_TAP_MS = 400L
         const val DOUBLE_SPACE_MS = 1500L
-        /** r12 (PS1): marks that close what comes before them and take a pick's provisional space. */
+        /** r12 (PS1): marks that close what comes before them and take a pick's provisional space; r13c (EP1): they end a word. */
         const val CLOSING = ",.;:!?)]}»”…"
+
+        /** r13c (EP1/EP8): [text] (a key or long-press variant) ends the word before it — the IME reads after the cursor for it. */
+        fun endsWord(text: String): Boolean = text.length == 1 && text[0] in CLOSING
         /** r13 (LR6): corrections remembered per field. */
         const val FIELD_MEMORY = 16
         /** r13 (LR3): words the user may finish between deleting a correction and retyping its word. */

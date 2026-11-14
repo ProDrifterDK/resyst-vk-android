@@ -115,7 +115,11 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      * (acronyms) and mixed case (iPhone) are never touched.
      */
     fun correction(typed: String, sentenceStart: Boolean): String? {
-        if (typed.length < MIN_LEN || typed.length > MAX_FUZZY_LEN || !typed.all { it.isLetter() }) return null
+        // r13c (SW1, TW5): with the valid-word set two-letter words and words up to MAX_LEN are looked at
+        val v = valid
+        val min = if (v != null) SHORT_LEN else MIN_LEN
+        val max = if (v != null) MAX_LEN else MAX_FUZZY_LEN
+        if (typed.length < min || typed.length > max || !typed.all { it.isLetter() }) return null
         if (typed.drop(1).any { it.isUpperCase() }) return null
         if (typed[0].isUpperCase() && !sentenceStart) return null
         val c = best(typed.lowercase()) ?: return null
@@ -162,6 +166,24 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     }
 
     /**
+     * r13c (MC2): whether a learned casing [cased] may be applied. One with a capital after the first
+     * letter (GrapheneOS, trAe) only when its lowercase is no word of an enabled language (this list
+     * or valid set, the other language's) — GrapheneOS — or that casing is itself a valid spelling
+     * (iPhone): `trae` is a word, so a learned `trAe` (a stray capital) is never applied.
+     */
+    fun casingFits(cased: String): Boolean {
+        if (cased.length < 2 || cased.drop(1).none { it.isUpperCase() }) return true
+        val lower = cased.lowercase()
+        val v = valid
+        val f = foreign
+        val fv = f?.valid
+        if (v?.contains(cased) == true || fv?.contains(cased) == true) return true
+        val word = rankOf[lower] != null || v?.word(lower) == true ||
+            (f != null && (f.rank(lower) != null || fv?.word(lower) == true))
+        return !word
+    }
+
+    /**
      * R2: the valid spellings of lowercase [t] that differ only by accents / diaeresis (ñ is a
      * letter), lowercase, without [t] itself: lowercase entries, and lowercased names (peru → perú).
      */
@@ -177,6 +199,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     }
 
     private fun compute13(t: String, v: ValidWords): Candidate? {
+        if (t.length == SHORT_LEN) return shortWord(t, v) // r13c (SW1–SW5)
         if (t.length < MIN_LEN || t.length > MAX_LEN || !t.all { it.isLetter() }) return null
         if (protectedWord(t, v)) return null // R1
         val forms = accentForms(t, v)
@@ -187,35 +210,96 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             val twin = enyeTwin(fold(t)) ?: return null
             return if (words[twin] != t && twin.toLong() * ACCENT_RATIO <= own && v.word(words[twin])) Candidate(words[twin], true) else null
         }
-        if (t.length > MAX_FUZZY_LEN) return null
         return nonWord(t, v)
     }
+
+    /**
+     * r13c (SW1–SW5): a two-letter non-word one touching key away from a very frequent word of the
+     * writing language ([SHORT_TOP]): nl → no, dd → de, sd → se, jn → un, ys → ya, ek → el. Real words
+     * stay (SW2): valid here, in this list (any rank), regional, or common in the other enabled language
+     * (BL4) — not merely valid in the other language's Hunspell set, which accepts 42% of all
+     * two-letter strings. Ties stay: every list word one touching key away (any rank, and the other
+     * language's common words one notch behind) competes, and the best must lead by [SHORT_GAP2].
+     */
+    private fun shortWord(t: String, v: ValidWords): Candidate? {
+        if (!t.all { it.isLetter() }) return null
+        if (v.word(t) || t in regional || rankOf[t] != null) return null
+        val f = foreign
+        if (f != null && (f.rank(t) ?: Int.MAX_VALUE) < FOREIGN_RANK) return null
+        var best: String? = null
+        var bestScore = Float.MAX_VALUE
+        var second = Float.MAX_VALUE
+        fun consider(w: String, score: Float, target: Boolean) {
+            if (score < bestScore) {
+                second = bestScore
+                bestScore = score; best = if (target) w else null
+            } else if (score < second) second = score
+        }
+        for (i in 0..1) for (c in centres.keys) {
+            val typedC = t[i]
+            if (c == typedC || !TypoModel.near(centres, typedC, c)) continue
+            val w = if (i == 0) "$c${t[1]}" else "${t[0]}$c"
+            val slip = TypoModel.sub(centres, c, typedC, spanish).let { s -> if (i == 0 && s != TypoModel.PHON) s + TypoModel.FIRST else s }
+            rankOf[w]?.let { r -> consider(w, slip + FREQ_WEIGHT * ln(r + 1.0).toFloat(), r < SHORT_TOP) }
+            f?.rank(w)?.takeIf { it < FOREIGN_RANK }?.let { r -> consider(w, slip + FREQ_WEIGHT * ln(r + 1.0).toFloat() + OTHER_LANG, false) }
+        }
+        trace?.invoke("short $t: best=$best ${"%.2f".format(java.util.Locale.ROOT, bestScore)} next=${"%.2f".format(java.util.Locale.ROOT, second)}")
+        val w = best ?: return null
+        return Candidate(w, second - bestScore >= SHORT_GAP2)
+    }
+
+    /** r13c (SW1): key centres of this lexicon's drawn layout, for the two-letter rule. */
+    private val centres = TypoModel.centres(lang)
+    private val spanish = lang != Lang.EN
 
     /** One spelling family (a fold) found near the typed word, with its best evidence. */
     private class Group(
         val fold: String, var cost: Float, var total: Float, var dist: Int, var rank: Int,
         var rare: Boolean, var other: Boolean, var spelling: String,
-    )
+    ) {
+        /** r13c (TW2): the fold's best rank in any enabled language's list (the rank gate reads it). */
+        var known: Int = if (rare) Int.MAX_VALUE else rank
+    }
 
     /** R3 (NW1–NW8): the likeliest word for the non-word [t], and whether it is safe to apply. */
     private fun nonWord(t: String, v: ValidWords): Candidate? {
         val ft = fold(t)
         val len = ft.length
-        val maxD = maxDistance(len)
-        val r = rows
-        r.reset(ft, maxD, maxD * SEARCH_COST)
+        val maxD = maxDistance13(len)
         val groups = HashMap<String, Group>()
+        collect(ft, v, maxD, maxD * SEARCH_COST, groups)
+        var answer = decide(t, len, groups, v)
+        if (len >= THREE_LEN && answer?.confident != true) {
+            // r13c (TW7): a long word with three cheap slips (impoersnte → importante, dkcionafio →
+            // diccionario): a second pass within three edits, bounded by cost, added to the first
+            val far = HashMap<String, Group>()
+            collect(ft, v, 3, THREE_SLIP + THREE_SEEN, far)
+            for ((f, g) in far) if (g.dist == 3 && f !in groups) groups[f] = g
+            answer = decide(t, len, groups, v)
+        }
+        return answer
+    }
+
+    /** Every spelling family within [maxD] edits / [maxCost] of folded [ft], into [groups] (NW9 walk). */
+    private fun collect(ft: String, v: ValidWords, maxD: Int, maxCost: Float, groups: HashMap<String, Group>) {
+        val len = ft.length
+        val r = rows
+        r.reset(ft, maxD, maxCost)
         fun offer(fold: String, spelling: String, cost: Float, dist: Int, rank: Int, rare: Boolean, other: Boolean) {
             val prior = if (rare) RARE_PRIOR else FREQ_WEIGHT * ln(rank + 1.0).toFloat()
             val total = cost + prior + if (other) OTHER_LANG else 0f
             val g = groups[fold]
             if (g == null) groups[fold] = Group(fold, cost, total, dist, rank, rare, other, spelling)
-            else if (total < g.total) { g.cost = cost; g.total = total; g.dist = dist; g.rank = rank; g.rare = rare; g.other = other; g.spelling = spelling }
+            else {
+                if (!rare) g.known = minOf(g.known, rank)
+                if (total < g.total) { g.cost = cost; g.total = total; g.dist = dist; g.rank = rank; g.rare = rare; g.other = other; g.spelling = spelling }
+            }
         }
         fun scan(s: Suggest, other: Boolean) {
             // NW9: the list in folded order is walked like a trie — rows are kept for the prefix the
             // next word shares, and a prefix that can no longer match skips every word under it
             val folded = s.folded
+            r.sounds(s.lang != Lang.EN) // r13c (NW3): Spanish sound spellings only for Spanish words
             r.rewind()
             var dead: String? = null
             for (i in s.byFold) {
@@ -233,18 +317,32 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             }
         }
         scan(this, other = false)
+        r.sounds(lang != Lang.EN)
         v.near(r) { form, cost, d -> val f = fold(form); if (f !in groups) offer(f, form, cost, d, Int.MAX_VALUE, rare = true, other = false) }
         // NW8: the other language's common words compete (vuild → build); its rare forms do not
         foreign?.let { scan(it, other = true) }
+        r.sounds(lang != Lang.EN)
+    }
+
+    /** The answer over [groups] for typed [t] ([len] folded letters): the best family and whether it is safe. */
+    private fun decide(t: String, len: Int, groups: Map<String, Group>, v: ValidWords): Candidate? {
         if (groups.isEmpty()) return null
         val sorted = groups.values.sortedBy { it.total }
         val best = sorted[0]
-        val rival = sorted.getOrNull(1)?.total ?: Float.MAX_VALUE
+        // r13c (TA1): a one-slip valid form outside the list is not held back by a rival that needs
+        // another edit and costs at least one more slip (pusiesemls: pusiésemos 1 slip, pudiésemos 2)
+        val oneSlip = best.rare && best.dist == 1 && best.cost <= ONE_SLIP && len >= RARE_SLIP_LEN
+        val rival = sorted.asSequence().drop(1).firstOrNull { g -> !(oneSlip && g.dist > best.dist && g.cost - best.cost >= SLIP - EPS) }?.total ?: Float.MAX_VALUE
         val word = committedForm(best, v)
-        val confident = keepsTypedAccents(t, word) && (best.cost == 0f || sure(best, rival - best.total, sorted.size == 1, len))
+        val margin = rival - best.total
+        val confident = keepsTypedAccents(t, word) && when {
+            best.cost == 0f -> true
+            best.dist >= 3 -> !best.rare && best.cost <= THREE_SLIP && margin >= RARE_GAP // TW7
+            else -> sure(best, margin, sorted.size == 1, len)
+        }
         trace?.invoke(sorted.take(4).joinToString(" ") { g ->
             "%s(%s d=%d c=%.2f t=%.2f%s)".format(java.util.Locale.ROOT, g.spelling, if (g.rare) "rare" else "#${g.rank}", g.dist, g.cost, g.total, if (g.other) " other" else "")
-        })
+        } + if (confident) " ✓" else "")
         return Candidate(word, confident)
     }
 
@@ -271,12 +369,15 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
             1 -> len >= RARE_MIN_LEN && best.cost <= RARE_ONE
             else -> len >= RARE_TWO_LEN && sole && best.cost <= RARE_TWO
         }
+        val rank = best.known // r13c (TW2): its best rank among the enabled languages' lists
         val rankOk = when {
             len >= 7 -> true
-            len >= 5 -> best.rank < MID_RANK
-            else -> best.rank < SHORT_RANK13
+            len >= 5 -> rank < MID_RANK
+            else -> rank < SHORT_RANK13
         }
-        return rankOk && best.cost <= allowance(len, best.rank)
+        // r13c (TW1): two edits on 6 letters only as two cheap slips
+        val costOk = if (len < 7 && best.dist >= 2) best.cost <= TWO_SLIP else best.cost <= allowance(len, rank)
+        return rankOk && costOk
     }
 
     /**
@@ -285,8 +386,12 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      */
     private fun committedForm(g: Group, v: ValidWords): String {
         val fv = foreign?.valid
-        if (v.contains(g.fold) || fv?.contains(g.fold) == true) return g.fold
+        if (v.contains(g.fold)) return g.fold
         val here = v.accentVariants(g.fold)
+        // r13c (TA4): a typo found among this language's words whose bare spelling is only the other
+        // language's (baation → bastión here, bastion in English): this language's single spelling
+        if (!g.other && here.size == 1 && fv?.contains(g.fold) == true) return here[0]
+        if (fv?.contains(g.fold) == true) return g.fold
         if (here.size == 1) return here[0]
         if (here.size > 1) foldRank[g.fold]?.let { return words[it] }
         return g.spelling
@@ -425,6 +530,36 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         const val RARE_GAP = 0.4f
         /** r13 (NW6): ≤ 4 letters land on the top N (r8: 3000; regional everyday words sit just past it). */
         const val SHORT_RANK13 = 4000
+
+        /** r13c (SW1): two-letter words are looked at (the r12 path keeps [MIN_LEN]). */
+        const val SHORT_LEN = 2
+        /** r13c (SW1): a two-letter fix lands on a two-letter word among this many most frequent list words. */
+        const val SHORT_TOP = 64
+        /** r13c (SW1): a two-letter fix must lead the next candidate by this much (a tie stays). */
+        const val SHORT_GAP2 = 0.2f
+        /** r13c (TW1): the cost of two cheap slips (two touching keys; a slip + a swap / double / near extra key). */
+        const val TWO_SLIP = 1.1f
+        /** r13c (TA1): one touching-key slip (a side or a vertical neighbour: 0.40 / 0.53) … */
+        const val ONE_SLIP = 0.6f
+        /** … a rival is "another slip away" when it needs one more edit costing at least a side slip more … */
+        const val SLIP = 0.4f
+        /** Float slack for cost comparisons (0.93 − 0.53 is a whole side slip). */
+        private const val EPS = 1e-3f
+        /** … for a valid form outside the list of this many letters (an inflection, not a short word). */
+        const val RARE_SLIP_LEN = 7
+        /** r13c (TW7): three slips are searched from this many letters … */
+        const val THREE_LEN = 10
+        /** … each a cheap slip (three touching keys ≈ 1.2–1.6) … */
+        const val THREE_SLIP = 1.6f
+        /** … and the pass sees rivals this much dearer too (the margin needs them). */
+        const val THREE_SEEN = 1.0f
+
+        /** r13c (TW1): the r13 search budget: one edit under 6 letters, two from 6 (r12 path: [maxDistance]). */
+        fun maxDistance13(len: Int): Int = when {
+            len < MIN_LEN -> 0
+            len < 6 -> 1
+            else -> 2
+        }
 
         /** r13 margin over the next spelling family, by typed length. */
         fun gap13(len: Int): Float = when {

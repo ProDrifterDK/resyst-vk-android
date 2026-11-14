@@ -69,8 +69,11 @@ class Learner(private val model: () -> PersonalModel?) {
      * word comes back without its space) or by the ↶ chip (word + space). The correction's learn is
      * taken back in [undoLang] (M10, for both paths), and [word] becomes the user's in [lang]: at
      * once if [outs] finished it, else when the next edit finishes that same word.
+     *
+     * r13c (TS3): [mark] = false for a first rejection (a strike): the learn is still taken back and
+     * the typed word, once finished, is learned as one ordinary use — not keep-marked.
      */
-    fun kept(undoLang: Lang, lang: Lang, before: String, outs: List<Out>, windowFull: Boolean, word: String): Boolean {
+    fun kept(undoLang: Lang, lang: Lang, before: String, outs: List<Out>, windowFull: Boolean, word: String, mark: Boolean = true): Boolean {
         val m = model()
         val pending = last
         last = null
@@ -85,10 +88,10 @@ class Learner(private val model: () -> PersonalModel?) {
         val now = Tokens.finished(after, windowFull)
         if (now != null && Tokens.key(now.word) == Tokens.key(word)) {
             m.learn(lang, now.prev, now.word, now.sentenceStart)
-            m.keep(lang, now.word)
+            if (mark) m.keep(lang, now.word)
             last = Learned(lang, now, after)
             changed = true
-        } else if (Tokens.learnable(word)) keepNext = Tokens.key(word)
+        } else if (mark && Tokens.learnable(word)) keepNext = Tokens.key(word)
         return changed
     }
 

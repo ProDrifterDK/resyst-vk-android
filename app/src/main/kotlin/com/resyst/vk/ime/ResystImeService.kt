@@ -425,14 +425,16 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val ic = currentInputConnection ?: return
         val t0 = if (timing) SystemClock.elapsedRealtimeNanos() else 0L
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
+        // r13c (EP1): space, a closing mark and Enter end the word before the cursor (and may correct it)
+        val ends = key.type == KeyType.SPACE || key.type == KeyType.ENTER || (key.type == KeyType.CHAR && KeyboardEngine.endsWord(key.text))
         // r13 (LR7): ⌫ needs the word under the cursor (a correction may be deleted from its middle)
-        val after = when (key.type) {
-            KeyType.SPACE -> ic.getTextAfterCursor(1, 0) ?: ""
-            KeyType.BACKSPACE -> if (engine.fieldCorrections > 0) ic.getTextAfterCursor(Tokens.MAX_LEN, 0) ?: "" else ""
+        val after = when {
+            ends -> ic.getTextAfterCursor(1, 0) ?: "" // A11: a letter right after = mid-word, no correction
+            key.type == KeyType.BACKSPACE -> if (engine.fieldCorrections > 0) ic.getTextAfterCursor(Tokens.MAX_LEN, 0) ?: "" else ""
             else -> ""
         }
         val layerBefore = engine.layer
-        if (key.type == KeyType.SPACE) writeLang = detectLang(before) // the corrector reads it
+        if (ends) writeLang = detectLang(before) // the corrector reads it
         if (key.type == KeyType.BACKSPACE && engine.fieldCorrections > 0) {
             ic.getSelectedText(0)?.takeIf { it.isNotEmpty() }?.let { engine.deleting(before, after, it) } // a selection deleted
         }
@@ -451,11 +453,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
-        val kept = engine.takeReverted()
-        if (kept != null) keep(before, outs, kept) // r11 (K1): ⌫ right after a space-correction; r13 (LR1): a late retype
-        else learn(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY)
-        rejected(late = key.type == KeyType.SPACE)
-        if (key.type == KeyType.SPACE) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
+        afterKey(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY, late = ends)
+        if (ends) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
         }
@@ -479,29 +478,44 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
     }
 
+    /** After an edit from a key: a rejected correction (r13 LR5, r13c TS1–TS3), a kept word (r11 K1) or an ordinary learn. */
+    private fun afterKey(before: CharSequence, outs: List<Out>, kind: Learner.Edit, late: Boolean) {
+        val kept = engine.takeReverted()
+        val forGood = rejected(late)
+        if (kept != null) keep(before, outs, kept, forGood) // r11 (K1): ⌫ right after a correction; r13 (LR1): a late retype
+        else learn(before, outs, kind)
+    }
+
     /**
      * r13 (LR5): the correction the user just rejected (⌫ right after it, ↶, or [late]: deleted
-     * later and retyped) is stored so space never applies it again — same write gate as learning
-     * (nothing from secret / incognito / opted-out fields). A late retype also takes back the
-     * learn the wrong fix got when it was applied (M10, one use).
+     * later and retyped, at any word ending) is stored — same write gate as learning (nothing from
+     * secret / incognito / opted-out fields). A late retype also takes back the learn the wrong fix
+     * got when it was applied (M10, one use). r13c (TS1/TS2): the pair's first rejection is a strike
+     * (the engine keeps the word in this field only); true = its second, for good (keep-mark it).
      */
-    private fun rejected(late: Boolean) {
-        val (typed, fix) = engine.takeRejection() ?: return
-        val model = personalWords() ?: return
-        val store = PersonalStore.rejections ?: return
+    private fun rejected(late: Boolean): Boolean {
+        val (typed, fix) = engine.takeRejection() ?: return false
+        val model = personalWords() ?: return false
+        val store = PersonalStore.rejections ?: return false
         if (late) model.unlearn(learnedLang, null, fix, false)
-        if (store.add(typed, fix) || late) PersonalStore.changed()
+        val forGood = store.strike(typed, fix)
+        PersonalStore.changed()
+        return forGood
     }
 
     override fun onVariant(text: String) {
         if (gifSearching) { if (gifQuery.type(text)) view?.setGifSearch(gifQuery.text); return }
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
-        val outs = engine.variant(text, before) // r12 (PS1): a closing variant takes a pick's provisional space
+        // r13c (EP1): a closing variant (… ! ?) ends the word before it like the key would
+        val ends = KeyboardEngine.endsWord(text)
+        val after = if (ends) ic.getTextAfterCursor(1, 0) ?: "" else ""
+        if (ends) writeLang = detectLang(before)
+        val outs = engine.variant(text, before, after) // r12 (PS1): a closing variant takes a pick's provisional space
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
-        learn(before, outs, Learner.Edit.KEY)
+        afterKey(before, outs, Learner.Edit.KEY, late = ends)
         view?.setShift(engine.shift)
     }
 
@@ -1192,9 +1206,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
      * is taken back and [word] becomes theirs, in the language it was written in (write gate inside
      * [learner]: nothing is kept in secret / incognito / opted-out fields, K6).
      */
-    private fun keep(before: CharSequence, outs: List<Out>, word: String) {
+    private fun keep(before: CharSequence, outs: List<Out>, word: String, forGood: Boolean) {
         val b = before.toString()
-        if (learner.kept(learnedLang, learnedLang, b, outs, windowFull = b.length >= WINDOW, word = word)) PersonalStore.changed()
+        // r13c (TS3): a first rejection learns the word as an ordinary use; the second keep-marks it
+        if (learner.kept(learnedLang, learnedLang, b, outs, windowFull = b.length >= WINDOW, word = word, mark = forGood)) PersonalStore.changed()
     }
 
     /** The field's whole text into the value memory (email fields, gate open — F1/X1). */
@@ -1305,8 +1320,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         ic.endBatchEdit()
         val kept = engine.takeReverted()
-        if (kept != null) keep(before, outs, kept) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
-        rejected(late = false) // r13 (LR5)
+        val forGood = rejected(late = false) // r13 (LR5), r13c (TS1/TS2)
+        if (kept != null) keep(before, outs, kept, forGood) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
         engine.endProvisional() // r12 (PS4)
         feedback(null)
     }

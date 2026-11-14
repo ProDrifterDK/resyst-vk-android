@@ -18,7 +18,7 @@ object Profanity {
     private val ES = """
         mierda mierdas mierdoso mierdosa
         puta putas puto putos putita putito putitas putitos putada putadas putear puteando puteo hijoputa hijoputas hijueputa hijueputas
-        culo culos culiao culiaos culiado culiados culiá culiao
+        culo culos culiao culiaos culiado culiados culiá culiao ql
         coño coños joder jodido jodida jodidos jodidas jódete jodete jodiendo jodí jodió
         cabrón cabrona cabrones cabronas cabronazo
         gilipollas gilipolla gilipuertas

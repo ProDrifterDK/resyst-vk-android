@@ -810,14 +810,24 @@ class SettingsActivity : Activity() {
         }
     }
 
-    /** r13 (LR5): each correction the user undid (typed → fix), with ✕ to let space apply it again. */
+    /**
+     * r13 (LR5): each correction the user undid (typed → fix), with ✕ to let space apply it again.
+     * r13c (TS5): the ones undone once are listed too — space still applies them in other fields
+     * until the second time.
+     */
     private fun knowRejections() {
         val r = PersonalStore.rejections
         if (r == null) { knowHead(Ctl.KNOW_REJECTIONS.label, "Cargando…"); return }
         val list = r.items()
-        knowHead(Ctl.KNOW_REJECTIONS.label, if (list.isEmpty()) "Ninguna. Si deshaces una corrección (⌫ justo después, ↶, o borras la palabra y la escribes de nuevo), el espacio no la vuelve a aplicar."
-            else if (list.size == 1) "1 · el espacio ya no la aplica" else "${list.size} · el espacio ya no las aplica")
+        val once = r.strikes()
+        val forGood = when (list.size) { 0 -> null; 1 -> "1 · el espacio ya no la aplica"; else -> "${list.size} · el espacio ya no las aplica" }
+        val first = when (once.size) { 0 -> null; 1 -> "1 deshecha una vez"; else -> "${once.size} deshechas una vez" }
+        knowHead(Ctl.KNOW_REJECTIONS.label, if (forGood == null && first == null) "Ninguna. Si deshaces una corrección (⌫ justo después, ↶, o borras la palabra y la escribes de nuevo), el espacio la deja como la escribiste en ese campo; si la deshaces otra vez en otro campo, no la vuelve a aplicar."
+            else listOfNotNull(forGood, first).joinToString(" · "))
         for (e in list) knowRow("${e.typed} → ${e.fix}", null, "la corrección de ${e.typed} a ${e.fix}", "rejection.${e.typed}.${e.fix}") {
+            if (r.forget(e.typed, e.fix)) { PersonalStore.changed(); rerender() }
+        }
+        for (e in once) knowRow("${e.typed} → ${e.fix}", "una vez · si la deshaces otra vez, el espacio deja de aplicarla", "la corrección de ${e.typed} a ${e.fix}", "strike.${e.typed}.${e.fix}") {
             if (r.forget(e.typed, e.fix)) { PersonalStore.changed(); rerender() }
         }
     }

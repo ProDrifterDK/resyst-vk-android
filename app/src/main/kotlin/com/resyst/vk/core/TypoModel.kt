@@ -89,12 +89,33 @@ object TypoModel {
      */
     class EditRows(lang: Lang?) {
         private val pos = centres(lang)
-        private val spanish = lang != Lang.EN
-        /** Substitution costs of every letter pair, precomputed (no map lookups in the inner loop). */
-        private val subTable = FloatArray(ALPHA * ALPHA).also { t ->
+        /** The layout's language spells by Spanish sound rules; [sounds] turns them off for another language's words. */
+        private val layoutSpanish = lang != Lang.EN
+        private var spanish = layoutSpanish
+        /** Substitution costs of every letter pair, precomputed (no map lookups in the inner loop): with and without Spanish sounds. */
+        private val subSpanish = table(true)
+        private val subPlain = table(false)
+        private var subTable = if (spanish) subSpanish else subPlain
+
+        private fun table(sounds: Boolean) = FloatArray(ALPHA * ALPHA).also { t ->
             for (a in 0 until ALPHA) for (b in 0 until ALPHA) {
-                t[a * ALPHA + b] = if (a == ALPHA - 1 || b == ALPHA - 1) (if (a == b) FAR else FAR) else sub(pos, letter(a), letter(b), spanish)
+                t[a * ALPHA + b] = if (a == ALPHA - 1 || b == ALPHA - 1) FAR else sub(pos, letter(a), letter(b), sounds)
             }
+        }
+
+        /**
+         * r13c (NW3): Spanish same-sound spellings (silent h, b/v, s/z, ll/y, qu/k, soft c/g, ll / rr as
+         * letters) apply only while the candidates are Spanish words: an English word in the other
+         * list is scored by the keys alone (hoohle is two slips from google, not a silent h from hole).
+         * Keeps the typed word and bounds; the next push recomputes from the rows kept.
+         */
+        fun sounds(on: Boolean) {
+            val s = on && layoutSpanish
+            if (s == spanish) return
+            spanish = s
+            subTable = if (s) subSpanish else subPlain
+            for (j in 1..n) { extraCost[j] = extra(j - 1); w[0][j] = w[0][j - 1] + extraCost[j] }
+            depth = 0
         }
 
         private fun subCost(c: Char, t: Char): Float = if (c == t) 0f else subTable[index(c) * ALPHA + index(t)]
@@ -234,7 +255,7 @@ object TypoModel {
 
         companion object {
             /** Longest typed / candidate word searched (MAX_FUZZY_LEN + 2 edits). */
-            const val MAX = 20
+            const val MAX = 26
             private const val FAR_D = 1000
             private const val FAR_W = 1000f
             /** a–z, ñ, and one slot for anything else (apostrophe, ç …: a far key). */
