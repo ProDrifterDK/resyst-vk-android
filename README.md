@@ -57,6 +57,19 @@ The core is deliberately pure Kotlin (no Android imports) — layouts, variant t
 
 Roadmap: settings screen polish, more sound packs, clipboard key, one-handed mode, gesture typing (probably never — this keyboard has a philosophy).
 
+## License
+
+Copyright (C) 2026 Resyst Labs.
+
+Resyst VK is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for the full text.
+
+Bundled third-party data keeps its own license, with the notice next to each file:
+
+- Frequency lists (`assets/lexicon/es.txt`, `en.txt`): FrequencyWords by Hermit Dave, CC BY-SA 4.0.
+- Spanish valid-word set (`valid-es.dawg`): RLA-ES by Santiago Bosio, GPL-3+ or LGPL-3+ or MPL-1.1+.
+- English valid-word set (`valid-en.dawg`): SCOWL by Kevin Atkinson, permissive notice.
+- DM Sans font: SIL Open Font License 1.1. Emoji data: Unicode License.
+
 ---
 
 ✦ Resyst — *born from a dead Razer Cyclosa and a Sunday of stubbornness.*

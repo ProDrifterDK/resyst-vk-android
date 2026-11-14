@@ -10,10 +10,10 @@ regional/es-419.txt, regional/es-CL.txt
 
 valid-es.dawg
     Spanish valid-word set (every full form, plus verb + clitic forms), generated from the RLA-ES
-    Hunspell dictionary by Santiago Bosio. License: MPL-1.1 or later (Mozilla Public License),
-    the option Resyst VK takes from the dictionary's GPL-3+ / LGPL-3+ / MPL-1.1+ offer; this file
-    stays under MPL-1.1+. Notice and license text: LICENSE-Hunspell-es.txt. The license notice is
-    also embedded in the file header.
+    Hunspell dictionary by Santiago Bosio. License: the same choice the dictionary offers,
+    GPL-3+ or LGPL-3+ or MPL-1.1+; inside Resyst VK (GPL-3.0-or-later) it is used under GPL-3+.
+    Notice and MPL text: LICENSE-Hunspell-es.txt; GPL text: LICENSE at the repository root. The
+    file header embeds the MPL-1.1+ notice of earlier builds; the three-way offer above applies.
 
 valid-en.dawg
     English valid-word set (every full form), generated from the en_US Hunspell dictionary, which

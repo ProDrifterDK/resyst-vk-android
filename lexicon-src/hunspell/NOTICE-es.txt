@@ -12,9 +12,9 @@ Debian copyright stanza (/usr/share/doc/hunspell-es/copyright):
     Copyright: Santiago Bosio <santiago.bosio@gmail.com>
     License: GPL-3+ or LGPL-3+ or MPL-1.1+
 
-Resyst VK uses these files, and the word lists derived from them
-(app/src/main/assets/lexicon/valid-es.dawg), under the Mozilla Public License, version 1.1 or
-later (MPL-1.1+), one of the three licenses offered. The MPL-1.1 text is in
-LICENSE-es-MPL-1.1.txt. MPL is a file-level copyleft: the derived data file stays under MPL-1.1+,
-and its source form (these Hunspell files plus scripts/gen_valid_words.py, which turns them into
+Resyst VK is licensed GPL-3.0-or-later and uses these files under GPL-3+, one of the three
+licenses offered. The word lists derived from them (app/src/main/assets/lexicon/valid-es.dawg)
+are distributed under the same three-way choice: GPL-3+ or LGPL-3+ or MPL-1.1+. The MPL-1.1
+text is in LICENSE-es-MPL-1.1.txt and the GPL-3 text in the repository's LICENSE. The source
+form of the derived file (these Hunspell files plus scripts/gen_valid_words.py, which turns them into
 the asset) is published in this repository.

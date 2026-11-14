@@ -2,8 +2,9 @@ valid-es.dawg — Spanish valid-word set of Resyst VK
 
 Derived from the RLA-ES Spanish Hunspell dictionary (es_CL.dic / es_CL.aff)
 Copyright: Santiago Bosio <santiago.bosio@gmail.com>
-Offered under GPL-3+ or LGPL-3+ or MPL-1.1+; Resyst VK uses it, and distributes valid-es.dawg,
-under the Mozilla Public License 1.1 or later (MPL-1.1+). The file remains under MPL-1.1+.
+Offered under GPL-3+ or LGPL-3+ or MPL-1.1+. Resyst VK (GPL-3.0-or-later) uses it under GPL-3+,
+and distributes valid-es.dawg under the same three-way choice (GPL-3+ or LGPL-3+ or MPL-1.1+).
+The MPL text follows; the GPL-3 text is the LICENSE file of the Resyst VK source repository.
 
 Source Code form (MPL 1.1 section 3): the Hunspell files as used (lexicon-src/hunspell/, Debian
 hunspell-es 1:24.2.1-1) and the generator that turns them into this file (scripts/gen_valid_words.py)

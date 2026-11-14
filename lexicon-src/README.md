@@ -36,7 +36,8 @@ of the shipped 25k / 20k frequency lists that spylls accepts is in the set.
 
 ## Licenses of the derived files
 
-- `valid-es.dawg`: MPL-1.1+ (RLA-ES, Santiago Bosio), see `hunspell/NOTICE-es.txt` and the
+- `valid-es.dawg`: GPL-3+ or LGPL-3+ or MPL-1.1+, the same choice RLA-ES (Santiago Bosio) offers;
+  Resyst VK, licensed GPL-3.0-or-later, uses it under GPL-3+. See `hunspell/NOTICE-es.txt` and the
   shipped `assets/lexicon/LICENSE-Hunspell-es.txt`. This directory plus the generator is its
   source form.
 - `valid-en.dawg`: SCOWL copyright and permission notice, see `hunspell/NOTICE-en_US-SCOWL.txt`
