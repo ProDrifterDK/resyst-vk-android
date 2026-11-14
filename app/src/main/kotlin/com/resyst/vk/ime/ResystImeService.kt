@@ -461,7 +461,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (outs.any { it is Out.Action || it == Out.EnterKey }) rememberValue()
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
-        if (timing) keyTimer.add(SystemClock.elapsedRealtimeNanos() - t0, space = key.type == KeyType.SPACE)
+        if (timing) keyTimer.add(SystemClock.elapsedRealtimeNanos() - t0, if (key.type == KeyType.SPACE) " space" else if (ends) " end" else "")
     }
 
     // ── r13 (NW9): handling time, debuggable builds only (E2E latency before / after) ──
@@ -471,10 +471,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** refreshContext: the bar (completions + the correction it shows first), after every edit. */
     private val barTimer = KeyClock("bar")
 
-    /** One log line per sample (debuggable builds): the kind and the time, never the text. */
+    /**
+     * One log line per sample (debuggable builds): the kind and the time, never the text. [kind] =
+     * " space", " end" (r13c: a closing mark or a new-line Enter, which may correct now) or "".
+     */
     private class KeyClock(val name: String) {
-        fun add(t: Long, space: Boolean = false) {
-            Log.i(TAG, "keytime: $name${if (space) " space" else ""} us=${t / 1000}")
+        fun add(t: Long, kind: String = "") {
+            Log.i(TAG, "keytime: $name$kind us=${t / 1000}")
         }
     }
 
