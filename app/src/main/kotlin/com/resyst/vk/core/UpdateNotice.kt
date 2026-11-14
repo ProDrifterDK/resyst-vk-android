@@ -63,7 +63,14 @@ object UpdateNotice {
         version: String, room: Float,
         title: (text: String, twoLine: Boolean) -> Float,
         action: (text: String, twoLine: Boolean) -> Float,
-    ): Label? = labels(version).firstOrNull { l ->
+    ): Label? = fitOf(labels(version), room, title, action)
+
+    /** [fit] over any ordered tiers (the "Novedades" chip, [WhatsNew.labels], shares the chip). */
+    fun fitOf(
+        tiers: List<Label>, room: Float,
+        title: (text: String, twoLine: Boolean) -> Float,
+        action: (text: String, twoLine: Boolean) -> Float,
+    ): Label? = tiers.firstOrNull { l ->
         val w = if (l.twoLine) maxOf(title(l.title, true), action(l.action, true))
         else title(l.title, false) + action(l.action, false)
         w <= room

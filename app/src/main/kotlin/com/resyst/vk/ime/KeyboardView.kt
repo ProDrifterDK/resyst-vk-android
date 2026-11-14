@@ -51,6 +51,7 @@ import com.resyst.vk.core.SpaceGesture
 import com.resyst.vk.core.StripPlan
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.UpdateSurface
+import com.resyst.vk.core.WhatsNew
 import com.resyst.vk.core.VariantPopup
 import com.resyst.vk.core.Variants
 import kotlin.math.abs
@@ -246,6 +247,9 @@ class KeyboardView(context: Context) : View(context) {
     /** The chip is laid out, showing [chipVersion] (kept while it fades out after a dismiss). */
     private var chipShown = false
     private var chipVersion: String? = null
+    /** r13c: the chip on the strip is the "Novedades" notice, not an update (label, glyph, a11y). */
+    private var chipNews = false
+    private val starPath = android.graphics.Path()
     private var chipExiting = false
     /** 0 = hidden … 1 = fully shown; drives alpha + an 8 dp slide. */
     private var chipAnim = 0f
@@ -259,11 +263,13 @@ class KeyboardView(context: Context) : View(context) {
      * changes, so the keys never move when the chip comes or goes (N5). Appearing fades + slides
      * in; a dismiss fades out; typing swaps it for the ⚙ dot at once (the strip is needed now).
      */
-    fun setUpdate(version: String?, surface: UpdateSurface) {
+    fun setUpdate(version: String?, surface: UpdateSurface, news: Boolean = false) {
         val sf = if (version == null) UpdateSurface.NONE else surface
-        if (version == updateVersion && sf == updateSurface) return
+        if (version == updateVersion && sf == updateSurface && news == chipNews) return
         updateVersion = version
         updateSurface = sf
+        // r13c (WN5): "Novedades" borrows the chip; while it fades out it keeps its own look
+        if (sf == UpdateSurface.CHIP) chipNews = news
         when {
             sf == UpdateSurface.CHIP -> {
                 chipVersion = version
@@ -647,7 +653,8 @@ class KeyboardView(context: Context) : View(context) {
         var chipRoomLeft = Float.MAX_VALUE
         if (chipShown && upd != null) {
             val room = r - l - 2 * dp
-            val label = UpdateNotice.fit(upd, room - CHIP_ICON_W * dp - CHIP_X_W * dp - CHIP_TEXT_END * dp,
+            val textRoom = room - CHIP_ICON_W * dp - CHIP_X_W * dp - CHIP_TEXT_END * dp
+            val label = UpdateNotice.fitOf(if (chipNews) WhatsNew.labels(upd) else UpdateNotice.labels(upd), textRoom,
                 { t, two -> chipTitlePaint(two).measureText(t) }, { t, two -> chipActionPaint(two).measureText(t) })
             if (label != null) {
                 val textW = if (label.twoLine) max(chipTitlePaint(true).measureText(label.title), chipActionPaint(true).measureText(label.action))
@@ -1359,18 +1366,30 @@ class KeyboardView(context: Context) : View(context) {
         stroke.strokeWidth = 1 * dp
         stroke.strokeCap = Paint.Cap.BUTT
         c.drawRoundRect(body, rad, rad, stroke)
-        // icon: amber disc + download arrow in the accent's ink
+        // icon: amber disc + download arrow in the accent's ink (Novedades: the ✦ of the brand)
         val cx = body.left + 16 * dp
         val cy = body.centerY()
         fill.color = palette.accent
         c.drawCircle(cx, cy, 10 * dp, fill)
-        stroke.color = palette.accentInk
-        stroke.strokeWidth = 1.6f * dp
-        stroke.strokeCap = Paint.Cap.ROUND
-        c.drawLine(cx, cy - 4.8f * dp, cx, cy + 2.2f * dp, stroke)
-        c.drawLine(cx - 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
-        c.drawLine(cx + 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
-        c.drawLine(cx - 4.2f * dp, cy + 5.2f * dp, cx + 4.2f * dp, cy + 5.2f * dp, stroke)
+        if (chipNews) {
+            val R = 6.2f * dp
+            val r = 1.7f * dp
+            starPath.rewind()
+            starPath.moveTo(cx, cy - R)
+            starPath.lineTo(cx + r, cy - r); starPath.lineTo(cx + R, cy); starPath.lineTo(cx + r, cy + r)
+            starPath.lineTo(cx, cy + R); starPath.lineTo(cx - r, cy + r); starPath.lineTo(cx - R, cy)
+            starPath.lineTo(cx - r, cy - r); starPath.close()
+            fill.color = palette.accentInk
+            c.drawPath(starPath, fill)
+        } else {
+            stroke.color = palette.accentInk
+            stroke.strokeWidth = 1.6f * dp
+            stroke.strokeCap = Paint.Cap.ROUND
+            c.drawLine(cx, cy - 4.8f * dp, cx, cy + 2.2f * dp, stroke)
+            c.drawLine(cx - 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
+            c.drawLine(cx + 3.4f * dp, cy - 1f * dp, cx, cy + 2.5f * dp, stroke)
+            c.drawLine(cx - 4.2f * dp, cy + 5.2f * dp, cx + 4.2f * dp, cy + 5.2f * dp, stroke)
+        }
         // text
         val tx = body.left + CHIP_ICON_W * dp
         val tp = chipTitlePaint(label.twoLine).apply { color = palette.accent }
@@ -1759,8 +1778,8 @@ class KeyboardView(context: Context) : View(context) {
                 desc = when (s?.kind) {
                     StripKind.SETTINGS -> if (gearDot) "Ajustes de Resyst VK. Actualización ${updateVersion} disponible" else "Ajustes de Resyst VK"
                     StripKind.NO_MEMORY -> "Sin memoria: ${s.text}"
-                    StripKind.UPDATE -> "Resyst VK ${s.text} disponible. Toca para actualizar"
-                    StripKind.UPDATE_X -> "Descartar el aviso de la versión ${s.text}"
+                    StripKind.UPDATE -> if (chipNews) WhatsNew.describe(s.text) else "Resyst VK ${s.text} disponible. Toca para actualizar"
+                    StripKind.UPDATE_X -> if (chipNews) WhatsNew.dismissDescription(s.text) else "Descartar el aviso de la versión ${s.text}"
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
                     StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"

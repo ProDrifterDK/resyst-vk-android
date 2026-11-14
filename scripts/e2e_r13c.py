@@ -17,7 +17,7 @@ E2E host:
 
 Writes build/e2e-r13c/r13c-e2e.json + PNGs + keytime dumps. Debug package only (com.resyst.vk.debug);
 the default input method is restored at the end.
-Usage: scripts/e2e_r13c.py --serial SERIAL [--apk PATH] [--before-apk PATH] [--only A,B,C,D,E,L]
+Usage: scripts/e2e_r13c.py --serial SERIAL [--apk PATH] [--before-apk PATH] [--news-base-apk PATH] [--only A,B,C,D,E,N,L]
 
 Environment:
   VK_E2E_FORBIDDEN_SERIALS  comma-separated device serials this script must refuse to touch (your
@@ -226,12 +226,152 @@ def section_l(apk, before_apk):
     return {'before': before, 'after': after, 'text': TEXT}
 
 
+# ── N: "Novedades de la X" after an update (r13c phase B, WN1-WN6) ─────────
+NEWS_URL = 'https://kv.resyst.cl/novedades/'
+NEWS_PREFS = 'shared_prefs/resyst_vk_news.xml'
+
+
+def news_chip(tree=None):
+    """(chip, close) nodes of the Novedades chip in the IME's a11y tree, or (None, None)."""
+    tree = tree if tree is not None else dump()
+    chip = close = None
+    for n in tree.iter('node'):
+        d = n.get('content-desc', '')
+        if n.get('package') == PKG and d.startswith('Novedades de la versión'):
+            chip = n
+        elif n.get('package') == PKG and d.startswith('Descartar el aviso de novedades'):
+            close = n
+    return chip, close
+
+
+def news_seen():
+    out = sh(f'run-as {PKG} cat {NEWS_PREFS}', check=False)
+    m = re.search(r'name="seen">([^<]+)<', out)
+    return m.group(1) if m else None
+
+
+def news_log():
+    return adb('logcat', '-d', '-v', 'brief', '-s', 'ResystVK:I')
+
+
+def install_clean(apk):
+    """A clean install of the DEBUG package only: uninstall first, so first-install == last-update time."""
+    adb('uninstall', PKG, check=False)
+    adb('install', '-t', apk)
+    sh(f'ime enable {IME}')
+    sh(f'ime set {IME}')
+
+
+def install_update(base_apk, apk):
+    """The base build in use (keyboard opened once), then an in-place update to [apk]."""
+    install_clean(base_apk)
+    fresh()
+    time.sleep(2.5)  # past the installer's clock slack: lastUpdateTime moves clearly on
+    adb('install', '-r', '-t', apk)
+    time.sleep(1.5)
+    sh(f'ime enable {IME}')
+    sh(f'ime set {IME}')
+
+
+def open_kind(kind):
+    e2e.open_host(kind)
+    time.sleep(1.2)
+
+
+def section_n(base_apk, apk):
+    if not base_apk:
+        check('N', 'base APK given (--news-base-apk)', False, 'skipped')
+        return
+    version = '0.10.0-debug'
+    # N1: update in place 0.9.0 -> 0.10.0; secret / incognito first, then a plain field
+    install_update(base_apk, apk)
+    check('N1', 'installed version after the update is 0.10.0', '0.10.0' in sh(f'dumpsys package {PKG} | grep -m1 versionName'))
+    sh('logcat -c')
+    for kind in ('password', 'incognito'):
+        open_kind(kind)
+        chip, _ = news_chip()
+        check('N1', f'no notice in a {kind} field', chip is None)
+    check('N1', 'still pending after the fields that could not show it (nothing stored yet)', news_seen() is None, news_seen())
+    sh('logcat -c')
+    open_kind('text')
+    chip, close = news_chip()
+    check('N1', 'the notice shows on the first plain field after the update', chip is not None and close is not None,
+          chip.get('content-desc') if chip is not None else None)
+    shot('r13c-N1-chip.png')
+    if chip is not None:
+        check('N1', 'the chip says what a tap does (browser)', 'navegador' in chip.get('content-desc', ''), chip.get('content-desc'))
+        sh('logcat -c')
+        e2e.tap(chip)
+        time.sleep(2.5)
+        log = adb('logcat', '-d', '-b', 'all', '-v', 'brief')
+        fired = [l for l in log.splitlines() if 'android.intent.action.VIEW' in l and 'kv.resyst.cl/novedades' in l]
+        top = sh('dumpsys activity activities | grep -E "ResumedActivity|topResumedActivity" | head -3', check=False)
+        shot('r13c-N1-after-tap.png')
+        check('N1', 'a VIEW intent for https://kv.resyst.cl/novedades/ fired', bool(fired), (fired[:1] or [top.strip()])[0][:300])
+        check('N1', 'the foreground app left VK for the browser', PKG not in top.split('\n')[0] if top.strip() else False, top.strip()[:200])
+        check('N1', 'the keyboard logged the tap (no text)', 'whats new: opened 0.10.0' in news_log(), '')
+        check('N1', 'only the last version seen is stored', news_seen() == version, news_seen())
+        # the strip of the browser could hold a different keyboard session: back to the host
+        sh('input keyevent KEYCODE_HOME')
+        time.sleep(0.8)
+        open_kind('text')
+        chip, _ = news_chip()
+        check('N1', 'not again on the next field', chip is None)
+        sh(f'am force-stop {PKG}')
+        open_kind('text')
+        chip, _ = news_chip()
+        check('N1', 'not again after the keyboard process restarts', chip is None)
+        shot('r13c-N1-gone.png')
+    # N2: a clean install never shows it
+    install_clean(apk)
+    fresh()
+    time.sleep(1.5)
+    chip, _ = news_chip()
+    shot('r13c-N2-clean.png')
+    check('N2', 'no notice on a clean install', chip is None)
+    check('N2', 'the baseline is the installed version', news_seen() == version, news_seen())
+    open_kind('text')
+    chip, _ = news_chip()
+    check('N2', 'nor on the next field', chip is None)
+    # N3: dismiss with the x: gone for good, no browser intent
+    install_update(base_apk, apk)
+    sh('logcat -c')
+    open_kind('text')
+    chip, close = news_chip()
+    check('N3', 'the notice shows after a second update in place', chip is not None)
+    if close is not None:
+        e2e.tap(close)
+        time.sleep(0.8)
+        chip, _ = news_chip()
+        log = adb('logcat', '-d', '-b', 'all', '-v', 'brief')
+        check('N3', 'the x dismisses it', chip is None)
+        check('N3', 'a dismiss opens nothing', 'kv.resyst.cl/novedades' not in log)
+        check('N3', 'the dismissed version is stored', news_seen() == version, news_seen())
+        open_kind('text')
+        chip, _ = news_chip()
+        check('N3', 'not again after a dismiss', chip is None)
+    # N4: typing past it counts as seen
+    install_update(base_apk, apk)
+    k = fresh()
+    chip, _ = news_chip()
+    check('N4', 'the notice shows again after a third update', chip is not None)
+    type_seq('a', k)
+    time.sleep(0.6)
+    chip, _ = news_chip()
+    check('N4', 'typing in the field takes it off the strip', chip is None)
+    open_kind('text')
+    chip, _ = news_chip()
+    check('N4', 'and it stays gone on the next field', chip is None)
+    check('N4', 'the version is stored', news_seen() == version, news_seen())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--serial', required=True)
     ap.add_argument('--apk', default=os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
     ap.add_argument('--before-apk')
-    ap.add_argument('--only', default='A,B,C,D,E,L')
+    ap.add_argument('--news-base-apk', help='the 0.9.0 debug build the Novedades section updates from (section N)')
+    ap.add_argument('--only', default='A,B,C,D,E,N,L')
     a = ap.parse_args()
     if a.serial in FORBIDDEN:
         sys.exit(f'refusing to run on {a.serial}')
@@ -259,6 +399,11 @@ def main():
                     fn()
                 except Exception as ex:  # one broken section must not hide the others
                     check(sec, 'section ran', False, repr(ex))
+        if 'N' in only:
+            try:
+                section_n(a.news_base_apk, a.apk)
+            except Exception as ex:
+                check('N', 'section ran', False, repr(ex))
         if 'L' in only:
             latency = section_l(a.apk, a.before_apk)
     finally:

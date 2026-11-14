@@ -66,6 +66,7 @@ import com.resyst.vk.core.SoundKind
 import com.resyst.vk.core.Subtypes
 import com.resyst.vk.core.Suggest
 import com.resyst.vk.core.UpdateNotice
+import com.resyst.vk.core.WhatsNew
 import com.resyst.vk.core.ValueMemory
 import com.resyst.vk.core.GifCopy
 import com.resyst.vk.core.GifQuery
@@ -129,6 +130,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** A character was typed in this field: the update chip steps down to the ⚙ dot (N4). */
     private var typedForUpdate = false
     private val updaterListener: () -> Unit = { refreshUpdate() }
+    /** r13c (N6): the versionName whose "Novedades" is still to be shown (null = none), read once per process. */
+    private var newsVersion: String? = null
+    private var newsLoaded = false
+    /** The chip on the strip right now is the notice, not an update (the taps mean something else). */
+    private var newsOnChip = false
     /** r11c: the first show after onCreate asks too, whatever `restarting` says (OC1). */
     private var askedSinceCreate = false
 
@@ -298,6 +304,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         selecting = false
         view?.setSecret(policy.secret)
         if (!restarting) { typedSinceStart = false; typedForUpdate = false }
+        news() // r13c (WN1): the very first field of a fresh install records its baseline, secret or not
         if (!restarting) valueSession = ValueMemory.Session(PersonalStore.values, fieldKind)
         val noEnterAction = info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
         val rawAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
@@ -448,7 +455,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             }
         }
         if (key.type == KeyType.CHAR && offer != null) { typedSinceStart = true; refreshClip() }
-        if (key.type == KeyType.CHAR && !typedForUpdate) { typedForUpdate = true; refreshUpdate() }
+        if (key.type == KeyType.CHAR && !typedForUpdate) {
+            typedForUpdate = true
+            if (newsOnChip) consumeNews("typed past") // WN3: seen, and the user went on
+            refreshUpdate()
+        }
         // delete + commit (correction, undo, double-space) must land as one edit
         if (outs.size > 1) ic.beginBatchEdit()
         run(outs, ic)
@@ -749,11 +760,44 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private fun refreshUpdate() {
         val v = view ?: return
         val r = runCatching { Updater.announced(this) }.getOrNull()
-        v.setUpdate(r?.version, UpdateNotice.surface(r != null, typedForUpdate, offer != null, policy.secret))
+        // r13c (WN4): an announced update owns the chip; the notice waits, quiet, behind it
+        val n = news()
+        newsOnChip = n != null && WhatsNew.visible(true, typedForUpdate, offer != null, policy.secret, policy.incognito, r != null)
+        if (newsOnChip) v.setUpdate(n, UpdateSurface.CHIP, news = true)
+        else v.setUpdate(r?.version, UpdateNotice.surface(r != null, typedForUpdate, offer != null, policy.secret))
+    }
+
+    /** The pending "Novedades" version; the first call of the process reads (and may baseline) the store. */
+    private fun news(): String? {
+        if (!newsLoaded) {
+            newsLoaded = true
+            newsVersion = runCatching { WhatsNewStore.pending(this) }.getOrNull()
+        }
+        return newsVersion
+    }
+
+    /** Seen for good: stored, gone from the strip. [why] is only logged (never any text). */
+    private fun consumeNews(why: String) {
+        val n = newsVersion ?: return
+        newsVersion = null
+        newsOnChip = false
+        runCatching { WhatsNewStore.markSeen(this, n) }
+        Log.i(TAG, "whats new: $why $n")
+        refreshUpdate()
+    }
+
+    /** WN6: a tap hands the page to the browser (ACTION_VIEW). The keyboard makes no request itself. */
+    private fun openNews() {
+        val i = Intent(Intent.ACTION_VIEW, Uri.parse(WhatsNew.URL))
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val ok = runCatching { startActivity(i) }.onFailure { Log.w(TAG, "whats new: no browser (${it.javaClass.simpleName})") }.isSuccess
+        if (ok) consumeNews("opened") // no browser: nothing was shown, it stays (✕ still ends it)
     }
 
     override fun onUpdateChip() {
         feedback(null)
+        if (newsOnChip) { openNews(); return }
         val i = Intent(this, SettingsActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(SettingsActivity.EXTRA_SECTION, SettingsActivity.SECTION_UPDATE)
@@ -761,6 +805,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onUpdateDismiss() {
+        if (newsOnChip) { feedback(null); consumeNews("dismissed"); return }
         val r = Updater.announced(this) ?: return
         feedback(null)
         Updater.dismissNotice(this, r.version) // listeners → refreshUpdate → chip fades out
