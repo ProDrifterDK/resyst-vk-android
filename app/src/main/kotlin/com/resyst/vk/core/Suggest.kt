@@ -71,7 +71,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         set(v) {
             if (v === field) return
             field = v
-            lastQuery = null; lastBest = null; mineHere = null
+            lastQuery = null; lastBest = null; mineHere = null; wordMemo.clear()
         }
 
     /**
@@ -89,14 +89,21 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     /** [mine] without this lexicon's words, folded → spelling; rebuilt when [mine], [valid] or [foreign] change. */
     private var mineHere: List<Pair<String, String>>? = null
     private var mineValid: ValidWords? = null
+    /**
+     * r13d (OR4): [isWordHere] per folded target, kept across rebuilds of [mine] (the model changes with every
+     * word learned; dictionary membership does not); cleared with [valid] / [foreign], at most [WORD_MEMO].
+     */
+    private val wordMemo = HashMap<String, Boolean>()
 
     private fun mineTargets(v: ValidWords): List<Pair<String, String>> {
         val cached = mineHere
         if (cached != null && mineValid === v) return cached
+        if (mineValid !== v || wordMemo.size > WORD_MEMO) wordMemo.clear()
         val out = ArrayList<Pair<String, String>>()
         for (m in mine) {
             val f = fold(m)
-            if (f.length < MIN_LEN || f.length > MAX_LEN || !f.all { it.isLetter() } || isWordHere(f, v)) continue
+            if (f.length < MIN_LEN || f.length > MAX_LEN || !f.all { it.isLetter() }) continue
+            if (wordMemo.getOrPut(f) { isWordHere(f, v) }) continue
             out += f to m
         }
         mineHere = out
@@ -652,6 +659,8 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
          * only thumb-shaped typos — ≤ 0.8 — reach it).
          */
         const val USER_RANK = 1000
+        /** r13d (OR4): dictionary answers remembered for learned targets (2 × PersonalModel.VOCAB_CAP). */
+        private const val WORD_MEMO = 4000
 
         /**
          * r13c (TW1), r13d (W5-1): the r13 search budget: one edit under 5 letters, two from 5 (r12 path:
