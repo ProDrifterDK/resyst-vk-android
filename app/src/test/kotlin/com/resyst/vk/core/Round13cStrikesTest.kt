@@ -57,11 +57,11 @@ class Round13cStrikesTest {
             val a = reject(p, how)
             a.type("y lentl ")
             assertTrue("$how: field A keeps it: ${a.text}", a.text.endsWith("y lentl "))
+            assertTrue("$how: field B still corrects", corrects(p))
             assertEquals("$how: a first strike, not a rejection", listOf(Rejections.Entry("lentl", "lento")), p.store.strikes())
             assertFalse("$how: space may still apply it elsewhere", p.store.rejects("lentl", "lento"))
             assertFalse("$how: not keep-marked", p.model.kept(es, "lentl"))
             assertTrue("$how: learned as an ordinary use", p.model.knows(es, "lentl", 1))
-            assertTrue("$how: field B still corrects", corrects(p))
         }
     }
 
