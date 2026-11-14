@@ -1090,13 +1090,14 @@ test or the device run must catch.
 - EP5 A period inside a token is taken for a sentence end: `resyst.cl`, `informe.pdf`, `v2.1`. If a
   letter or digit is typed right after the `.` whose ending corrected a word, the correction is
   withdrawn in the same edit (`resist.` + `c` → `resyst.c`): not a rejection (no strike, no keep
-  mark), and the fix's learn is taken back (M10).
+  mark), and nothing to unlearn (a word is learned only once whitespace follows it, Tokens.finished).
 - EP6 Abbreviations: `ej.`, `pág.`, `etc.`, `aprox.`, `depto.`, `núm.`, `tel.`, `prof.`, `sr.` are valid
   in RLA-ES (the valid-word set keeps them without their dot) and stay as typed; a JVM row pins a list
   of them followed by `.`.
-- EP7 Learning double counts or learns the wrong token: the ending learns the corrected word once,
-  the ⌫ undo takes that learn back (M10) and learns the typed word; the next word's context is right
-  (`,` keeps the link to the previous word, `.` `!` `?` and the new line start a sentence).
+- EP7 Learning double counts or learns the wrong token: the corrected word is learned once (when the
+  whitespace after its mark comes, as for any word followed by punctuation since r4); a ⌫ undo right
+  after the mark leaves the typed word to be learned instead, once (TS3); the next word's context is
+  right (`,` keeps the link to the previous word, `.` `!` `?` and the new line start a sentence).
 - EP8 Latency: the ending key now runs the correction search. Per-key handling time before / after
   from the debuggable keytime log on the device; the search time per word from the replay.
 
