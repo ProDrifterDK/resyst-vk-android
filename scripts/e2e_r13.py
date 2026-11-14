@@ -18,6 +18,10 @@ Types through the DRAWN keys (accessibility tree, like scripts/e2e.py) into the 
 Writes build/e2e-r13/r13-e2e.json + PNGs + logcat excerpts. Debug package only (com.resyst.vk.debug);
 the default input method is restored at the end.
 Usage: scripts/e2e_r13.py --serial SERIAL [--apk PATH] [--before-apk PATH] [--only A,B,C,D,F,E]
+
+Environment:
+  VK_E2E_FORBIDDEN_SERIALS  comma-separated device serials this script must refuse to touch (your
+                            own phones); default empty. A --serial in the list exits before any adb call.
 """
 import argparse
 import json
@@ -33,7 +37,8 @@ import e2e_r10_bilingual as bl  # noqa: E402
 from e2e import adb, sh, dump, keys, center, PKG, IME  # noqa: E402
 
 OUT = os.path.join(e2e.ROOT, 'build', 'e2e-r13')
-FORBIDDEN = {'PHONE_A', 'PHONE_B'}  # Alan's own phones: never touched
+# serials of personal phones that must never be touched, from the environment (default: none)
+FORBIDDEN = {s.strip() for s in os.environ.get('VK_E2E_FORBIDDEN_SERIALS', '').split(',') if s.strip()}
 rows = []
 
 

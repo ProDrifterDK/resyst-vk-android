@@ -244,7 +244,7 @@ class Round13ReplayTest {
     }
 
     private companion object {
-        /** ResystImeService.WINDOW: the chars it reads before the cursor. */
-        const val WINDOW = 64
+        /** ResystImeService.WINDOW (= Tokens.READ_WINDOW): the chars it reads before the cursor. */
+        const val WINDOW = Tokens.READ_WINDOW
     }
 }

@@ -1367,7 +1367,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private companion object {
         const val TAG = "ResystVK"
         /** Chars read before the cursor; a full read may start mid-word (see Tokens). */
-        const val WINDOW = 64
+        const val WINDOW = Tokens.READ_WINDOW
         /** ClipDescription.EXTRA_IS_SENSITIVE (API 33); password managers set it on older APIs too. */
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
         const val CLIP_DIR = "clip"

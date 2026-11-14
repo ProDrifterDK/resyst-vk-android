@@ -3,7 +3,7 @@
 
 Needs spylls (pure-Python Hunspell, MIT): run with the vk-lm venv, after
   python3 scripts/gen_valid_words.py --dump DIR
-  <venv>/bin/python scripts/verify_valid_words.py DIR
+  <venv>/bin/python scripts/verify_valid_words.py DIR [--evidence items.json]
 
 Checks (each prints PASS/FAIL; exit 1 on any FAIL):
   V1 every plain-expansion form is accepted by spylls on the same pinned .dic/.aff (no invented
@@ -11,9 +11,12 @@ Checks (each prints PASS/FAIL; exit 1 on any FAIL):
   V2 every word of the shipped 25k / 20k frequency lists that spylls accepts (as typed or
      capitalized, Hunspell's case rules) is in the set under the same rules (nothing dropped).
   V3 the required words are valid, the typo words are not.
-  V4 session s1 evidence (r13-vk-launch/evidence/items_phon.json): how many good words are valid
-     and how many typos would count as valid ("leak"), plain Hunspell vs. with the enclitic layer.
+  V4 optional, only with --evidence PATH (or env VK_VALID_WORDS_EVIDENCE): a JSON list of items with
+     `cat`, `typed`, `gold`, like the committed fixture app/src/test/resources/r13/s1-items.json
+     (session s1). Counts how many good words are valid and how many typos would count as valid
+     ("leak"), plain Hunspell vs. with the enclitic layer. Skipped, with a line saying so, without it.
 """
+import argparse
 import json
 import os
 import sys
@@ -22,9 +25,14 @@ from spylls.hunspell import Dictionary
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 SRC = os.path.join(ROOT, 'lexicon-src', 'hunspell')
-EVIDENCE = os.environ.get('VK_S1_EVIDENCE', '')
 
-dump = sys.argv[1]
+ap = argparse.ArgumentParser()
+ap.add_argument('dump', help='directory written by gen_valid_words.py --dump')
+ap.add_argument('--evidence', default=os.environ.get('VK_VALID_WORDS_EVIDENCE'),
+                help='optional V4 items JSON (cat/typed/gold per item), e.g. app/src/test/resources/r13/s1-items.json')
+_args = ap.parse_args()
+dump = _args.dump
+EVIDENCE = _args.evidence
 fails = []
 
 
@@ -86,7 +94,7 @@ for lang in ('es', 'en'):
     leak = [w for w in BAD if valid(sets[lang], w)]
     check(f'V3[{lang}] typo words invalid', not leak, f'valid={leak}')
 
-if os.path.exists(EVIDENCE):
+if EVIDENCE:
     items = json.load(open(EVIDENCE, encoding='utf-8'))
     plain_es = set(load('es', 'hunspell')) & sets['es']
     full = sets['es'] | sets['en']
@@ -110,7 +118,7 @@ if os.path.exists(EVIDENCE):
         print(f"   {cat:11s} n={r['n']:3d} gold valid {r['gold_valid_plain']:3d} -> {r['gold_valid']:3d}   "
               f"typed valid {r['typed_valid_plain']:3d} -> {r['typed_valid']:3d}   new typed-valid by enclitics: {r['typed_leak_new']}")
 else:
-    print('V4 skipped: evidence file not found')
+    print('V4 skipped: no evidence file (pass --evidence PATH)')
 
 print('RESULT', 'FAIL ' + ', '.join(fails) if fails else 'PASS')
 sys.exit(1 if fails else 0)

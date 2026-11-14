@@ -940,9 +940,9 @@ Written before the code; each one names what a test or a measurement must catch.
   correction reads it; the full JVM suite passes unchanged and `Suggest` / `Bar` /
   `KeyboardEngine` / `Learner` / `PersonalModel` are not edited.
 
-## Round 13a phase B — the correction core (`TypoModel`, `Suggest`, `Bar.correction`, `KeyboardEngine`, `Rejections`, `PersonalModel` v3)
+## Round 13a phase B — the correction core (`TypoModel`, `Suggest`, `Bar.correction`, `KeyboardEngine`, `Rejections`, `PersonalModel` casing evidence, words.json stays v2)
 
-Alan's live session s1 (Pixel 8 Pro, VK 0.8.1, evidence/items_phon.json) is the oracle: VK rewrote
+Alan's live session s1 (Pixel 8 Pro, VK 0.8.1, fixture app/src/test/resources/r13/s1-items.json) is the oracle: VK rewrote
 real words it did not know (bastion→bastón ×4, anduvieron→mantuvieron, soberania→soberano,
 pusiesemos→pudiésemos), left one-key thumb slips (calna, listl, ñarte, busvamos, peha, xaza,
 impoetsnte, pillae), and a correction the user deleted later and retyped was corrected again
@@ -1039,7 +1039,7 @@ Written before the code; each one names what the replay / a JVM test / the devic
 - LR7 A delete path is missed: ⌫ char by char, held ⌫ word mode, the ⌫ swipe (delete word), a
   selection deleted with ⌫, the cursor placed inside the corrected word.
 
-### R5 — learned capitalization (`PersonalModel` v3)
+### R5 — learned capitalization (`PersonalModel`, words.json v2 with a 6th field)
 - LC1 GrapheneOS / Google / Pixel / Bastión written with that casing twice (mid-sentence, or
   with inner capitals anywhere) and never otherwise: a later lowercase typing does not commit the
   learned casing.

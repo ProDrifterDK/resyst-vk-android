@@ -182,7 +182,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
         val forms = accentForms(t, v)
         if (forms.size == 1) return Candidate(forms[0], true) // R2 (AC1)
         if (forms.size > 1) return null // AC2: the bar offers them
-        // r8 A2: a frequency-list word is never replaced by another word; its ñ twin may still win
+        // RW1 / AC5 (r13a): a frequency-list word is never replaced by another word; its ñ twin may still win
         rankOf[t]?.let { own ->
             val twin = enyeTwin(fold(t)) ?: return null
             return if (words[twin] != t && twin.toLong() * ACCENT_RATIO <= own && v.word(words[twin])) Candidate(words[twin], true) else null

@@ -15,6 +15,9 @@ object Tokens {
     /** [word] as typed, starting at [at] in the text; [prev] already a [key]. */
     data class Finished(val word: String, val prev: String?, val sentenceStart: Boolean, val at: Int)
 
+    /** Chars the IME reads before the cursor (ResystImeService.WINDOW); the replay test reads it too. */
+    const val READ_WINDOW = 64
+
     const val MIN_LEN = 2
     const val MAX_LEN = 24
 
