@@ -1279,3 +1279,156 @@ item names what a JVM test or the device run must catch.
 - WN8 "Clear data" on an updated app starts with no stored version while the package times still say
   "updated": the notice shows once more. That is accepted (it is the first run after wiping, and one
   dismiss ends it).
+
+## Round 13d — the deterministic misses of live session s3, and learned words in "Sin memoria" fields (0.11.0)
+
+The oracle is the owner's third live session, s3 (Pixel 8 Pro, VK 0.10.0 in a Google Keep note, everyday
+typing), committed unchanged as app/src/test/resources/r13d/s3-live.json next to r13c's s1 / s2. Measured
+on 361d784 (= the published 0.10.0) before any code, by replaying every row through the real engine + the
+shipped corrector + the shipped assets, and by reading the raw touches (taps.json) against VK's own hit
+cells (KeyboardView.boxAt: a row is `stripH + r·rowH`, a key's cell runs to the gap midpoints; a letter is
+committed where the finger lifts, after any slide):
+- `auer` + space as the first word of an empty note stays `Auer`. The field start, the auto-capital and
+  the first bar refresh are not involved (the replay with an empty `before` gives `Auer` too, and so does
+  `auer` mid-sentence): en_US Hunspell lists the surname `Auer`, and r13a's RW1 rule "the lowercase form
+  of a capitalized-only entry is the user's word" is applied to the OTHER language's set, so a Spanish
+  typo one key from `ayer` is protected as an English name.
+- `pof` → `por` (rank 11, one vertical slip, 0.53) is not applied: English `of` (rank 8, an extra key in
+  front, 0.65 + the other-language notch) is 0.38 behind and ≤ 4 letters need 0.45.
+- `iueho` (VK received exactly that: final.txt keeps it): two edits on five letters are never searched
+  (r13c starts at six). Its first touch landed at the corner where i, k, u and j meet (0.2 px from k's
+  cell, about 8 px from u's and j's, about 100 px from l's). From the letters alone it is a tie: i→j and
+  i→l are mirror diagonals on the ES layout (j sits under u), so `luego` (rank 196) and `juego` (432)
+  cost exactly the same two slips and `luego` would win. Only the touch tells them apart.
+- `yatde` → `yate` (rank 8923, one extra key next to e) because `tarde` (rank 243, two slips: y for t, t
+  for r) needs two edits and five letters search one.
+- `nuneros` → `juntos`: VK received `juneros`. The first touch went down on n and slid 10 px up into j's
+  cell before lifting, so VK committed j (the touch decoder, which reads the down point, says n). From
+  `juneros`, `juntos` (an extra e next to r + r for t: 1.05) leads `números` (j for n on the first
+  letter + n for m: 1.19) by 0.35 with frequency, over the 0.25 a 7-letter word needs.
+- In the Keep field (TEXT | CAP_SENTENCES | MULTI_LINE | NO_SUGGESTIONS: prose, opted out) the learned
+  model is ALREADY read since r11 (X6: `FieldPolicy.offerWords`); learning is closed (`personalWords`).
+  So `grapheneos` staying lowercase is not the read gate: r13a's learned casing needs two consistent
+  cased uses typed in fields that learn (words learned before 0.9.0 carry no casing evidence). And
+  `gtapheneos` → GrapheneOS has no path at all: learned words are never correction targets.
+- Rows the live build's own engine cannot reproduce from the decoded touches (VK received other keys,
+  or the touch recorder dropped a touch): `nuneros` (juneros), `gome` (lifted on the f/g border),
+  `hohle` (both h touches 0.5 px from g's cell), `tuvbo` (`tuvo⌫bo` with v on the v/b border), `pllar`,
+  `cas`, `haolla`, `po` (fixed live, but the replay of 361d784 cannot reach the live word from the
+  decoded letters), and the misaligned `l` (really the `l importante` near the end). Reported as noise,
+  never tuned for. Out of scope (real words, need context): de/la, yan/tan, vacan/bacán, pata/para,
+  nieva/nueva, di/Si.
+
+Written before the code; each item names what the replay, a JVM test or the device run must catch.
+
+### F1 — the first word of a field (`Suggest` R1 protection)
+- FW1 A Spanish typo that equals a capitalized-only entry of the OTHER enabled language (an English
+  surname or place: `auer` ↔ Auer, one slip from `ayer`) is protected as a name and never corrected.
+  Rule: a lowercase typing is protected by the other language's set only through a lowercase entry
+  there, or — for a name — when that lowercase form is in the other language's frequency list (any
+  rank: `google` 9778, `english`); the writing language's own names keep r13a's RW1 (`chile`, `maría`).
+- FW2 The first word of a field is treated differently from the same word mid-sentence: the replay
+  with an empty `before` and the device (an empty field, auto-capital on) must give `Ayer`; the
+  capitalized typing (`Auer` from the auto-capital at the text start) is corrected and keeps its case.
+- FW3 A real word of the other language or a common name there is now corrected: `english`, `google`,
+  `the`, `for`, `bastion`, `anduvieron` (es) and every r13a / r13c protection row still stay.
+
+### T3 — three-letter words (`Suggest`)
+- T3-1 A three-letter non-word one touching key from a very frequent three-letter word stays (`pof` →
+  `por`) because an extra- or missing-key reading in the other language (`of`) is within ≤ 4 letters'
+  0.45 margin. Rule (same discipline as SW1): exactly three letters, a non-word; the best spelling family
+  of the regular search is a three-letter word among the writing language's [THREE_TOP] most frequent
+  list words, reached by ONE substitution of a touching key (cost ≤ 0.6 with the first-letter penalty);
+  every other family competes (substitutions, an extra or a missing key, the other language one notch
+  behind) and the best must lead the next by [THREE_GAP] (0.3; 0.45 stays for everything else). The
+  floor comes from the lists: ranks 0–199 hold the everyday three-letter words (es: que 1, por 11, una
+  14 … tus 181, hoy 199; en: you 0, the 2 … big 191, lot 192); the next ones are oye 204, mal 217, aún 221.
+- T3-2 A real three-letter word is touched: valid in the writing language (incl. lowercase names), in its
+  list (any rank), regional, valid in the other language (lowercase entry; en_US accepts 6% of the
+  three-letter a–z strings, es 2.3%, unlike the 42% of two-letter ones) or a common name there (FW1):
+  `pon`, `fue`, `sol`, `the`, `for`, `ves`, `mía` never change. A JVM test walks every three-letter word of
+  both lists, the regional files and every a–z / ñ string the valid sets accept.
+- T3-3 Ties are broken: `cas` (vas by a slip 1.21, casa by a missing key 1.34) and `ze`-like triples stay;
+  the bar offers the close candidates.
+- T3-4 Chat shorthand of three letters is rewritten by the new rule (`xfa`, `pls`, `tmb`, `bkn`, `wna`,
+  `ctm`, `ntp`, `tqm`, `npi`, `dsp`): the report lists which shorthand changes between 361d784 and this
+  build (`dps` → `dos` is r13a's regular path, unchanged).
+
+### W5 — two slips on five letters (`Suggest`)
+- W5-1 A five-letter word with two slips stays (`iueho` → `juego` once the touch says j, T B below).
+  Five letters now search two edits. A two-edit fix of a five-letter word must be two cheap slips (cost
+  ≤ 1.1), land on a list word in the top 12000 (r13a's 5–6 letter rank), be the ONLY spelling family
+  within that cost, and lead the next family by r13a's five-letter margin (0.35).
+- W5-2 The two-edit families are rivals of a one-edit fix too: `yatde` → `yate` (one extra key, rank 8923)
+  must see `tarde` (two slips, rank 243); when they are close the word stays and the bar offers both.
+- W5-3 False fixes: the report gives the rate over (a) every five-letter word of the shipped valid sets
+  and lists (protected: must be 0), (b) synthetic two-slip typos of the five-letter list words (wrong
+  word vs right word vs left, 361d784 vs this build), (c) the s1 / s2 / s3 `ok` rows and r13a's s1_ok /
+  ctx_keep gates (all intact).
+- W5-4 Speed: five-letter words now search two edits in the list and the DAWG; the replay times every
+  word, the device run reports per-key handling time.
+
+### TB — the touch says which neighbour (`TouchKeys`, `KeyboardView`, IME glue, `TypoModel`)
+- TB1 The corrector only sees letters, so a touch on the border of two (or four) keys is scored like a
+  touch in the middle of the key it fell in: `iueho` cannot become `juego` (tie with `luego`), `juneros`
+  cannot become `números`. Rule: when a letter key commits, the keyboard records the other letter keys
+  whose hit cell lies within [TouchKeys.BORDER] key widths (0.12 ≈ 12 px on the Pixel 8 Pro: the 10 px
+  visual gap plus a pixel) of the point where the finger lifted (or, for a roll-over commit, where it
+  was last); for that letter of that word, typing it instead of one of those keys costs [TypoModel.BORDER]
+  (0.16, a substitution at distance 0) with no first-letter penalty. Everything else keeps the geometry.
+- TB2 The record outlives its word or drifts from the text: it is held for the word being typed only
+  (letters typed by key or long-press variant), cleared on a word end, a pick, a field change, a cursor
+  the user moves; ⌫ drops its last letter; it is used only when its letters spell exactly the word being
+  corrected (lowercase), else ignored. Memory only, at most [Tokens.MAX_LEN] small strings, never logged,
+  never persisted, never sent.
+- TB3 The bar and space disagree: the bar's confident first item and space read the same record.
+- TB4 Border evidence rewrites a real word or adds a rewrite the letters alone would refuse into a word
+  that is not the touched neighbour: it only lowers the cost of the touched neighbour at that position;
+  R1 protection, the rank gates, the margins and the two-strike rejections are unchanged.
+- TB5 The replay cannot show it: s3's raw touches (taps.json, not committed) give, for every fixture row,
+  the border keys of each letter by VK's own cells (scripts/r13d_touch_keys.py → r13d/s3-touch.json:
+  letters only, no coordinates, no text beyond the fixture's own `typed`); the replay runs every s3 row
+  with and without them.
+- TB6 Device: a tap on the i / k / u / j corner then `ueho` + `,` gives `juego,`; a tap in the middle of i
+  then `ueho,` stays `iueho,` (no border, the tie stays).
+
+### WC — wrong corrections (`Suggest`, `Bar`)
+- WC1 `yatde` → `yate`: covered by W5-2 (tarde is now a rival; when close, the word stays).
+- WC2 `juneros` → `juntos`: two readings of two edits each (an extra key + a slip vs a first-letter slip
+  + a slip) and frequency decides by 0.35. Rule: a fix that needs two edits must lead the next family by
+  r13a's rare-form margin (0.4) whatever the length (two edits leave more readings than one); with the
+  touch (TB1) `números` costs 0.56 and is applied.
+- WC3 Leaving the word loses the choice: when the best is not applied and the next family is within the
+  margin, the bar offers both (`yatde`: tarde, yate; `juneros`: juntos, números), best first.
+- WC4 r13c's gains break: s1 ≥ 43/49 with every non-noise row fixed, s2 ≥ 55/78, every `ok` row of s1 /
+  s2 / s3 intact, r13a's s1_ok 181/181 and ctx_keep 35/35, Chilean words, LexiconEvalTest, endings,
+  two-strike, short words.
+
+### OR — learned words in opted-out fields: read, never written (`Writing`, `Suggest`, `PersonalModel`, IME glue)
+- OR1 A typo of a word the user taught the keyboard and no dictionary knows (`gtapheneos` for GrapheneOS)
+  is never corrected: learned words are not correction targets. Rule: the user's own words (typed
+  `Bar.HABIT` times or kept, in the vocabularies read, BL8) that are no word of an enabled language
+  compete in the correction search like a list word of rank [Suggest.USER_RANK] (1000), spelled with the
+  learned casing when its evidence holds (R5: GrapheneOS), else lowercase; same edit budgets, gates and
+  margins as any list word.
+- OR2 The read gate leaks: learned targets, learned casing, rejections and personal completions come only
+  through the read gate (`FieldPolicy.offerWords`); incognito and secret fields read none of them (a
+  model holding GrapheneOS: `grapheneos` and `gtapheneos` stay as typed there).
+- OR3 An opted-out field writes: in a field with FLAG_NO_SUGGESTIONS nothing typed is stored — no new
+  word, no use, no casing evidence, no keep mark, no strike or rejected pair. A JVM test types and rejects
+  corrections in such a field and compares words.json / rejections.json (as PersonalStore writes them)
+  byte for byte; the device run compares the files read with `run-as` before / after.
+- OR4 Slow on every key: the learned targets are rebuilt only when the model changes (a change counter
+  in memory) or the vocabularies change, and each lexicon keeps only the targets that are no word of it.
+- OR5 A learned target rewrites a real word or another learned word: R1 protection runs first (a typed
+  word that is valid / listed / regional / the user's own stays), and two learned targets that are close
+  leave the word.
+- OR6 The "Sin memoria" chip says the keyboard does not use what it learned: in an opted-out field it now
+  says it uses what it already learned and does not store what is typed there ("No guarda lo que
+  escribes aquí"); settings text that states where words are learned says the same. Secret / incognito /
+  mode / setting-off texts are unchanged.
+- OR7 Emoji recents and tone defaults: unchanged (stored in opted-out fields since r10, not in incognito
+  or secret ones); they are not typed text and are not part of words.json / rejections.json.
+
+### Version
+- VR3 0.11.0 / versionCode 13 are the build defaults.
