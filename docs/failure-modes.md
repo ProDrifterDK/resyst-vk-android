@@ -1116,7 +1116,12 @@ to two.
   first one, or after the IME process restarted — makes it permanent: stored as a rejected pair (space
   never applies it again, LR5) and the typed word keep-marked (K1) in the language it was written in.
 - TS3 A first rejection loses the word: it is learned as one ordinary use (a one-off completion, not
-  kept), the fix's learn is taken back (M10); two uses make it the user's as before (B5).
+  kept), the fix's learn is taken back (M10).
+- TS3b (found by the first JVM run) B5 turns one rejection into a permanent one: the word stays as
+  typed in field A, so typing it there again is a second use, and r10's B5 ("typed twice is the
+  user's") then stops space everywhere — the owner's complaint again by another path. While a pair has
+  a pending strike, the uses of its typed word do not make it the user's for that fix; its second
+  rejection decides (kept / stored words still win as before).
 - TS4 0.9.0 data is dropped or reinterpreted: every `rejected` pair of a 0.9.0 rejections.json stays
   permanent and every keep mark stays. Strikes are a new `strikes` array in the same v1 file: 0.9.0
   ignores it when reading, so going back to 0.9.0 keeps every permanent pair (it drops the strikes).
