@@ -1163,6 +1163,15 @@ to two.
   slip from a valid form); the search covers up to 24 letters (Suggest.MAX_LEN), rows sized for it.
 - TW6 Speed: 6-letter words now search two edits in the list and the valid-word DAWG; the replay times
   every search, the device run reports per-key handling time before / after.
+- TW7 (found replaying s2) A long word with three slips stays: impoersnte (the brief's own example: e
+  for r, r for t, s for a) and dkcionafio (k for i, one c of cc, f for r) are three edits from
+  importante / diccionario. From 10 letters, when the first search has no confident answer, a second
+  pass looks within three edits bounded by cost; a three-edit fix must land on a list word, cost at
+  most three cheap slips (1.6) and lead everything that pass sees by r13a's rare-form margin (0.4).
+- TW8 (found replaying s2) Spanish sound rules score English words: the other language's list is
+  scanned with the writing language's edit rules, so `hoohle` reads as `hole` with a silent h (cheaper
+  than the two slips to `google`). Spanish same-sound spellings apply only while Spanish words are
+  scanned (the list and DAWG of a Spanish lexicon); English words are scored by the keys alone.
 
 ### E5 — a capital inside a word (`KeyboardEngine` auto-capital, `Bar` learned casing)
 Live s2: the owner typed `t r a s ⌫ a e` + space and VK left `trAe`. No shift key was pressed in the
@@ -1182,15 +1191,26 @@ only a first capital or ALL-CAPS), so the capital came from one of two paths, bo
   sessions' commits.
 
 ### E6 — typo + missing accent (`Suggest`)
-- TA1 The fix of a typo is a valid accented form outside the frequency list and loses to a list word
-  one edit further: pusiesemls → pusiésemos (one slip) is beaten by pudiésemos (two edits, list 19105)
-  because every form outside the list gets the prior of rank 250 000. Verb inflections of a common
-  verb are not that rare: a rare form whose first max(5, ⌈len/2⌉) letters start a list word gets that
-  family's best rank as its prior plus a fixed inflection penalty (never better than the family).
-- TA2 Over-correction into rare inflections (NW4): the family prior only lowers a rare form's prior to
-  its family's, never below; r13a's rare-form gates (one cheap edit on 5+ letters, margin) stay.
+- TA1 The fix of a typo is a valid accented form outside the frequency list and is held back by a list
+  word one edit further: pusiesemls → pusiésemos (one slip, l for o) vs pudiésemos (two edits, list
+  19105) differ by 0.09 in total because every form outside the list gets the flat prior of rank
+  250 000, so the margin gate leaves the typo. Rule: for a valid form outside the list with ONE cheap
+  slip (≤ 0.6) on 7+ letters, a rival that needs another edit and costs at least one more side slip
+  (0.4) is not "close"; the margin is read against the rest. r13a's rare-form gates stay (one edit,
+  5+ letters, cost ≤ 0.8, 0.4 margin over the close rivals).
+- TA2 Over-correction into rare inflections (NW4). Tried first and rejected: a "family prior" (a rare
+  form whose first max(5, ⌈len/2⌉) letters start a list word gets that word's rank) — 5-letter stems
+  match unrelated lemmas (probad ← probablemente, aburras ← aburrido) and broke two s1 fixes
+  (abieras → abiertas, probae → probar). The rule above changes no prior; the replay gates of r13a
+  (s1_ok 181/181, ctx_keep 35/35, s1_typo ≥ 41, Chilean words) must hold.
 - TA3 condikeramls → condijéramos (valid, condecir) instead of condujéramos: the report says whether
   geometry or frequency can prefer condujéramos; no word is hardcoded.
+- TA4 (found replaying s2) A typo of a word spelled differently in the two languages lands on the
+  other language's spelling: baation (Spanish sentence) → bastion, because NW7 commits the bare
+  spelling whenever it is valid in an enabled language. When the family was found among the writing
+  language's words, its bare spelling is valid only in the other language, and the writing language
+  has exactly one accented spelling, that spelling is committed (baation → bastión). pkxel → pixel
+  stays (pixel is valid in Spanish), vuild → build stays (found among English words).
 
 ### Version
 - VR2 0.10.0 / versionCode 12 are the build defaults.
