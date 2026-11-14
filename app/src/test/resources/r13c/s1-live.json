@@ -1,0 +1,632 @@
+[
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde ",
+  "typed": "esruvimos",
+  "end": " ",
+  "gold": "estuvimos",
+  "vk_final": "estuvimos"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos ",
+  "typed": "revisndo",
+  "end": " ",
+  "gold": "revisando",
+  "vk_final": "revisando"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el ",
+  "typed": "pkxel",
+  "end": " ",
+  "gold": "Pixel",
+  "vk_final": "pkxel"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con ",
+  "typed": "calna",
+  "end": ".",
+  "gold": "calma",
+  "vk_final": "calna"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender ",
+  "typed": "pr",
+  "end": " ",
+  "gold": "por",
+  "vk_final": "por"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por ",
+  "typed": "que",
+  "end": " ",
+  "gold": "qué",
+  "vk_final": "que"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba ",
+  "typed": "ltan",
+  "end": " ",
+  "gold": "tan",
+  "vk_final": "tan"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el ",
+  "typed": "provlema",
+  "end": " ",
+  "gold": "problema",
+  "vk_final": "problema"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps ",
+  "typed": "abieras",
+  "end": " ",
+  "gold": "abiertas",
+  "vk_final": "abiertas"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al ",
+  "typed": "mimsmo",
+  "end": " ",
+  "gold": "mismo",
+  "vk_final": "mismo"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver ",
+  "typed": "ls",
+  "end": " ",
+  "gold": "los",
+  "vk_final": "los"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero ",
+  "typed": "probae",
+  "end": " ",
+  "gold": "probar",
+  "vk_final": "probar"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en ",
+  "typed": "seriom",
+  "end": ".",
+  "gold": "serio",
+  "vk_final": "serio"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el ",
+  "typed": "autocorrector",
+  "end": " ",
+  "gold": "autocorrector",
+  "vk_final": "autocorrevtor"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector ",
+  "typed": "acambia",
+  "end": " ",
+  "gold": "cambia",
+  "vk_final": "cambia"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra ",
+  "typed": "qje",
+  "end": " ",
+  "gold": "que",
+  "vk_final": "que"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo ",
+  "typed": "qje",
+  "end": " ",
+  "gold": "que",
+  "vk_final": "que"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que ",
+  "typed": "tenenos",
+  "end": " ",
+  "gold": "tenemos",
+  "vk_final": "tenemos"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos ",
+  "typed": "qje",
+  "end": " ",
+  "gold": "que",
+  "vk_final": "que"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que ",
+  "typed": "pillae",
+  "end": ".",
+  "gold": "pillar",
+  "vk_final": "pillae"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala ",
+  "typed": "qje",
+  "end": " ",
+  "gold": "que",
+  "vk_final": "que"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. ",
+  "typed": "tampco",
+  "end": " ",
+  "gold": "Tampoco",
+  "vk_final": "Tampoco"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que ",
+  "typed": "xaza",
+  "end": ",",
+  "gold": "caza",
+  "vk_final": "xaza"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que ",
+  "typed": "tuvom",
+  "end": "\n",
+  "gold": "tuvo",
+  "vk_final": "tuvo"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del ",
+  "typed": "bastion",
+  "end": " ",
+  "gold": "Bastión",
+  "vk_final": "bastón"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión ",
+  "typed": "sigje",
+  "end": " ",
+  "gold": "sigue",
+  "vk_final": "sigue"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el ",
+  "typed": "bastion",
+  "end": " ",
+  "gold": "Bastión",
+  "vk_final": "bastón"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión ",
+  "typed": "tamvien",
+  "end": " ",
+  "gold": "también",
+  "vk_final": "también"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también ",
+  "typed": "guaeda",
+  "end": " ",
+  "gold": "guarda",
+  "vk_final": "guarda"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los ",
+  "typed": "respaldoss",
+  "end": ".",
+  "gold": "respaldos",
+  "vk_final": "respaldos"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, ",
+  "typed": "despjes",
+  "end": " ",
+  "gold": "después",
+  "vk_final": "después"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un ",
+  "typed": "commmit",
+  "end": " ",
+  "gold": "commit",
+  "vk_final": "commit"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado ",
+  "typed": "anyes",
+  "end": " ",
+  "gold": "antes",
+  "vk_final": "antes"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el ",
+  "typed": "vuild",
+  "end": " ",
+  "gold": "build",
+  "vk_final": "vuild"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, ",
+  "typed": "condueramos",
+  "end": ",",
+  "gold": "condujéramos",
+  "vk_final": "condujeramos"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, ",
+  "typed": "condueramos",
+  "end": ",",
+  "gold": "condujéramos",
+  "vk_final": "condujeramos"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, ",
+  "typed": "anduvieron",
+  "end": " ",
+  "gold": "anduvieron",
+  "vk_final": "mantuvieron"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y ",
+  "typed": "pusiesemos",
+  "end": ".",
+  "gold": "pusiésemos",
+  "vk_final": "pudiésemos"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\n",
+  "typed": "graheneos",
+  "end": " ",
+  "gold": "GrapheneOS",
+  "vk_final": "GrapheneOS"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto ",
+  "typed": "porq",
+  "end": " ",
+  "gold": "porque",
+  "vk_final": "porque"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome ",
+  "typed": "clnfkgurarlo",
+  "end": ",",
+  "gold": "configurarlo",
+  "vk_final": "clnfkgurarlo"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, ",
+  "typed": "grapheneos",
+  "end": " ",
+  "gold": "GrapheneOS",
+  "vk_final": "grapheneos"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae ",
+  "typed": "dervicios",
+  "end": " ",
+  "gold": "servicios",
+  "vk_final": "servicios"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de ",
+  "typed": "goohle",
+  "end": " ",
+  "gold": "Google",
+  "vk_final": "google"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de ",
+  "typed": "goohle",
+  "end": " ",
+  "gold": "Google",
+  "vk_final": "google"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que ",
+  "typed": "busvamos",
+  "end": ",",
+  "gold": "buscamos",
+  "vk_final": "busvamos"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, ",
+  "typed": "soberania",
+  "end": " ",
+  "gold": "soberanía",
+  "vk_final": "soberano"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in ",
+  "typed": "english",
+  "end": ",",
+  "gold": "English",
+  "vk_final": "english"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to ",
+  "typed": "checl",
+  "end": " ",
+  "gold": "check",
+  "vk_final": "check"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works ",
+  "typed": "withouth",
+  "end": " ",
+  "gold": "without",
+  "vk_final": "without"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa ",
+  "typed": "peha",
+  "end": " ",
+  "gold": "pega",
+  "vk_final": "peha"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de ",
+  "typed": "mañna",
+  "end": " ",
+  "gold": "mañana",
+  "vk_final": "mañana"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana ",
+  "typed": "ñarte",
+  "end": " ",
+  "gold": "parte",
+  "vk_final": "ñarte"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el ",
+  "typed": "bastion",
+  "end": " ",
+  "gold": "Bastión",
+  "vk_final": "bastón"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y ",
+  "typed": "listl",
+  "end": ".",
+  "gold": "listo",
+  "vk_final": "listl"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_not_fixed_or_wrong_fix",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo ",
+  "typed": "impoetsnte",
+  "end": " ",
+  "gold": "importante",
+  "vk_final": "impoetsnte"
+ },
+ {
+  "session": "s1",
+  "cat": "accent_or_case",
+  "live_class": "accent_or_case_diff",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda ",
+  "typed": "como",
+  "end": " ",
+  "gold": "cómo",
+  "vk_final": "como"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo ",
+  "typed": "edcribo",
+  "end": " ",
+  "gold": "escribo",
+  "vk_final": "escribo"
+ },
+ {
+  "session": "s1",
+  "cat": "ok",
+  "live_class": "FALSE_CORRECTION",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, ",
+  "typed": "bastion",
+  "end": " ",
+  "gold": "Bastión",
+  "vk_final": "bastón"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai ",
+  "typed": "debeeian",
+  "end": " ",
+  "gold": "deberían",
+  "vk_final": "deberían"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían ",
+  "typed": "añarecer",
+  "end": " ",
+  "gold": "aparecer",
+  "vk_final": "aparecer"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como ",
+  "typed": "suherencia",
+  "end": " ",
+  "gold": "sugerencia",
+  "vk_final": "sugerencia"
+ },
+ {
+  "session": "s1",
+  "cat": "typo",
+  "live_class": "typo_fixed",
+  "left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia antes de terminar ",
+  "typed": "esye",
+  "end": " ",
+  "gold": "este",
+  "vk_final": "este"
+ }
+]

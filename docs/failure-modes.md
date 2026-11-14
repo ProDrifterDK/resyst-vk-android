@@ -1054,3 +1054,143 @@ Written before the code; each one names what the replay / a JVM test / the devic
 
 ### Version
 - VR1 0.9.0 / versionCode 11 are the build defaults.
+
+## Round 13c phase A — correction at every word ending, two-strike rejections, short words, two-slip words (0.10.0)
+
+The oracle is two live sessions of the owner typing the same text: s1 (VK 0.8.1, careful typing) and
+s2 (VK 0.9.0, everyday typing), fixtures app/src/test/resources/r13c/s1-live.json and s2-live.json
+(one row per misspelled word: the intended text before it, what the fingers typed, the key that ended
+the word live, the intended word, what VK left). Measured on de1efa4 before any code, by replaying each
+row through the real engine + the shipped corrector + the shipped assets: not one word ended by `.`,
+`,` or a new line is corrected (s1 0 of 10, s2 0 of 19), while the same engine fixes 9 of those s1
+words and 11 of those s2 words when a space ends them. s2 typo rows: 31/78 as ended live, 42/78 if
+every word had been ended by a space. Written before the code; each one names what the replay, a JVM
+test or the device run must catch.
+
+### E1 — the correction runs at every word ending (`KeyboardEngine`, IME glue)
+- EP1 A word ended by punctuation or a new line keeps its typo. The endings are the r12 closing set
+  `, . ; : ! ? ) ] } » ” …` (typed keys and long-press variants) and Enter where it inserts a new line
+  (multi-line fields). The same correction space would apply runs, in one batch edit, and the mark
+  lands right after the corrected word: `lentl,` → `lento,`, `pillae.` → `pillar.`, `tuvom⏎` →
+  `tuvo⏎`. An Enter that performs an editor action (send, search, go …) or is sent as a key event
+  corrects nothing: the text is leaving the field.
+- EP2 The ending path diverges from space. It must go through the same decision as space: real words
+  (RW1–RW2), the user's words (B5/K1), stored rejections (LR5), learned casing (R5), the profanity
+  filter, the A3 case gates, the A4 standalone guard and the A11 mid-word guard (a letter right after
+  the cursor: the IME reads one character after the cursor for these keys too).
+- EP3 Undo after an ending. Decision: one ⌫ right after `lento,` gives `lentl,` (the typed word comes
+  back, the mark stays, the cursor after it); the ↶ chip offers `↶ lentl` while the text ends with
+  `lento,` and restores `lentl,`. Space keeps r10's A10 exactly (`lento ` + ⌫ → `lentl`, the space goes
+  too). Both are a rejection (E2). Only right after: any other key ends the undo, as for space;
+  deleting the fix later and retyping it is the late rejection (LR1), which now also fires when the
+  retyped word is ended by punctuation or a new line.
+- EP4 r12 regressions. A pick's provisional space + a closing mark still swaps (`Hola ` + `,` →
+  `Hola, `), a space right after is still absorbed, double-space period still works (`lento` + space +
+  space → `lento. `), and none of these try to correct (no word before the cursor).
+- EP5 A period inside a token is taken for a sentence end: `resyst.cl`, `informe.pdf`, `v2.1`. If a
+  letter or digit is typed right after the `.` whose ending corrected a word, the correction is
+  withdrawn in the same edit (`resist.` + `c` → `resyst.c`): not a rejection (no strike, no keep
+  mark), and the fix's learn is taken back (M10).
+- EP6 Abbreviations: `ej.`, `pág.`, `etc.`, `aprox.`, `depto.`, `núm.`, `tel.`, `prof.`, `sr.` are valid
+  in RLA-ES (the valid-word set keeps them without their dot) and stay as typed; a JVM row pins a list
+  of them followed by `.`.
+- EP7 Learning double counts or learns the wrong token: the ending learns the corrected word once,
+  the ⌫ undo takes that learn back (M10) and learns the typed word; the next word's context is right
+  (`,` keeps the link to the previous word, `.` `!` `?` and the new line start a sentence).
+- EP8 Latency: the ending key now runs the correction search. Per-key handling time before / after
+  from the debuggable keytime log on the device; the search time per word from the replay.
+
+### E2 — two-strike rejections (`Rejections`, `KeyboardEngine`, `Learner`, IME glue)
+Owner's report: `lentl` + space → `lento` in WhatsApp; he deleted it and retyped `lentl`, and from then
+on `lentl` was never corrected anywhere: r13a's late rejection keep-marked the word after ONE
+rejection. This changes r11's K1 ("reverting a correction makes the word yours") from one rejection
+to two.
+- TS1 One rejection makes the word the user's everywhere. A first rejection (⌫ right after, ↶, or a
+  late delete + retype, after any word ending) protects the typed word in the current field only:
+  the engine's per-field memory (LR6 rules: memory only, at most 16 words, dropped when another editor
+  starts, kept when the same editor restarts). Another field still corrects it.
+- TS2 The first strike is forgotten, so the second never counts. The first rejection of a pair
+  (typed → fix, lowercase) is stored as a strike in files/personal/rejections.json; a rejection of a
+  pair that already has a strike — necessarily in another field, since the word is protected in the
+  first one, or after the IME process restarted — makes it permanent: stored as a rejected pair (space
+  never applies it again, LR5) and the typed word keep-marked (K1) in the language it was written in.
+- TS3 A first rejection loses the word: it is learned as one ordinary use (a one-off completion, not
+  kept), the fix's learn is taken back (M10); two uses make it the user's as before (B5).
+- TS4 0.9.0 data is dropped or reinterpreted: every `rejected` pair of a 0.9.0 rejections.json stays
+  permanent and every keep mark stays. Strikes are a new `strikes` array in the same v1 file: 0.9.0
+  ignores it when reading, so going back to 0.9.0 keeps every permanent pair (it drops the strikes).
+- TS5 Strikes leak or grow: bounded (oldest first), written only through the learning write gate
+  (nothing from secret / incognito / opted-out fields), wiped by "Borrar lo aprendido", counted on its
+  row, listed one by one with ✕ in "Lo que sé de ti" saying what each means (once: corrected again in
+  other fields; twice: never applied again); ✕ forgets either.
+- TS6 Double counting: one correction gives at most one rejection (⌫ or ↶, whichever comes first);
+  the same pair rejected again in the same field cannot happen while the word is protected there.
+- TS7 The bar loses the fix: a rejected fix (once or for good) is still offered in the bar.
+
+### E3 — two-letter words (`Suggest`, regional data)
+- SW1 Two-letter non-words one key away from a very frequent word stay: `nl` `dd` `sd` `jn` `ys` `ek`.
+  Rule: exactly two letters, lowercase (or the sentence-start capital); candidates are the two-letter
+  words among the writing language's 64 most frequent list words, reached by replacing one letter with
+  a key that touches it on the drawn layout (TypoModel.near); score = TypoModel substitution cost +
+  the frequency prior; applied only when the best leads the next candidate by a margin (a tie such as
+  `ze` → se / de stays). Numbers in the r13c report: the 64-word floor holds the everyday function
+  words (de … he, ranks 0–61); the next two-letter words are va 99, oh 100, mí 103, ti, ir, ni, eh.
+- SW2 A real two-letter word is touched: valid in the writing language (incl. lowercase names), in its
+  frequency list (any rank), a regional word, or common in the other enabled language (BL4: its top
+  8000 — of, is, ok, ls) is never corrected. Unlike longer words, the other language's Hunspell set
+  does not protect a two-letter string: en_US accepts 308 of the 729 lowercase two-letter strings
+  (42%, initialisms: dd, sd, bd, cb …), es 107 (15%), so "valid in English" says nothing about `sd`
+  typed in Spanish. `pr` (en list 8084) has no frequent Spanish neighbour and stays.
+- SW3 Single letters are corrected: never. Every lone consonant is chat shorthand or a unit (q k d t x
+  m s g), and a e o u y are words.
+- SW4 Chat shorthand is rewritten: Chilean / Latin American shorthand one key from a top word
+  (`ql` → al, `ws` → es, `td` → te) is curated into regional/es-CL.txt as known words (RW2); xd, wn
+  are already there; pq xq tb ns bn nd have no frequent neighbour. A JVM row pins them.
+- SW5 English: the same rule over the English list (its two-letter words in the top 64).
+
+### E4 — two slips in a longer word (`Suggest`)
+- TW1 A 6-letter word with two slips stays (csmvia → cambia, hoohle → google): the edit budget is one
+  edit under 6 letters and two from 6 (was 7). A two-edit fix of a 6-letter word must be two cheap
+  slips (cost ≤ 1.1: two touching keys, or a slip and a swap / double / extra-near key), land on a
+  list word in the top 12000 (r13a's 5–6 letter rank) and keep r13a's 6-letter margin.
+- TW2 The rank gate reads one language only: a word in both lists (branch: es 21670, en 3865) is
+  judged by its best rank among the enabled languages.
+- TW3 Rare forms (outside both lists) get two-edit fixes on 6–9 letters: no — r13a's NW5 stays (two
+  edits only from 10 letters, nothing else within two edits), so Chilean words and coinages of 6–9
+  letters are not exposed to new rewrites.
+- TW4 Shorter words change: ≤ 5 letters keep r13a's budget (one edit) and margins (NW6).
+- TW5 Long words are never searched: MAX_FUZZY_LEN 16 cuts esternlcleidomastoideo (22 letters, one
+  slip from a valid form); the search covers up to 24 letters (Suggest.MAX_LEN), rows sized for it.
+- TW6 Speed: 6-letter words now search two edits in the list and the valid-word DAWG; the replay times
+  every search, the device run reports per-key handling time before / after.
+
+### E5 — a capital inside a word (`KeyboardEngine` auto-capital, `Bar` learned casing)
+Live s2: the owner typed `t r a s ⌫ a e` + space and VK left `trAe`. No shift key was pressed in the
+whole session, and the space corrector never adds an inner capital to a lowercase typing (it copies
+only a first capital or ALL-CAPS), so the capital came from one of two paths, both closed:
+- MC1 Auto-capital fires inside a word: the IME's AUTO shift follows the editor's caps-mode answer,
+  which can be stale right after a ⌫ or a fast edit. AUTO shift capitalizes only a letter that starts a
+  word; typed right after a letter, digit or apostrophe it types lowercase (a user's shift / caps lock
+  is never overridden).
+- MC2 A learned casing with an inner capital is applied to a dictionary word: `trAe` committed (by the
+  path above, or a slip) is learned as casing evidence for `trae`, and r13a's R5 then turns every
+  `trae` into `trAe`. A learned casing with a capital after the first letter is applied (space and bar)
+  only to a word that is not a word of an enabled language in lowercase, or whose cased form is itself
+  a valid spelling (iPhone). GrapheneOS, Pixel, Bastión keep working.
+- MC3 A fix puts a capital inside a word: the corrector's fix of a lowercase or sentence-capital typing
+  never has an inner capital unless the target's own spelling has it; a JVM row checks the replayed
+  sessions' commits.
+
+### E6 — typo + missing accent (`Suggest`)
+- TA1 The fix of a typo is a valid accented form outside the frequency list and loses to a list word
+  one edit further: pusiesemls → pusiésemos (one slip) is beaten by pudiésemos (two edits, list 19105)
+  because every form outside the list gets the prior of rank 250 000. Verb inflections of a common
+  verb are not that rare: a rare form whose first max(5, ⌈len/2⌉) letters start a list word gets that
+  family's best rank as its prior plus a fixed inflection penalty (never better than the family).
+- TA2 Over-correction into rare inflections (NW4): the family prior only lowers a rare form's prior to
+  its family's, never below; r13a's rare-form gates (one cheap edit on 5+ letters, margin) stay.
+- TA3 condikeramls → condijéramos (valid, condecir) instead of condujéramos: the report says whether
+  geometry or frequency can prefer condujéramos; no word is hardcoded.
+
+### Version
+- VR2 0.10.0 / versionCode 12 are the build defaults.
