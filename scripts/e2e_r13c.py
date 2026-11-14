@@ -11,6 +11,11 @@ E2E host:
      editor) still corrects lentl, rejected again → rejections.json `rejected` holds lentl → lento and
      words.json keep-marks lentl; field 3 (text again, another editor) keeps lentl
   E  "nl" + Espacio → "no"; "u" stays (SW1/SW2)
+  N  "Novedades de la X" (phase B, needs --news-base-apk = the 0.9.0 debug build): updated in place it
+     shows once (not in a password / incognito field), a tap fires an ACTION_VIEW for
+     https://kv.resyst.cl/novedades/ (logcat) and it never comes back; a clean install (uninstall +
+     install of the debug package) never shows it; the x dismisses it without opening anything;
+     typing past it counts as seen. Screenshots r13c-N*.png
   L  latency: one text with letters, spaces and word endings typed on --before-apk (0.9.0 debug) and on
      --apk; the IME's own debuggable "keytime" lines (kind + time, never text) give median / p90 per kind
      (key, key space, key end = a closing mark / new line, bar)
@@ -28,6 +33,7 @@ import json
 import os
 import re
 import statistics
+import subprocess
 import sys
 import time
 
@@ -54,6 +60,40 @@ def shot(name):
 
 def field():
     return e2e.field_text(dump()) or ''
+
+
+def decline_play_protect():
+    """Play Protect asks to upload every sideloaded build: «Don't send» (nothing leaves the phone)."""
+    for n in dump().iter('node'):
+        if n.get('package') == 'com.android.vending' and n.get('text', '') in ("Don't send", 'No enviar'):
+            e2e.tap(n)
+            time.sleep(1.0)
+            return True
+    return False
+
+
+def play_protect_up():
+    return 'PlayProtectDialogsActivity' in str(sh('dumpsys window | grep -m1 mCurrentFocus', check=False))
+
+
+def install(*args):
+    """adb install that survives Play Protect's upload prompt (it blocks the install while it is up)."""
+    p = subprocess.Popen(e2e.ADB + ['install', *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    end = time.time() + 150
+    while p.poll() is None and time.time() < end:
+        if play_protect_up():
+            decline_play_protect()
+        time.sleep(1.5)
+    if p.poll() is None:
+        p.kill()
+        raise RuntimeError('adb install timed out')
+    out, err = p.communicate()
+    if p.returncode != 0:
+        raise RuntimeError('adb install failed: ' + err.decode(errors='replace') + out.decode(errors='replace'))
+    for _ in range(4):  # the prompt can also come just after the install returns
+        time.sleep(1.0)
+        if play_protect_up():
+            decline_play_protect()
 
 
 def fresh(kind='text'):
@@ -183,7 +223,7 @@ def summary(v):
 
 
 def measure(apk, label, downgrade):
-    adb('install', '-r', '-t', *(['-d'] if downgrade else []), apk)
+    install('-r', '-t', *(['-d'] if downgrade else []), apk)
     sh(f'am force-stop {PKG}')
     time.sleep(0.6)
     sh(f'ime enable {IME}')
@@ -257,7 +297,7 @@ def news_log():
 def install_clean(apk):
     """A clean install of the DEBUG package only: uninstall first, so first-install == last-update time."""
     adb('uninstall', PKG, check=False)
-    adb('install', '-t', apk)
+    install('-t', apk)
     sh(f'ime enable {IME}')
     sh(f'ime set {IME}')
 
@@ -267,7 +307,7 @@ def install_update(base_apk, apk):
     install_clean(base_apk)
     fresh()
     time.sleep(2.5)  # past the installer's clock slack: lastUpdateTime moves clearly on
-    adb('install', '-r', '-t', apk)
+    install('-r', '-t', apk)
     time.sleep(1.5)
     sh(f'ime enable {IME}')
     sh(f'ime set {IME}')
@@ -304,10 +344,13 @@ def section_n(base_apk, apk):
         e2e.tap(chip)
         time.sleep(2.5)
         log = adb('logcat', '-d', '-b', 'all', '-v', 'brief')
-        fired = [l for l in log.splitlines() if 'android.intent.action.VIEW' in l and 'kv.resyst.cl/novedades' in l]
+        fired = [l for l in log.splitlines() if 'android.intent.action.VIEW' in l and 'category.BROWSABLE' in l and 'dat=https://kv.resyst.cl/' in l]
         top = sh('dumpsys activity activities | grep -E "ResumedActivity|topResumedActivity" | head -3', check=False)
         shot('r13c-N1-after-tap.png')
         check('N1', 'a VIEW intent for https://kv.resyst.cl/novedades/ fired', bool(fired), (fired[:1] or [top.strip()])[0][:300])
+        # the framework log redacts the path of the data URI, so the exact URL is read off the browser's address bar
+        urls = [n.get('text', '') for n in dump().iter('node') if 'kv.resyst.cl' in n.get('text', '')]
+        check('N1', 'the browser opened kv.resyst.cl/novedades/', any('kv.resyst.cl/novedades' in u for u in urls), urls[:2])
         check('N1', 'the foreground app left VK for the browser', PKG not in top.split('\n')[0] if top.strip() else False, top.strip()[:200])
         check('N1', 'the keyboard logged the tap (no text)', 'whats new: opened 0.10.0' in news_log(), '')
         check('N1', 'only the last version seen is stored', news_seen() == version, news_seen())
@@ -385,7 +428,7 @@ def main():
     print(f'✦ device: {model} (API {sdk}) previous IME={previous}')
     latency = None
     try:
-        adb('install', '-r', '-t', '-d', a.apk)
+        install('-r', '-t', '-d', a.apk)
         sh(f'pm clear {PKG}', check=False)  # debug package only
         sh(f'ime enable {IME}')
         sh(f'ime set {IME}')
