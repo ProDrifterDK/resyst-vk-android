@@ -102,7 +102,10 @@ class Round13ValidWordsTest {
         // entry counts from the generator (r13a: es 2 267 583 incl. 1.6M enclitic forms, en 166 768)
         assertTrue("es words ${es.size}", es.size in 2_000_000..2_600_000)
         assertTrue("en words ${en.size}", en.size in 150_000..190_000)
-        assertTrue(es.notice.contains("MPL-1.1+") && en.notice.contains("SCOWL"))
+        // r13c (LI3): the header names the three-way offer and the GPL-3+ use, never "this file is MPL"
+        assertTrue(es.notice.contains("GPL-3+, LGPL-3+ or MPL-1.1+") && es.notice.contains("under GPL-3+"))
+        assertFalse(es.notice.contains("This file is MPL"))
+        assertTrue(en.notice.contains("SCOWL"))
     }
 
     // ── VW11: a broken asset is absent, never a crash ─────────────────────
@@ -128,7 +131,8 @@ class Round13ValidWordsTest {
         for (f in listOf("es.txt", "en.txt", "valid-es.dawg", "valid-en.dawg")) assertTrue(f, readme.contains(f))
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertFalse(settings.contains("FrequencyWords (MIT)"))
-        assertTrue(settings.contains("FrequencyWords (CC BY-SA 4.0)") && settings.contains("RLA-ES (MPL)") && settings.contains("SCOWL"))
+        assertTrue(settings.contains("FrequencyWords (CC BY-SA 4.0)") && settings.contains("RLA-ES") && settings.contains("SCOWL"))
+        assertFalse("r13c (LI1): the credit no longer says the dictionary is MPL-only", settings.contains("RLA-ES (MPL)"))
     }
 
     // ── VW10/VW12: loaded with the lexicon off the main thread ──

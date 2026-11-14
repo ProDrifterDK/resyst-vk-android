@@ -57,8 +57,9 @@ MANIFEST = os.path.join(ROOT, 'lexicon-src', 'valid-words.manifest')
 LANGS = (('es', 'es_CL'), ('en', 'en_US'))
 NOTICE = {
     'es': 'Resyst VK valid-word set (es). Derived from the RLA-ES Hunspell dictionary by Santiago '
-          'Bosio (hunspell-es 1:24.2.1-1), used under MPL-1.1+. Source form: lexicon-src/hunspell '
-          '+ scripts/gen_valid_words.py in the Resyst VK repository. This file is MPL-1.1+.',
+          'Bosio (hunspell-es 1:24.2.1-1), which offers GPL-3+, LGPL-3+ or MPL-1.1+; Resyst VK uses it '
+          'under GPL-3+, and so does this file. Source form: lexicon-src/hunspell + '
+          'scripts/gen_valid_words.py in the Resyst VK repository.',
     'en': 'Resyst VK valid-word set (en). Derived from the en_US Hunspell dictionary (SCOWL, '
           'Copyright 2000-2011 Kevin Atkinson and others; hunspell-en-us 1:2020.12.07-2). The '
           'SCOWL copyright and permission notice is in LICENSE-Hunspell-en_US.txt.',

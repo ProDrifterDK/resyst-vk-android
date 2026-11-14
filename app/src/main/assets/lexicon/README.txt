@@ -12,8 +12,9 @@ valid-es.dawg
     Spanish valid-word set (every full form, plus verb + clitic forms), generated from the RLA-ES
     Hunspell dictionary by Santiago Bosio. License: the same choice the dictionary offers,
     GPL-3+ or LGPL-3+ or MPL-1.1+; inside Resyst VK (GPL-3.0-or-later) it is used under GPL-3+.
-    Notice and MPL text: LICENSE-Hunspell-es.txt; GPL text: LICENSE at the repository root. The
-    file header embeds the MPL-1.1+ notice of earlier builds; the three-way offer above applies.
+    Notice and MPL text: LICENSE-Hunspell-es.txt; GPL text: ../LICENSE-GPL-3.txt in this package
+    (the LICENSE file of the repository root). The file header says the same: the three-way offer,
+    used under GPL-3+.
 
 valid-en.dawg
     English valid-word set (every full form), generated from the en_US Hunspell dictionary, which

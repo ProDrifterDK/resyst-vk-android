@@ -2,7 +2,9 @@ package com.resyst.vk.settings
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -1374,12 +1376,28 @@ class SettingsActivity : Activity() {
     }
 
     private fun footer() {
-        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (CC BY-SA 4.0) · diccionarios Hunspell RLA-ES (MPL) y SCOWL (en_US)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
+        root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (CC BY-SA 4.0) · diccionario español RLA-ES de Hunspell (se usa bajo la GPL; lo ofrece como GPL, LGPL o MPL) y SCOWL (en_US)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
+        // r13c (LI1, LI5): the app's own license + source. A tap hands the page to the browser: the
+        // browser makes that request, not the keyboard, so the "Libro de conexiones" stays as it is.
+        root.addView(label("Resyst VK es software libre bajo la GPL 3 · código fuente en GitHub (se abre en el navegador)", 11f, pal.accent, 550).apply {
+            gravity = Gravity.CENTER
+            minHeight = px(48f)
+            isClickable = true
+            tag = "source-link"
+            contentDescription = "Resyst VK es software libre bajo la GPL 3. Código fuente en GitHub. Abre el navegador"
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SOURCE_URL)).addCategory(Intent.CATEGORY_BROWSABLE))
+                } catch (_: ActivityNotFoundException) { /* no browser: nothing to open */ }
+            }
+        }, lp(top = 2f))
         root.addView(label("", 1f, t.bg).apply { typeface = Typeface.DEFAULT }, lp(bottom = 40f))
     }
 
     companion object {
         /** r9: open on a section (the keyboard's update chip). */
+        /** r13c (LI1): where the source of this GPL-3.0-or-later app lives. */
+        const val SOURCE_URL = "https://github.com/ProDrifterDK/resyst-vk-android"
         const val EXTRA_SECTION = "com.resyst.vk.section"
         const val SECTION_UPDATE = "update"
         /** r10: open on a [SettingsPage.id] (quick panel → "Ajustes", privacy surfaces…). */

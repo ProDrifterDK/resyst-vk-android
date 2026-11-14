@@ -1,4 +1,4 @@
 # r13a valid-word assets: written by scripts/gen_valid_words.py, read by ValidWordsTest
 # file sha256 words arcs bytes
-valid-es.dawg 085aaf968e56b26f32757b6955d292d9c930ff0de12efd6dd7e00828784d8ef9 2267583 115825 463704
+valid-es.dawg 609c76b5216cf30d3620ccf6169d6ac917637d067b36df2d4a91817107e1cf11 2267583 115825 463760
 valid-en.dawg d7070048a31249f66957b7bd4e52f9d6c3452debb40ee46383f266ef7c2a2b8a 166768 140814 563624

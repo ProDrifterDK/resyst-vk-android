@@ -21,8 +21,13 @@ Deterministic: sorted input, no hash-order output, no dates; two runs give byte-
 
 | file | sha256 | words | arcs | bytes |
 |---|---|---|---|---|
-| `valid-es.dawg` | `085aaf968e56b26f32757b6955d292d9c930ff0de12efd6dd7e00828784d8ef9` | 2 267 583 | 115 825 | 463 704 |
+| `valid-es.dawg` | `609c76b5216cf30d3620ccf6169d6ac917637d067b36df2d4a91817107e1cf11` | 2 267 583 | 115 825 | 463 760 |
 | `valid-en.dawg` | `d7070048a31249f66957b7bd4e52f9d6c3452debb40ee46383f266ef7c2a2b8a` | 166 768 | 140 814 | 563 624 |
+
+r13c: only the Spanish header notice changed (it said "used under MPL-1.1+"; it now names the
+three-way offer and the GPL-3+ use), so `valid-es.dawg` grew by 56 bytes and its sha256 changed
+(was `085aaf96…8ef9`, 463 704 bytes); words, arcs and states are identical, `valid-en.dawg` is
+byte-identical. Two generator runs gave the same sha256.
 
 Spanish = 656 262 Hunspell forms + 1 611 322 verb + clitic forms the dictionary does not list
 (1 669 307 generated, the rest already in Hunspell); one form with periods (`DD.HH.`) is left
