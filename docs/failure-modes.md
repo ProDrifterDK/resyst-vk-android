@@ -1220,3 +1220,62 @@ only a first capital or ALL-CAPS), so the capital came from one of two paths, bo
 
 ### Version
 - VR2 0.10.0 / versionCode 12 are the build defaults.
+
+## Round 13c phase B — licenses inside the APK, and "Novedades" after an update (0.10.0)
+
+The repo is GPL-3.0-or-later (`LICENSE`, README "License", de1efa4). Written before the code; each
+item names what a JVM test or the device run must catch.
+
+### L1 — what the APK says about its license (`SettingsActivity`, `assets/`, `valid-es.dawg`)
+- LI1 The settings credit line still says "diccionarios Hunspell RLA-ES (MPL)". After r13c-B it says
+  the Spanish dictionary is used under the GPL (RLA-ES offers GPL, LGPL or MPL), and a second line says
+  Resyst VK itself is free software under GPL 3 with its source on GitHub. Caught by: a JVM test that
+  reads the settings source and the repo README "License" section (the claims must agree), and a
+  screenshot of the footer.
+- LI2 The GPL-3 text does not travel in the APK (the repo root `LICENSE` is not packaged). It ships as
+  `assets/LICENSE-GPL-3.txt`. Caught by: a JVM test that the asset and the repo root `LICENSE` are the
+  same bytes, so a later edit of one without the other fails the build.
+- LI3 `valid-es.dawg` embeds a header notice that says "used under MPL-1.1+ ... This file is MPL-1.1+",
+  which contradicts the three-way offer used under GPL-3+. The header is part of the file, so changing it
+  means regenerating the DAWG, only through `scripts/gen_valid_words.py` (header text only). Caught by:
+  `Round13ValidWordsTest` (manifest sha256 / bytes, word count, notice string), a second generator run
+  with the same sha256, `gen_valid_words.py --check`. If the regenerated word set differed (words or
+  arcs not equal to the manifest's 2 267 583 / 115 825), stop: that would be a behaviour change.
+- LI4 `assets/lexicon/README.txt`, `lexicon-src/README.md`, the README "License" section and the
+  settings credits disagree. Caught by: one JVM test over all four.
+- LI5 The source link in settings opens the browser through an intent. That is not a connection the
+  keyboard makes (the browser makes it), so the "Libro de conexiones" does not record it and its copy
+  stays about the keyboard's own requests; the link text says it opens the browser. A failed intent
+  (no browser) must not crash settings.
+
+### N6 — "Novedades de la X" (`WhatsNew`, IME glue, `KeyboardView` chip)
+- WN1 Shown the first time the keyboard opens after VK was updated to a new versionName, never on a
+  fresh install. The only persisted fact is the last versionName seen (one string, local, no network).
+  On a fresh install the first keyboard start writes the baseline silently. An update from a build
+  that never stored it (0.9.0) has no stored version: it is told from a fresh install by the package's
+  lastUpdateTime being later than its firstInstallTime. Caught by: a JVM truth table (fresh, update
+  from a build without the key, update from an older stored version, same version, downgrade,
+  unparseable) and the device run (0.9.0 → 0.10.0 shows; an uninstall + install does not).
+- WN2 Never in a secret field (password, PIN) or an incognito field. A notice not shown stays pending
+  (it is not consumed by a field that could not show it). Caught by: the pure `visible()` table.
+- WN3 It disappears for good once tapped or dismissed (✕), and once the user types with it on screen
+  (they saw it and went on: a quiet strip never nags on every field). A notice that was never on a
+  strip (secret field, paste offer, an update chip) stays pending. A tap whose browser intent fails
+  keeps it pending (nothing was shown to the user). Caught by: JVM transitions, device run (once; the
+  second open shows nothing).
+- WN4 It never takes the strip from the update chip: an announced update (r9) wins; the notice waits.
+  It never takes it from typing: a typed character, a paste offer, a secret field hide it at once
+  (no amber dot: a news item is not worth a badge).
+- WN5 It reuses the update chip's look (accent-soft pill, amber hairline, ✕ cell), with a ✦ in the
+  disc instead of the download arrow, so it reads as VK's own. Every label tier carries the whole
+  version ("Novedades de la 0.10.0", then shorter, then the bare version): a cut version is a bug.
+  The action line says it opens the browser. A debug build's "-debug" suffix is not shown.
+- WN6 Tapping it opens `https://kv.resyst.cl/novedades/` with an ACTION_VIEW intent. That is the only
+  thing it does: no request by the keyboard, nothing in the connection book. TalkBack reads what it
+  does ("Novedades de la versión X. Toca para abrir en el navegador").
+- WN7 No setting toggle: the notice is once per version and dismissible, and the settings structure
+  has no "notices" group the row would belong to. Adding a row would also add a search-index entry and
+  a stored key for a message that already goes away by itself.
+- WN8 "Clear data" on an updated app starts with no stored version while the package times still say
+  "updated": the notice shows once more. That is accepted (it is the first run after wiping, and one
+  dismiss ends it).
