@@ -183,12 +183,24 @@ class Round13ReplayTest {
     @Test fun chileanWordsSurvive() { // RW2, NW11: everyday Chilean words outside Hunspell stay as typed
         val chilean = ("cachai fome pololo altiro pucha filo carrete lucas flaite cuico pega copete guagua pituto pitutos chela " +
             "caleta pana chanta piola jote pasao pelao cachar chamullo chuta harto nica pololear tincar tuto wena weón wn " +
-            "voh wuena sipo piscola zapallo pichanga polola quiltro chupalla guata chorito palta porotos choclo humita pebre " +
-            "sopaipilla liceo profe finde lesera ramadas chascón cachái pelusón").split(" ")
+            "voh wena sipo piscola zapallo pichanga polola quiltro chupalla guata chorito palta porotos choclo humita pebre " +
+            "sopaipilla liceo profe finde lesera ramadas chascón cachái pelusón " +
+            "culiao culiaos culiá conchetumadre weones weonas weá").split(" ")
         val changed = chilean.mapNotNull { w -> replay("Oye, ", w).committed.takeIf { it.lowercase() != w }?.let { "$w→$it" } }
         assertEquals("changed: $changed", emptyList<String>(), changed)
         // accent completion of slang the region lists with its accent is still welcome (R2 / A2)
         assertEquals("bacán", replay("Estuvo ", "bacan").committed)
+        // typed without the long-press accent: the same word or its accented form, never another word
+        val weon = replay("Oye, ", "weon").committed
+        val culia = replay("Oye, ", "culia").committed
+        assertTrue("weon → $weon", weon in setOf("weon", "weón"))
+        assertTrue("culia → $culia", culia in setOf("culia", "culiá"))
+        // the curated words are in the regional vocabulary: offered while typing (wuena is gone: w/hu → w)
+        val es = lexicons.getValue(Lang.ES)
+        for ((prefix, word) in listOf("wen" to "wena", "culia" to "culiao", "culiao" to "culiaos", "conchet" to "conchetumadre", "weon" to "weones", "weon" to "weonas")) {
+            assertTrue("$prefix → $word: ${es.suggest(prefix, 6)}", word in es.suggest(prefix, 6))
+        }
+        assertTrue("wuena is not a Chilean spelling: ${es.suggest("wue", 6)}", "wuena" !in es.suggest("wue", 6))
     }
 
     @Test fun singleAccentVariantsAreApplied() { // AC1, AC4

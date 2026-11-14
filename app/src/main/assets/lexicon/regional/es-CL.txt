@@ -4,6 +4,7 @@
 # Chilean everyday + digital Spanish. Curated in the repo; nothing here comes from users.
 
 # — muletillas y conversación
+# Convención w/hu: en la escritura chilena se cae la u de las palabras que parten con w/hu (hueón → weón, wuena → wena).
 po 400
 cachai 900
 cachar 2500
@@ -41,6 +42,13 @@ weón 3000
 weona 6000
 weá 3000
 weás 6000
+weones 6000
+weonas 8000
+wena 3000
+culiao 4000
+culiá 6000
+culiaos 8000
+conchetumadre 6000
 huevón 3500
 hueón 6000
 cabros 4000
@@ -102,7 +110,6 @@ zapallos 9000
 piscola 6000
 piscolas 9000
 voh 6000
-wuena 8000
 chupalla 8000
 chorito 8000
 choritos 8000

@@ -1015,7 +1015,9 @@ Written before the code; each one names what the replay / a JVM test / the devic
   zapallo → zápalo and chupalla → chúpala (a doubled ll / rr is Spanish spelling, never a cheap
   slip), chascón → chasco and cachái → cachai (an accent typed by long-press is deliberate: a fix
   that drops it is never applied), piscola → pistola, voh → voy, lesera → mesera, ramadas →
-  armadas, chorito → chorlito (curated into regional/es-CL.txt, protected by RW2).
+  armadas, chorito → chorlito (curated into regional/es-CL.txt, protected by RW2). Alan's review:
+  Chilean writing drops the u after w/hu (wuena → wena), and culiao / culiaos / culiá /
+  conchetumadre / weones / weonas are curated too; typed without accent, weon and culia stay.
 
 ### R4 — late rejection (`KeyboardEngine` field memory, `Rejections`, files/personal/rejections.json)
 - LR1 The user deletes a word VK autocorrected (later in the same field, or after leaving the
