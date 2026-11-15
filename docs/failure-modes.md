@@ -1452,8 +1452,8 @@ Measured on 8ffd08a (= the published 0.11.0) before any code:
 - Space-bar gestures (`SpaceGesture`: a vertical move of 20 dp within 300 ms = language flick, a horizontal
   move over 14 dp = cursor drag). s4 has 234 touches on the space bar: 6 classified as flicks, 1 as a drag.
   Their traces (scripts/r13f_space_traces.py → r13f/s4-space-traces.json) split into two groups:
-  - 4 accidental, intended as a space: m05 `del|final` (21 dp up, 83 ms), m11 `mu ho|que` (26 dp up, 95 ms),
-    m20 `la|pena` (22 dp up, 66 ms) and the drag m15 `yay|algo` (15 dp sideways, 75 ms). They made
+  - 4 accidental, intended as a space: m05 `del|final` (20.5 dp up, 83 ms), m11 `mu ho|que` (26.1 dp up, 95 ms),
+    m20 `la|pena` (20.5 dp up, 66 ms) and the drag m15 `yay|algo` (15.4 dp sideways, 75 ms). They made
     `delfinak` (plus l→k: the English layout's middle row is shifted half a key), `lapena`, `yayalgo`.
   - 3 deliberate, the owner switching back to Spanish right after noticing an accidental switch: m06
     (114 dp up), m11 (87 dp up, right after `que `), m21 (64 dp up, right after `ahkra `). Each follows an
