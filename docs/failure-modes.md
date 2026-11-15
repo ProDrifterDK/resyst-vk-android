@@ -1500,6 +1500,8 @@ Written before the code; each item names what a JVM test, the replay or the devi
   cannot be undone. Decision: the correction at Enter is NOT more conservative than at a space — the report
   gives the false-correction count of every s1-s4 `ok` row ended by Enter in a single-line field (must be
   0, like at a space) against the typos it fixes.
+- SE1 replaces the last sentence of r13c's EP1 ("an Enter that performs an editor action or is sent as a key event
+  corrects nothing: the text is leaving the field"): leaving is exactly why the typo must be fixed first.
 - SE4 Enter corrects where it must not: a multi-line field keeps r13c's EP1 (the newline after the fix);
   fields without corrections (secret, email, URL, opted-out handles: no corrector) send as typed; the GIF
   search box keeps its own Enter.

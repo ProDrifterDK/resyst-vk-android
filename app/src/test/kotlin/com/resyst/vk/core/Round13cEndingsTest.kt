@@ -40,12 +40,12 @@ class Round13cEndingsTest {
         assertEquals("the GIF box (no text) never corrects", listOf<Out>(Out.Commit("…")), e.variant("…", null))
     }
 
-    @Test fun anActionEnterCorrectsNothing() { // EP1: send / search / go leave the field
+    @Test fun anActionEnterCorrectsFirst() { // EP1 said send / search / go correct nothing; r13f SE1: the word is fixed, then sent (s4: lenyo)
         val e = KeyboardEngine().apply {
             start(FieldInfo(FieldKind.TEXT, multiLine = false, action = ImeAction.SEND, autoCap = false))
             corrector = shipped.writing().corrector()
         }
-        assertEquals(listOf<Out>(Out.Action(ImeAction.SEND)), e.press(Key(KeyType.ENTER, "⏎"), "andaba tan lentl", 0L))
+        assertEquals(listOf(Out.DeleteBefore(5), Out.Commit("lento"), Out.Action(ImeAction.SEND)), e.press(Key(KeyType.ENTER, "⏎"), "andaba tan lentl", 0L))
     }
 
     @Test fun endingsKeepTheSpaceGates() { // EP2: real words, names, mid-word, glued words, the user's words
