@@ -1526,3 +1526,95 @@ Written before the code; each item names what a JVM test, the replay or the devi
 ### Version
 - VR4 0.12.0 / versionCode 14 are the build defaults. "Novedades" is the strip chip that opens the website
   for any new versionName (r13c WN1-WN8); there is no per-version text in the app to add.
+
+## Round 13f (offers) — context offers in the suggestion bar (0.12.0)
+
+r13e measured a word-trigram context checker (spike `spike/r13e-ngram`, commit ce8792c; report r13e.md) and r13e-s4
+froze its offer point on the owner's chat session s4: mode O@1 (the offer is decided once the next word of the same
+sentence is typed, and stays on the bar until the sentence moves on), τ_offer 6, model `wt-m2`, K 2, θ_flag −8,
+contrast guard on, keep-lists on. On s4: 15 offers made, 14 right (93 %), recall 14/25 in-reach targets. The owner
+accepted shipping it as OFFERS ONLY: a just-typed real word that is probably the wrong one for its context (`caza` →
+`casa`, `di` → `si`, `yan` → `tan`, `pata` → `para`, `esta` → `está`, `mas` → `más`, `que` → `qué`) gets its
+alternative as a bar chip; one tap replaces it. The keyboard never edits by itself on context. The spike reader
+kept the model on the JVM heap (~41 MB); the IME process lives for days.
+
+Written before the code; each item names what a JVM test, the offline replay or the device run must catch.
+
+### CO — a wrong offer, or an edit nobody asked for (`ContextCheck`, `ContextOffers`)
+- CO1 The shipped path drifts from what was measured. Rule: port, don't retune — the same tokenizer, candidates,
+  Stage 0 (K 2, θ −8, contrast guard, keep-lists, I6 shape rule), window score and Δ, at the frozen point. The
+  offline test runs the SHIPPED decision (the live text cut at the end of the next word, as the IME sees it) and
+  must give s4 15 made / 14 right and recall 14/25, and the r13e precision on the 315 set and held-out prose A / A'
+  (pooled 168/199); every difference is listed with its cause.
+- CO2 The keyboard edits on context by itself. Rule: the checker returns a proposal; only a tap on the chip edits.
+  A JVM test drives the whole s4 key stream through the engine with the offers controller attached at every word
+  end and compares every field text with a run without it (identical).
+- CO3 Offers on English sentences (the owner writes both): only when the writing language is Spanish and the
+  sentence is not mostly English (r13b's rule: words valid only in English must not outnumber words valid only in
+  Spanish).
+- CO4 Offers on the user's own words: never on the keep-lists (r13b's Chilean seed, the region's protected words,
+  the words the user kept against a correction and the words he taught that no dictionary knows), never on ALL CAPS
+  or inner-capital words. A word the user merely types often is not protected: `esta` typed for `está` every day
+  must still get its offer.
+- CO5 "No es lo mismo casa que caza": the contrast guard skips an alternative already in the sentence or the one
+  before. The live text has no future words (the spike's guard saw the whole sentence), so an offer whose
+  alternative is typed later in the same sentence is withdrawn.
+
+### CH — the chip hides a better word suggestion (`KeyboardView`, IME glue)
+- CH1 The chip pushes out what space would apply or the ↶ undo. Rule: the chip takes ONE slot, the last; the first
+  suggestion (the confident fix space applies), the ↶ chip and the ¿…? chip keep theirs.
+- CH2 The chip reads as a completion (tapped for the wrong reason) or is invisible to TalkBack: a pill with a swap
+  mark, in VK's accent, labelled with the replacement (`casa`), described "Cambiar caza por casa" (English:
+  "Replace caza with casa"); its own tap target.
+
+### ST — a stale offer (`ContextOffers`, IME glue)
+- ST1 The sentence moved on (`.` `?` `!` `…`, a new line, Enter / send, the field emptied): the offer disappears.
+- ST2 The cursor moved (a tap elsewhere, a selection, ⌫ into the word, another field, the keyboard hidden): the offer
+  disappears. A tap on a chip never edits blind: the target is re-read from the field (same sentence, same words up
+  to it, same spelling) and the edit is computed from that reading; otherwise the tap does nothing.
+- ST3 A decision computed on a background thread arrives after the text changed: shown only if the live text still
+  holds the target in an open sentence.
+- ST4 The tap moves the cursor or loses text: the earlier word is replaced and the text typed after it is kept, in
+  one batch edit; the cursor ends where it was (after the same text); text after the cursor is untouched; the case
+  follows the typed word (`Caza` → `Casa`); the chip then disappears.
+- ST5 The same refused offer keeps coming back: an offer the user left until its sentence moved on is a "kept the
+  original"; after two for the same pair in a field, that pair is not offered again in that field. Memory only,
+  bounded, cleared on another field.
+
+### HP — heap, RAM, time (`ContextNgram`, IME glue)
+- HP1 The model on the Java heap. Rule: the asset ships uncompressed (noCompress `vkng`) and is memory-mapped
+  (clean file-backed pages the kernel can drop); the reader keeps only small index arrays. Budget: Java heap delta
+  ≤ 5 MB after loading (JVM test; device: dumpsys meminfo before / after, plus the debug build's own GC'd heap log).
+- HP2 Loaded when not needed: lazily, at the first word end that may get an offer; never with the toggle off, with
+  suggestions off, in a field without offers or when not writing Spanish; released when the IME is destroyed and
+  when the toggle goes off.
+- HP3 Growth over days: no cache grows with use; the per-field memory of kept pairs is bounded and cleared with the
+  field; a decision allocates only short-lived garbage.
+- HP4 The APK grows past budget: ≤ 18 MB with the asset stored (+11.8 MB).
+- HP5 Typing slows down: ≤ 2 ms per decision on the Pixel 6 (debug build log, times only); the key press only
+  schedules it (a snapshot of the text and of the user's keep words); the decision runs on its own thread.
+
+### AS — the asset (`ContextNgram`, `tools/ngram-build`)
+- AS1 Missing, compressed, truncated or foreign asset: no offers, one log line, no crash, no retry loop. The reader
+  checks the magic, the version, every count and the exact length.
+- AS2 The wrong model ships: a JVM test pins the shipped file's sha256 (dae872a0…87c0) and its provenance record.
+- AS3 Tokenizer drift between the builder and the phone: the builder's golden cases run against the shipped
+  tokenizer.
+- AS4 Reader drift: the mapped reader gives bit-identical log-probabilities to the spike's array reader (random
+  queries over the vocabulary and every context of the offline replay).
+
+### PV — privacy and fields (IME glue, `FieldPolicy`)
+- PV1 Secret (password, PIN) and incognito (IME_FLAG_NO_PERSONALIZED_LEARNING) fields: no offer, no model query.
+- PV2 Opted-out ("Sin memoria") prose fields: offers work and nothing is stored. Offers store nothing anywhere
+  (no words.json / rejections.json change, no new file); the kept-pair memory is RAM only.
+- PV3 Fields that are not prose to the corrector (email, URL, number, phone, handles, a search box that opted out):
+  no offers (the space corrector's own gate, `FieldPolicy.suggestions`).
+- PV4 The switch: "Sugerencias por contexto" (default on), under Sugerencias; off = no chip and the model released.
+- PV5 Nothing leaves the phone: no network, no new permission; the debug log carries times, never text.
+
+### LC — licences (`assets/context/`, settings credits, README)
+- LC1 The data is used without credit: "Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0)" and
+  "Tatoeba contributors (CC BY 2.0 FR)" in the settings credits next to the dictionaries; a NOTICE and the build
+  provenance (inputs, sha256s, builder commit) next to the asset; README's third-party section says the asset is
+  GPL-3.0-only (CC BY-SA 4.0 → GPLv3) inside a GPL-3.0-or-later app. The owner accepted both licences, including the
+  unconfirmed Tatoeba compatibility.
