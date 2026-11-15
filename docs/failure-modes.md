@@ -1585,7 +1585,7 @@ Written before the code; each item names what a JVM test, the offline replay or 
 - HP1 The model on the Java heap. Rule: the asset ships uncompressed (noCompress `vkng`) and is memory-mapped
   (clean file-backed pages the kernel can drop); the reader keeps only small index arrays. Budget: Java heap delta
   ≤ 5 MB after loading (JVM test; device: dumpsys meminfo before / after, plus the debug build's own GC'd heap log).
-- HP2 Loaded when not needed: lazily, at the first word end that may get an offer; never with the toggle off, with
+- HP2 Loaded when not needed: lazily, at the first completed word that may get an offer; never with the toggle off, with
   suggestions off, in a field without offers or when not writing Spanish; released when the IME is destroyed and
   when the toggle goes off.
 - HP3 Growth over days: no cache grows with use; the per-field memory of kept pairs is bounded and cleared with the
@@ -1593,6 +1593,10 @@ Written before the code; each item names what a JVM test, the offline replay or 
 - HP4 The APK grows past budget: ≤ 18 MB with the asset stored (+11.8 MB).
 - HP5 Typing slows down: ≤ 2 ms per decision on the Pixel 6 (debug build log, times only); the key press only
   schedules it (a snapshot of the text and of the user's keep words); the decision runs on its own thread.
+  Found while measuring (after the code): the debug package is debuggable, which ART runs interpreted (~8 ms a
+  decision, 0.84 ms for the same code non-debuggable and compiled), so the budget is measured on a non-debuggable
+  build of the same commit for the debug package (e2e_r13f.py --timing-apk); and the word end that completes a word
+  computes its confusion set ahead (it is the next decision's target), so a decision waits on the n-gram part only.
 
 ### AS — the asset (`ContextNgram`, `tools/ngram-build`)
 - AS1 Missing, compressed, truncated or foreign asset: no offers, one log line, no crash, no retry loop. The reader
