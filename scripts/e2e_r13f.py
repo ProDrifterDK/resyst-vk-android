@@ -13,11 +13,14 @@ Types through the DRAWN keys (accessibility tree, like scripts/e2e_r13d.py) into
      15 dp slip sideways in 70 ms → a space, the language stays; a 70 dp swipe up → the language switches (the
      English layout shows), no space; back; a hold-then-drag (down, ~250 ms still, then 12 dp sideways) moves the
      cursor one step; a long quick drag (30 dp) moves it three
+  W  Firefox (GeckoView) on a local chat page served from this computer through `adb reverse` (a textarea whose
+     Enter sends and empties it, like s4's composer): "va muy lenyo" + VK's Enter → the page sends "Va muy lento";
+     "hola?" sent on the symbols layer, then Letras + "salgo" → "Salgo" in the emptied composer
   E  the r13d rows (scripts/e2e_r13d.py sections F, T, W, O, R)
 
 Writes build/e2e-r13f/r13f-e2e.json + PNGs. Debug package only (com.resyst.vk.debug); the default input method is
 restored at the end.
-Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,E] [--out DIR]
+Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,W,E] [--out DIR]
 
 Environment:
   VK_E2E_FORBIDDEN_SERIALS  comma-separated device serials this script must refuse to touch (your own phones);
@@ -242,6 +245,101 @@ def section_d():
     check('D', 'a quick 30 dp drag moves the cursor three steps (SG2)', f == 'Hola qxue ', repr(f))
 
 
+# ── W: a web chat composer in Firefox (GeckoView), like s4's ────────────
+PAGE = b'''<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>vk-e2e-chat</title><body style="background:#08080f;color:#e9e4d6;font:20px sans-serif">
+<div id=log aria-label=log>sent:</div>
+<textarea id=t autofocus rows=3 style="width:92%;font-size:22px"></textarea>
+<script>
+const t = document.getElementById('t'), log = document.getElementById('log');
+t.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); log.textContent += ' [' + t.value + ']'; t.value = ''; }
+});
+</script>'''
+
+
+def enter_key():
+    k = r13.km()
+    for d in ('Intro', 'Enviar', 'Listo', 'Ir', 'Buscar', 'Siguiente', 'Nueva línea'):
+        if d in k:
+            e2e.tap(k[d])
+            time.sleep(1.2)
+            return d
+    raise RuntimeError('no Enter key')
+
+
+def web_nodes():
+    tree = e2e.dump()
+    box = sent = None
+    for n in tree.iter('node'):
+        if n.get('package') != 'org.mozilla.firefox':
+            continue
+        if n.get('class') == 'android.widget.EditText' and box is None and 'vk-e2e' not in n.get('text', '') and 'localhost' not in n.get('text', ''):
+            box = n
+        t = n.get('text', '') or n.get('content-desc', '')
+        if t.startswith('sent:'):
+            sent = t
+    return box, sent
+
+
+def section_w():
+    """Firefox on a local page (served from this computer through `adb reverse`): a textarea whose Enter sends the
+    text and empties it (the page's keydown handler), the way s4's chat composer behaved."""
+    import http.server
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(PAGE)
+
+        def log_message(self, format, *args):  # noqa: A002 (the base signature)
+            pass
+
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        e2e.adb('reverse', f'tcp:{port}', f'tcp:{port}')
+        e2e.ensure_ime()
+        sh('logcat -c', check=False)
+        sh(f'am start -W -a android.intent.action.VIEW -d http://localhost:{port}/ org.mozilla.firefox')
+        time.sleep(4.0)
+        box, _ = web_nodes()
+        if box is not None:
+            e2e.tap(box)
+        time.sleep(1.5)
+        if bl.space_label() != 'es':
+            bl.set_lang('es')
+        fld = re.findall(r'field: pkg=org\.mozilla\.firefox ([^\n]*)', sh('logcat -d -s ResystVK:I', check=False))
+        check('W', 'Firefox composer field (what VK sees)', bool(fld), fld[-1] if fld else 'no field line')
+        r13c.type_seq('va muy lenyo')
+        box, _ = web_nodes()
+        typed = box.get('text', '') if box is not None else None
+        enter_key()
+        box, sent = web_nodes()
+        shot('r13f-W1-firefox-send.png')
+        check('W', 'Firefox: "va muy lenyo" + VK\'s Enter → the page\'s keydown handler sends "Va muy lento" (SE1/SE2)',
+              sent is not None and sent.endswith('[Va muy lento]'), f'typed {typed!r}, page {sent!r}')
+        r13c.type_seq('hola')
+        press('Símbolos')
+        tap_char('?')
+        enter_key()  # sent on the symbols layer; the page empties the field
+        press('Letras', wait=0.7)
+        r13c.type_seq('salgo')
+        box, sent = web_nodes()
+        now = box.get('text', '') if box is not None else None
+        shot('r13f-W2-firefox-salgo.png')
+        check('W', 'Firefox: "hola?" sent on the symbols layer, Letras + "salgo" → "Salgo" in the emptied composer (CL1/CL2)',
+              sent is not None and sent.endswith('[Hola?]') and now == 'Salgo', f'page {sent!r}, composer {now!r}')
+    finally:
+        e2e.adb('reverse', '--remove', f'tcp:{port}', check=False)
+        srv.shutdown()
+        sh('input keyevent 3', check=False)  # home
+
+
 # ── E: the r13d rows ─────────────────────────────────────────────────────
 def section_e():
     before = len(r13d.rows)
@@ -258,7 +356,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--serial', required=True)
     ap.add_argument('--apk', default=os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
-    ap.add_argument('--only', default='A,B,C,D,E')
+    ap.add_argument('--only', default='A,B,C,D,W,E')
     ap.add_argument('--out', help='output directory (default build/e2e-r13f); e.g. a before-run on the 0.11.0 debug build')
     a = ap.parse_args()
     global OUT
@@ -288,7 +386,7 @@ def main():
         time.sleep(3.0)
         version = sh(f'dumpsys package {PKG} | grep -m1 versionName').strip()
         check('setup', f'the debug build under test is {VERSION}', VERSION in version, version)
-        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('E', section_e)):
+        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('W', section_w), ('E', section_e)):
             if sec in only:
                 try:
                     sh('input keyevent KEYCODE_WAKEUP', check=False)  # no-op when awake
