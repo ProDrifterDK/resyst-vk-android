@@ -66,11 +66,12 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
     val regionalWords: Set<String> get() = regional
 
     /**
-     * r13f (offers): the list's words spelled with the same letters as [w] once accents are removed ([fold]), in list
-     * order of the folded index. Read-only over arrays built at load ([prepare]): safe off the main thread.
+     * r13f (offers): the list's words spelled with the same letters as [w] once accents are removed ([fold]; [key] =
+     * that folded form when the caller has it), in the folded index's order. Read-only over arrays built at load
+     * ([prepare]): safe off the main thread.
      */
-    fun foldMates(w: String): List<String> {
-        val f = fold(w)
+    fun foldMates(w: String, key: String = fold(w)): List<String> {
+        val f = key
         val idx = byFold
         var lo = 0
         var hi = idx.size

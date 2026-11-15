@@ -187,8 +187,9 @@ class ContextLexicon(private val list: Suggest, private val valid: ValidWords, p
     override fun accentVariants(w: String): List<String> {
         val out = LinkedHashSet<String>()
         for (v in valid.accentVariants(w)) if (v == v.lowercase()) out += v
-        for (m in list.foldMates(w)) { val l = m.lowercase(); if (plain(l)) out += l }
-        regionalByFold[Suggest.fold(w)]?.let { out += it }
+        val f = ContextCandidates.bare(w) // = Suggest.fold, with its plain-text fast path (HP5)
+        for (m in list.foldMates(w, f)) { val l = m.lowercase(); if (plain(l)) out += l }
+        regionalByFold[f]?.let { out += it }
         return out.toList()
     }
 

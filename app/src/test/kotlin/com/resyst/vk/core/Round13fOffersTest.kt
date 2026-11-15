@@ -443,6 +443,42 @@ class Round13fOffersTest {
         assertFalse("the oldest pair was dropped", g.suppressed("w" + tag(0), "v" + tag(0)))
     }
 
+    /**
+     * HP5 (desktop JVM; the phone is measured by the E2E): the IME's decision as the IME calls it — the live text of a
+     * chat message (s4, the synthetic chat, the 315 set: what a field holds), [ContextOffers.job] + [ContextOffers.decide]
+     * — after a warm-up; with the candidate generation timed apart.
+     */
+    @Test fun hp5DecisionTime() {
+        val docs = OffersOracle.s4Spike() + OffersOracle.chat() + OffersOracle.set315()
+        val offers = ContextOffers()
+        val jobs = ArrayList<Pair<ContextOffers.Job, OffersOracle.Doc>>()
+        for (d in docs) for (i in 0 until d.words.size - 1) {
+            val end = d.words[i + 1].end
+            offers.job(d.text.substring(0, end) + (d.text.getOrNull(end) ?: ' '), whole = true)?.let { jobs += it to d }
+        }
+        // JIT warm-up on a throwaway checker; the timed pass starts with an empty confusion-set cache (a fresh IME):
+        // a word's first check pays its candidates, a repeated word reuses them
+        repeat(3) { val warm = ContextCheck(OffersOracle.model, OffersOracle.lex); for ((j, d) in jobs) offers.decide(j, warm, d.keep) }
+        val fresh = ContextCheck(OffersOracle.model, OffersOracle.lex)
+        val ns = LongArray(jobs.size)
+        for ((n, x) in jobs.withIndex()) {
+            val t0 = System.nanoTime()
+            offers.decide(x.first, fresh, x.second.keep)
+            ns[n] = System.nanoTime() - t0
+        }
+        ns.sort()
+        val cands = ContextCandidates(OffersOracle.lex)
+        val c0 = System.nanoTime()
+        for ((j, _) in jobs) if (OffersOracle.lex.isWord(j.typed.lowercase())) cands.of(j.typed)
+        val candUs = (System.nanoTime() - c0) / 1000.0 / jobs.size
+        val res = linkedMapOf("decisions" to jobs.size, "mean_us" to ns.average() / 1000, "p50_us" to ns[ns.size / 2] / 1000.0,
+            "p99_us" to ns[ns.size * 99 / 100] / 1000.0, "max_us" to ns.last() / 1000.0, "candidates_mean_us" to candUs,
+            "note" to "desktop JVM, warm (3 passes), single thread; job + decide on the live text of each word end")
+        File(outDir, "latency.json").writeText(json(res))
+        println("r13f offers latency (JVM): " + json(res))
+        assertTrue("mean ${ns.average() / 1000} µs", ns.average() < 2_000_000)
+    }
+
     // ── PV / LC — the switch, the gates, the credits ─────────────────────────────────────────────────────────
     @Test fun pvTheSwitchTheGatesAndTheCredits() {
         // PV4: on by default, stored phone-wide, on the Escritura page under Sugerencias; the modes that turn

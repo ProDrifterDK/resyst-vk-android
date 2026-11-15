@@ -41,6 +41,17 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
     private val cands = ContextCandidates(lex)
     private val lnUnk = ln(model.unkTypes.toDouble().coerceAtLeast(1.0))
 
+    /**
+     * HP5/HP3: the confusion sets of the last words checked (chat repeats its words); bounded, tied to this checker's
+     * lexicon (the IME builds a new checker when a lexicon object changes).
+     */
+    private val candCache = object : LinkedHashMap<String, List<ContextCandidates.Alt>>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<ContextCandidates.Alt>>?): Boolean = size > CAND_CACHE
+    }
+
+    private fun candidates(lw: String): List<ContextCandidates.Alt> =
+        synchronized(candCache) { candCache[lw] } ?: cands.of(lw).also { c -> synchronized(candCache) { candCache[lw] = c } }
+
     /** Σ ln P of [seq] from token [from] on; an out-of-vocabulary word at [from] (the candidate) pays ln(unkTypes). */
     fun windowScore(seq: List<String>, from: Int): Double {
         val ids = IntArray(seq.size) { model.id(seq[it]) }
@@ -91,11 +102,15 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         if (wi < 0 || words[wi].end != wordEnd) return null
         val sentence = oracle?.sentence ?: ContextSegments.words(text, seg.start, seg.end).map { it.text }
         if (!spanishSegment(sentence, lex::isWord, lex::isEn)) return null
-        if (p.keepLists && keep != null && keep.keeps(words.map { Suggest.fold(it.text) }, wi)) return null
+        // folded on demand: the keep-lists read the word and its phrase neighbours only (HP5)
+        if (p.keepLists && keep != null && keep.keeps(object : AbstractList<String>() {
+                override val size get() = words.size
+                override fun get(index: Int) = ContextCandidates.bare(words[index].text)
+            }, wi)) return null
         val from = if (si > 0) segs[si - 1].start else seg.start
         val guard = oracle?.guard ?: ContextSegments.words(text, from, seg.end).map { it.text.lowercase() }
         val tlf = lex.logFreq(lw)
-        val alts = flag(cands.of(lw), tlf, guard, p)
+        val alts = flag(candidates(lw), tlf, guard, p)
         if (alts.isEmpty()) return null
         // the context exactly as the r13e oracle cut it: tokens from the previous sentence's start
         val piece = text.substring(from)
@@ -115,6 +130,8 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
 
     companion object {
         const val TAU_OFFER = 6.0
+        /** Confusion sets kept per checker (HP3). */
+        const val CAND_CACHE = 256
 
         /** I6 shape rule: letters only; never ALL CAPS (> 1 letter) or a capital after the first letter (iPhone, trAe). */
         fun eligibleShape(typed: String): Boolean {

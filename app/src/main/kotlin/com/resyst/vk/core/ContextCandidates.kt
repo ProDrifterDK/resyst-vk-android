@@ -49,7 +49,9 @@ class ContextCandidates(private val lex: Lexicon) {
         for (v in lex.accentVariants(t)) add(v, Kind.ACCENT)
         val tb = bare(t)
         val key = phon(t)
-        for (s in soundRewrites(tb)) for (v in lex.accentVariants(s)) if (phon(v) == key && bare(v) != tb) add(v, Kind.PHONETIC)
+        // r13f (HP5): a spelling's accent variants share its letters, hence its sound key — a rewrite with another key
+        // can have no variant that passes, so it is not looked up (same result, a fraction of the lookups)
+        for (s in soundRewrites(tb)) if (phon(s) == key) for (v in lex.accentVariants(s)) if (phon(v) == key && bare(v) != tb) add(v, Kind.PHONETIC)
         for (s in adjacentSubs(tb, if (tb.length <= 3) 2 else 1)) for (v in lex.accentVariants(s)) add(v, Kind.ADJACENT)
         val out = found.map { (w, k) -> Alt(w, channel(w, t), k, lex.logFreq(w)) }
         return out.sortedWith(compareByDescending<Alt> { selection(it) }.thenBy { it.word })
@@ -77,11 +79,19 @@ class ContextCandidates(private val lex: Lexicon) {
         }
         private val MARKS = Regex("\\p{Mn}+")
 
-        /** Accents off, ñ kept, lowercase. */
+        /**
+         * Accents off, ñ kept, lowercase. r13f (HP5): plain ASCII / ñ text — almost every candidate — skips the
+         * normalizer and the regex (same result: NFD changes nothing there and there is no mark to remove).
+         */
         fun bare(s: String): String {
+            if (s.all { it.code < 0x80 || it == 'ñ' || it == 'Ñ' }) return s.lowercase()
             val lower = s.lowercase().replace('ñ', '\u0001')
             return MARKS.replace(Normalizer.normalize(lower, Normalizer.Form.NFD), "").replace('\u0001', 'ñ')
         }
+
+        /** [bare] of one character (r13f HP5: memoized for the Latin range the error model reads per cell). */
+        private val BARE_CHAR = CharArray(0x250) { bare(it.toChar().toString()).firstOrNull() ?: it.toChar() }
+        private fun bareChar(c: Char): Char = if (c.code < BARE_CHAR.size) BARE_CHAR[c.code] else bare(c.toString())[0]
 
         fun keyDistance(a: Char, b: Char): Double? {
             val ca = CENTRES[a] ?: return null
@@ -98,8 +108,8 @@ class ContextCandidates(private val lex: Lexicon) {
 
         private fun subLp(a: Char, b: Char): Double {
             if (a == b) return 0.0
-            val ba = bare(a.toString())[0]
-            val bb = bare(b.toString())[0]
+            val ba = bareChar(a)
+            val bb = bareChar(b)
             if (ba == bb) return ACCENT
             val d = keyDistance(ba, bb) ?: return FAR
             return -1.5 - 2.0 * d * d
@@ -119,7 +129,7 @@ class ContextCandidates(private val lex: Lexicon) {
                 if (j > 0 && d[i][j - 1] > -1e8) {
                     var ins = INS
                     if (i > 0) {
-                        val k = keyDistance(bare(b[j - 1].toString())[0], bare(a[i - 1].toString())[0])
+                        val k = keyDistance(bareChar(b[j - 1]), bareChar(a[i - 1]))
                         if (k != null && k < 1.5) ins = INS_NEAR
                     }
                     d[i][j] = max(d[i][j], d[i][j - 1] + ins)
@@ -136,14 +146,21 @@ class ContextCandidates(private val lex: Lexicon) {
             return if (phon(intended) == phon(typed) && bare(intended) != bare(typed)) max(e, PHON_LP) else e
         }
 
+        // r13f (HP5): compiled once (the spike built them on every call)
+        private val QU_EI = Regex("qu(?=[ei])")
+        private val GU_EI = Regex("gu(?=[ei])")
+        private val C_EI = Regex("c(?=[ei])")
+        private val G_EI = Regex("g(?=[ei])")
+        private val Y_END = Regex("y$")
+
         /** Latin-American Spanish sound key (lm-exp `phon`): seseo, yeísmo, silent h, b = v, soft c/g. */
         fun phon(w: String): String {
             var s = bare(w)
             s = s.replace("ch", "C").replace("ll", "y").replace("gü", "gw")
-            s = s.replace(Regex("qu(?=[ei])"), "k").replace(Regex("gu(?=[ei])"), "g")
-            s = s.replace(Regex("c(?=[ei])"), "s").replace(Regex("g(?=[ei])"), "j")
+            s = s.replace(QU_EI, "k").replace(GU_EI, "g")
+            s = s.replace(C_EI, "s").replace(G_EI, "j")
             s = s.replace("c", "k").replace("z", "s").replace("v", "b").replace("h", "").replace("w", "u")
-            s = s.replace(Regex("y$"), "i")
+            s = s.replace(Y_END, "i")
             return s.replace("C", "ch")
         }
 
