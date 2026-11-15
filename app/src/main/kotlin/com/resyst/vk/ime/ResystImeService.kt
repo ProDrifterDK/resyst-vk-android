@@ -1484,9 +1484,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             val model = ctxModel.get() ?: return@execute
             val check = checkFor(model, list, valid, english)
             val t0 = SystemClock.elapsedRealtimeNanos()
+            val c0 = if (timing) android.os.Debug.threadCpuTimeNanos() else 0L
             val offer = runCatching { offers.decide(job, check, keep) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
-            // HP5 (debuggable builds): the decision's time, never its text
-            if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null}")
+            // HP5 (debuggable builds): the decision's wall and thread-CPU time, never its text
+            if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null} " +
+                "candidatesUs=${check.lastCandidatesNs / 1000} cpuUs=${(android.os.Debug.threadCpuTimeNanos() - c0) / 1000}")
             if (offer != null) mainHandler.post { showOffer(offer, field) }
         }
     }

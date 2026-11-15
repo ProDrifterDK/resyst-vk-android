@@ -287,6 +287,12 @@ class Round13fOffersTest {
                 describe(d) + " — " + (if (after == null) "its next word ends the message: the Enter that completes it sends it" else if (after == '\n') "a new line ended its sentence" else "?")
             }
             live[g] = tally(lo).map() + linkedMapOf("lost_vs_decision" to lost)
+            // the job's trimmed text (two sentences) decides exactly as the whole text does
+            for (x in lo) {
+                val d = dec.firstOrNull { it.id == x.id }
+                assertTrue("live-flow offer without a decision: ${describe(x)}", d != null && d.alt == x.alt && d.delta == x.delta)
+            }
+            assertTrue("unexplained live-flow losses: $lost", lost.none { it.endsWith("?") })
         }
         res["live_flow"] = live
 

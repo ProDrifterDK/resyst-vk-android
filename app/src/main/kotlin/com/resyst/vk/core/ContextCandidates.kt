@@ -53,7 +53,7 @@ class ContextCandidates(private val lex: Lexicon) {
         // can have no variant that passes, so it is not looked up (same result, a fraction of the lookups)
         for (s in soundRewrites(tb)) if (phon(s) == key) for (v in lex.accentVariants(s)) if (phon(v) == key && bare(v) != tb) add(v, Kind.PHONETIC)
         for (s in adjacentSubs(tb, if (tb.length <= 3) 2 else 1)) for (v in lex.accentVariants(s)) add(v, Kind.ADJACENT)
-        val out = found.map { (w, k) -> Alt(w, channel(w, t), k, lex.logFreq(w)) }
+        val out = found.map { (w, k) -> Alt(w, channel(w, t, key, tb), k, lex.logFreq(w)) }
         return out.sortedWith(compareByDescending<Alt> { selection(it) }.thenBy { it.word })
     }
 
@@ -77,7 +77,6 @@ class ContextCandidates(private val lex: Lexicon) {
         private val CENTRES: Map<Char, Pair<Double, Double>> = buildMap {
             ROWS.forEachIndexed { r, row -> row.forEachIndexed { i, c -> put(c, (X0[r] + i) to r * ROW_PITCH) } }
         }
-        private val MARKS = Regex("\\p{Mn}+")
 
         /**
          * Accents off, ñ kept, lowercase. r13f (HP5): plain ASCII / ñ text — almost every candidate — skips the
@@ -86,7 +85,11 @@ class ContextCandidates(private val lex: Lexicon) {
         fun bare(s: String): String {
             if (s.all { it.code < 0x80 || it == 'ñ' || it == 'Ñ' }) return s.lowercase()
             val lower = s.lowercase().replace('ñ', '\u0001')
-            return MARKS.replace(Normalizer.normalize(lower, Normalizer.Form.NFD), "").replace('\u0001', 'ñ')
+            // the spike's MARKS regex (\p{Mn}+ → ""), as a scan: Android's regex goes through ICU, far slower (HP5)
+            val d = Normalizer.normalize(lower, Normalizer.Form.NFD)
+            val sb = StringBuilder(d.length)
+            for (c in d) if (Character.getType(c) != Character.NON_SPACING_MARK.toInt()) sb.append(if (c == '\u0001') 'ñ' else c)
+            return sb.toString()
         }
 
         /** [bare] of one character (r13f HP5: memoized for the Latin range the error model reads per cell). */
@@ -104,14 +107,32 @@ class ContextCandidates(private val lex: Lexicon) {
         /** Touching keys: same row ±1, or a diagonal/vertical neighbour (≤ 1.5 key widths apart). */
         fun touching(a: Char, b: Char): Boolean = a != b && (keyDistance(a, b) ?: 99.0) <= 1.5
 
-        private val NEIGHBOURS: Map<Char, List<Char>> = CENTRES.keys.associateWith { a -> CENTRES.keys.filter { touching(a, it) }.sorted() }
+        // r13f (HP5): the same distances and neighbour lists, read by index instead of a boxed-Char map per DP cell
+        private const val TABLE = 0x250
+        private val KEYS: CharArray = CENTRES.keys.toCharArray()
+        private val KEY_INDEX = IntArray(TABLE) { c -> KEYS.indexOf(c.toChar()) }
+        private val DIST = DoubleArray(KEYS.size * KEYS.size) { keyDistance(KEYS[it / KEYS.size], KEYS[it % KEYS.size])!! }
+
+        /** [keyDistance], NaN for a character off the layout. */
+        private fun dist(a: Char, b: Char): Double {
+            val i = if (a.code < TABLE) KEY_INDEX[a.code] else -1
+            val j = if (b.code < TABLE) KEY_INDEX[b.code] else -1
+            return if (i < 0 || j < 0) Double.NaN else DIST[i * KEYS.size + j]
+        }
+
+        private val NEIGHBOURS: Array<CharArray> = Array(TABLE) { c ->
+            if (CENTRES.containsKey(c.toChar())) CENTRES.keys.filter { touching(c.toChar(), it) }.sorted().toCharArray() else CharArray(0)
+        }
+
+        private fun neighbours(c: Char): CharArray = if (c.code < TABLE) NEIGHBOURS[c.code] else CharArray(0)
 
         private fun subLp(a: Char, b: Char): Double {
             if (a == b) return 0.0
             val ba = bareChar(a)
             val bb = bareChar(b)
             if (ba == bb) return ACCENT
-            val d = keyDistance(ba, bb) ?: return FAR
+            val d = dist(ba, bb)
+            if (d.isNaN()) return FAR
             return -1.5 - 2.0 * d * d
         }
 
@@ -129,8 +150,8 @@ class ContextCandidates(private val lex: Lexicon) {
                 if (j > 0 && d[i][j - 1] > -1e8) {
                     var ins = INS
                     if (i > 0) {
-                        val k = keyDistance(bareChar(b[j - 1]), bareChar(a[i - 1]))
-                        if (k != null && k < 1.5) ins = INS_NEAR
+                        val k = dist(bareChar(b[j - 1]), bareChar(a[i - 1]))
+                        if (!k.isNaN() && k < 1.5) ins = INS_NEAR
                     }
                     d[i][j] = max(d[i][j], d[i][j - 1] + ins)
                 }
@@ -141,27 +162,42 @@ class ContextCandidates(private val lex: Lexicon) {
         }
 
         /** The channel term of Δ: [errLp], floored at [PHON_LP] for a same-sound spelling. */
-        fun channel(intended: String, typed: String): Double {
+        fun channel(intended: String, typed: String): Double = channel(intended, typed, phon(typed), bare(typed))
+
+        /** [channel] with the typed word's sound key and bare form computed once per confusion set (HP5). */
+        private fun channel(intended: String, typed: String, typedPhon: String, typedBare: String): Double {
             val e = errLp(intended, typed)
-            return if (phon(intended) == phon(typed) && bare(intended) != bare(typed)) max(e, PHON_LP) else e
+            return if (phon(intended) == typedPhon && bare(intended) != typedBare) max(e, PHON_LP) else e
         }
 
-        // r13f (HP5): compiled once (the spike built them on every call)
-        private val QU_EI = Regex("qu(?=[ei])")
-        private val GU_EI = Regex("gu(?=[ei])")
-        private val C_EI = Regex("c(?=[ei])")
-        private val G_EI = Regex("g(?=[ei])")
-        private val Y_END = Regex("y$")
-
-        /** Latin-American Spanish sound key (lm-exp `phon`): seseo, yeísmo, silent h, b = v, soft c/g. */
+        /**
+         * Latin-American Spanish sound key (lm-exp `phon`): seseo, yeísmo, silent h, b = v, soft c/g. r13f (HP5): the
+         * spike's regexes `qu(?=[ei])` → k, `gu(?=[ei])` → g, `c(?=[ei])` → s, `g(?=[ei])` → j and `y$` → i as
+         * left-to-right scans (same matches: the lookahead consumes nothing); Android's regex goes through ICU.
+         */
         fun phon(w: String): String {
             var s = bare(w)
             s = s.replace("ch", "C").replace("ll", "y").replace("gü", "gw")
-            s = s.replace(QU_EI, "k").replace(GU_EI, "g")
-            s = s.replace(C_EI, "s").replace(G_EI, "j")
+            s = beforeEi(s, "qu", 'k')
+            s = beforeEi(s, "gu", 'g')
+            s = beforeEi(s, "c", 's')
+            s = beforeEi(s, "g", 'j')
             s = s.replace("c", "k").replace("z", "s").replace("v", "b").replace("h", "").replace("w", "u")
-            s = s.replace(Y_END, "i")
+            if (s.endsWith('y')) s = s.substring(0, s.length - 1) + "i"
             return s.replace("C", "ch")
+        }
+
+        /** Every [pat] directly followed by e or i becomes [to] (the e / i stays), left to right, non-overlapping. */
+        private fun beforeEi(s: String, pat: String, to: Char): String {
+            if (s.indexOf(pat) < 0) return s
+            val sb = StringBuilder(s.length)
+            var i = 0
+            while (i < s.length) {
+                val j = i + pat.length
+                if (s.startsWith(pat, i) && j < s.length && (s[j] == 'e' || s[j] == 'i')) { sb.append(to); i = j }
+                else { sb.append(s[i]); i++ }
+            }
+            return sb.toString()
         }
 
         private val REWRITES: List<Pair<String, String>> = listOf(
@@ -202,7 +238,7 @@ class ContextCandidates(private val lex: Lexicon) {
             var front = setOf(w)
             repeat(n) {
                 val next = LinkedHashSet<String>()
-                for (s in front) for (i in s.indices) for (c in NEIGHBOURS[s[i]] ?: emptyList()) {
+                for (s in front) for (i in s.indices) for (c in neighbours(s[i])) {
                     if (c == w.getOrNull(i) && s[i] != w[i]) continue
                     next += s.substring(0, i) + c + s.substring(i + 1)
                 }

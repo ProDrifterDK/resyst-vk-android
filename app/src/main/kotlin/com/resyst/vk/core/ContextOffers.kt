@@ -13,7 +13,10 @@ import kotlin.math.ln
  * sentence up to and including the target ([Offer.prefix]) must still open the last sentence before the cursor.
  */
 class ContextOffers {
-    /** A decision to make off the main thread: the live text cut at the end of the next word, and the target in it. */
+    /**
+     * A decision to make off the main thread: the live text from the start of the sentence before the target's to the
+     * end of the next word, and the target in it.
+     */
     class Job(val text: String, val start: Int, val end: Int, val typed: String, val prefix: List<String>)
 
     /** [typed] → [alt] (lowercase) shown as [label] (the typed word's case), its Δ, and the words of its sentence up to it. */
@@ -49,7 +52,9 @@ class ContextOffers {
         val inSeg = ContextSegments.words(before, seg.start, seg.end)
         val ti = inSeg.indexOfFirst { it.start == target.start }
         if (ti < 0) return null
-        return Job(before.substring(0, next.end), target.start, target.end, target.text, inSeg.subList(0, ti + 1).map { it.text })
+        // HP5: the decision reads the target's sentence and the one before it (the oracle's piece), nothing earlier
+        val from = if (si > 0) segs[si - 1].start else seg.start
+        return Job(before.substring(from, next.end), target.start - from, target.end - from, target.text, inSeg.subList(0, ti + 1).map { it.text })
     }
 
     /** The decision for [job] (any thread; touches no state): the offer if Δ ≥ τ_offer, else null. */

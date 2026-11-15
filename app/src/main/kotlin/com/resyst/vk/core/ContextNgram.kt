@@ -6,15 +6,16 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 /**
- * r13f (offers, HP1, AS1, AS4): the word trigram model of assets/context/wt-m2.vkng (VKNG v2, written by
+ * r13f (offers, HP1, HP5, AS1, AS4): the word trigram model of assets/context/wt-m2.vkng (VKNG v2, written by
  * tools/ngram-build/NgramBuild.java), read IN PLACE from a [ByteBuffer] — on the phone a read-only memory map of the
- * uncompressed APK entry, so the model's 11.8 MB are clean file-backed pages the kernel can drop, never Java heap.
+ * uncompressed APK entry, so the model's n-gram tables (10.7 MB) are clean file-backed pages the kernel can drop,
+ * never Java heap.
  *
- * The r13e spike decoded the whole file into arrays (~41 MB of heap). This reader keeps only small index arrays
- * (≈ 2.3 MB for wt-m2): the byte offset of every word and of every unigram record, the vocabulary in byte order for
- * the word → id search, and every [BLOCK]-th bigram / trigram key with its offset (the delta-coded keys between two
- * index points are decoded on demand). The probabilities are the spike's, bit for bit (AS4, tested against its array
- * reader):
+ * The r13e spike decoded the whole file into arrays (~41 MB of heap). This reader keeps ≈ 3.3 MB for wt-m2: the
+ * vocabulary's bytes in byte order with their offsets and ids (the word → id search runs on the heap), the offset of
+ * every unigram record, and every [BLOCK]-th bigram / trigram key with its offset; the delta-coded keys of one block
+ * are bulk-copied into a small per-thread buffer and decoded there on demand. The probabilities are the spike's, bit
+ * for bit (AS4, tested against its array reader):
  * ```
  * P1(w)     = (c(w) + 1) / (N + V)
  * P2(w|b)   = (c(b w) + [T(b) + pruned(b ·)]·P1(w)) / (c(b) + T(b))
@@ -22,7 +23,8 @@ import kotlin.math.pow
  * ```
  * c(·) of a pruned n-gram is 0; its mass (pruned) goes to the backoff, so P(·|h) sums to 1. Counts above 1 are
  * quantised to 1/8 of a power of two. A word outside the vocabulary is `<unk>` as context; as the scored word it
- * costs P(<unk>|h) / unkTypes. Immutable after [read]; absolute reads only, so concurrent readers are safe.
+ * costs P(<unk>|h) / unkTypes. Immutable after [read]; the source is read with absolute gets or through per-thread
+ * duplicates, so concurrent readers are safe.
  */
 class ContextNgram private constructor(
     private val buf: ByteBuffer,
@@ -31,24 +33,29 @@ class ContextNgram private constructor(
     val unkTypes: Long,
     val bigrams: Int,
     val trigrams: Int,
-    /** Offset of each word's length prefix, in the byte order of the words (modified UTF-8, unsigned). */
-    private val sortedOff: IntArray,
+    /** The vocabulary's modified-UTF-8 bytes, concatenated in byte order (unsigned, then length). */
+    private val vocab: ByteArray,
+    /** Word i of that order = vocab[vocabStart[i], vocabStart[i + 1]). */
+    private val vocabStart: IntArray,
     private val sortedIds: IntArray,
     /** Offset of each id's unigram record (three varints: count, continuation types, kept bigram mass). */
     private val uniOff: IntArray,
     private val bIdxKey: LongArray,
+    /** Offset of every [BLOCK]-th bigram entry, plus the end of the bigram section. */
     private val bIdxOff: IntArray,
     private val tIdxKey: LongArray,
     private val tIdxOff: IntArray,
+    /** The longest block in bytes (the per-thread copy buffer's size). */
+    private val maxBlock: Int,
 ) {
     /** The id of [w] (a token as [ContextTokens] gives it), or [UNK] (0). */
     fun id(w: String): Int {
         val q = mutf8(w) ?: return UNK
         var lo = 0
-        var hi = sortedOff.size - 1
+        var hi = sortedIds.size - 1
         while (lo <= hi) {
             val mid = (lo + hi) ushr 1
-            val c = compareQuery(sortedOff[mid], q)
+            val c = compareQuery(mid, q)
             if (c == 0) return sortedIds[mid]
             if (c < 0) lo = mid + 1 else hi = mid - 1
         }
@@ -59,10 +66,7 @@ class ContextNgram private constructor(
     fun word(id: Int): String {
         val i = sortedIds.indexOf(id)
         require(i >= 0) { "no id $id" }
-        val off = sortedOff[i]
-        val len = u2(off)
-        val bytes = ByteArray(len) { buf.get(off + 2 + it) }
-        return decodeMutf8(bytes)
+        return decodeMutf8(vocab.copyOfRange(vocabStart[i], vocabStart[i + 1]))
     }
 
     /** Raw (weighted) count of a vocabulary word; 0 if unknown. */
@@ -109,12 +113,18 @@ class ContextNgram private constructor(
 
     // ── keyed sections: sparse index + delta-coded run ───────────────────────────────────────────────────────
     /** Offset of the count byte of bigram [key] (then T, f), or −1. */
-    private fun findBigram(key: Long): Int = find(key, bIdxKey, bIdxOff, bigrams, 3)
+    private fun findBigram(key: Long): Int = find(key, bIdxKey, bIdxOff, 3)
 
     /** Offset of the count byte of trigram [key], or −1. */
-    private fun findTrigram(key: Long): Int = find(key, tIdxKey, tIdxOff, trigrams, 1)
+    private fun findTrigram(key: Long): Int = find(key, tIdxKey, tIdxOff, 1)
 
-    private fun find(key: Long, idxKey: LongArray, idxOff: IntArray, n: Int, payload: Int): Int {
+    private class Local(val dup: ByteBuffer, val block: ByteArray)
+
+    private val local = object : ThreadLocal<Local>() {
+        override fun initialValue() = Local(buf.duplicate(), ByteArray(maxBlock))
+    }
+
+    private fun find(key: Long, idxKey: LongArray, idxOff: IntArray, payload: Int): Int {
         // the last index point ≤ key
         var lo = 0
         var hi = idxKey.size - 1
@@ -124,33 +134,33 @@ class ContextNgram private constructor(
             if (idxKey[mid] <= key) { blk = mid; lo = mid + 1 } else hi = mid - 1
         }
         if (blk < 0) return -1
-        var p = skipVarint(idxOff[blk])
+        val start = idxOff[blk]
+        val len = idxOff[blk + 1] - start
+        val l = local.get()!!
+        val a = l.block
+        l.dup.position(start)
+        l.dup.get(a, 0, len) // one copy per lookup instead of a call per byte (HP5)
+        var p = 0
+        while (a[p++].toInt() and 0x80 != 0) Unit // the block's first key is in the index
         var k = idxKey[blk]
-        if (k == key) return p
-        var e = blk * BLOCK + 1
-        val stop = minOf(n, (blk + 1) * BLOCK)
-        p += payload
-        while (e < stop) {
+        while (true) {
+            if (k == key) return start + p
+            if (k > key) return -1
+            p += payload
+            if (p >= len) return -1
             var shift = 0
             var d = 0L
             while (true) {
-                val x = buf.get(p++).toInt() and 0xff
+                val x = a[p++].toInt() and 0xff
                 d = d or ((x and 0x7f).toLong() shl shift)
                 if (x and 0x80 == 0) break
                 shift += 7
             }
             k += d
-            if (k == key) return p
-            if (k > key) return -1
-            p += payload
-            e++
         }
-        return -1
     }
 
     // ── bytes ─────────────────────────────────────────────────────────────────────────────────────────────────
-    private fun u2(off: Int): Int = ((buf.get(off).toInt() and 0xff) shl 8) or (buf.get(off + 1).toInt() and 0xff)
-
     private fun varintAt(off: Int): Long {
         var p = off
         var shift = 0
@@ -169,16 +179,39 @@ class ContextNgram private constructor(
         return p
     }
 
-    /** Word at [off] compared with the query bytes [q] (unsigned, then length). */
-    private fun compareQuery(off: Int, q: ByteArray): Int {
-        val len = u2(off)
+    /** Vocabulary word [i] (byte order) compared with the query bytes [q] (unsigned, then length). */
+    private fun compareQuery(i: Int, q: ByteArray): Int {
+        val s = vocabStart[i]
+        val len = vocabStart[i + 1] - s
         val n = minOf(len, q.size)
-        for (i in 0 until n) {
-            val x = buf.get(off + 2 + i).toInt() and 0xff
-            val y = q[i].toInt() and 0xff
+        for (j in 0 until n) {
+            val x = vocab[s + j].toInt() and 0xff
+            val y = q[j].toInt() and 0xff
             if (x != y) return x - y
         }
         return len - q.size
+    }
+
+    /**
+     * Sequential reads of the source through a 64 KB copy (loading): the varint scan of 2.8 M entries without a call
+     * per byte into the buffer.
+     */
+    private class Chunks(src: ByteBuffer, private val limit: Int) {
+        private val dup = src.duplicate()
+        private val a = ByteArray(1 shl 16)
+        private var base = 0
+        private var len = 0
+
+        fun at(p: Int): Int {
+            if (p < base || p >= base + len) {
+                check(p in 0 until limit) { "VKNG: truncated" }
+                base = p
+                len = minOf(a.size, limit - p)
+                dup.position(p)
+                dup.get(a, 0, len)
+            }
+            return a[p - base].toInt() and 0xff
+        }
     }
 
     companion object {
@@ -193,8 +226,8 @@ class ContextNgram private constructor(
 
         /**
          * Validates [source] as a VKNG v2 asset and indexes it in place (AS1): magic, version, counts, every
-         * section, the exact length; throws on anything else (truncated, foreign, corrupt). [source] is not copied:
-         * keep it alive as long as the model (on the phone: the memory map).
+         * section, the exact length; throws on anything else (truncated, foreign, corrupt). The n-gram tables are not
+         * copied: keep [source] alive as long as the model (on the phone: the memory map).
          */
         fun read(source: ByteBuffer): ContextNgram {
             val b = source.duplicate().order(ByteOrder.BIG_ENDIAN)
@@ -209,93 +242,103 @@ class ContextNgram private constructor(
             val n2 = b.getInt(28)
             val n3 = b.getInt(32)
             check(v in 5..(1 shl 20) && n > 0 && unk >= 0 && n2 >= 0 && n3 >= 0) { "VKNG: bad counts" }
+            val c = Chunks(b, limit)
             var p = HEADER
-            // words
+            // words: one copy of the section, sorted there by byte order
             val wordOff = IntArray(v)
             for (i in 0 until v) {
-                check(p + 2 <= limit) { "VKNG: truncated words" }
                 wordOff[i] = p
-                p += 2 + (((b.get(p).toInt() and 0xff) shl 8) or (b.get(p + 1).toInt() and 0xff))
+                p += 2 + ((c.at(p) shl 8) or c.at(p + 1))
             }
             check(p <= limit) { "VKNG: truncated words" }
+            val raw = ByteArray(p - HEADER)
+            b.duplicate().also { it.position(HEADER) }.get(raw)
+            fun lenOf(i: Int) = ((raw[wordOff[i] - HEADER].toInt() and 0xff) shl 8) or (raw[wordOff[i] - HEADER + 1].toInt() and 0xff)
+            fun cmp(x: Int, y: Int): Int {
+                val lx = lenOf(x)
+                val ly = lenOf(y)
+                val sx = wordOff[x] - HEADER + 2
+                val sy = wordOff[y] - HEADER + 2
+                for (j in 0 until minOf(lx, ly)) {
+                    val d = (raw[sx + j].toInt() and 0xff) - (raw[sy + j].toInt() and 0xff)
+                    if (d != 0) return d
+                }
+                return lx - ly
+            }
+            val order = IntArray(v) { it }
+            sortBy(order) { x, y -> cmp(x, y) }
+            for (i in 1 until v) check(cmp(order[i - 1], order[i]) < 0) { "VKNG: duplicate word" }
+            val vocabStart = IntArray(v + 1)
+            for (i in 0 until v) vocabStart[i + 1] = vocabStart[i] + lenOf(order[i])
+            val vocab = ByteArray(vocabStart[v])
+            for (i in 0 until v) System.arraycopy(raw, wordOff[order[i]] - HEADER + 2, vocab, vocabStart[i], vocabStart[i + 1] - vocabStart[i])
             // unigram records
             val uniOff = IntArray(v)
             for (i in 0 until v) {
                 uniOff[i] = p
-                repeat(3) { p = skip(b, p, limit) }
+                repeat(3) { p = skip(c, p) }
             }
             // bigrams: key varint (delta), count, T, f
             val nb = (n2 + BLOCK - 1) / BLOCK
             val bKey = LongArray(nb)
-            val bOff = IntArray(nb)
+            val bOff = IntArray(nb + 1)
             var prev = 0L
             for (e in 0 until n2) {
                 if (e % BLOCK == 0) bOff[e / BLOCK] = p
                 val start = p
-                p = skip(b, p, limit)
-                val d = varint(b, start)
+                p = skip(c, p)
+                val d = varint(c, start)
                 check(d > 0 || e == 0) { "VKNG: bigram keys not ascending" }
                 prev += d
                 if (e % BLOCK == 0) bKey[e / BLOCK] = prev
                 p += 3
             }
             check(p <= limit) { "VKNG: truncated bigrams" }
+            bOff[nb] = p
             // trigrams: key varint (delta), count
             val nt = (n3 + BLOCK - 1) / BLOCK
             val tKey = LongArray(nt)
-            val tOff = IntArray(nt)
+            val tOff = IntArray(nt + 1)
             prev = 0L
             for (e in 0 until n3) {
                 if (e % BLOCK == 0) tOff[e / BLOCK] = p
                 val start = p
-                p = skip(b, p, limit)
-                val d = varint(b, start)
+                p = skip(c, p)
+                val d = varint(c, start)
                 check(d > 0 || e == 0) { "VKNG: trigram keys not ascending" }
                 prev += d
                 if (e % BLOCK == 0) tKey[e / BLOCK] = prev
                 p += 1
             }
             check(p == limit) { "VKNG: length (${limit - p} bytes left)" }
-            // the vocabulary in byte order, for id()
-            val order = IntArray(v) { it }
-            sortBy(order) { x, y -> compareWords(b, wordOff[x], wordOff[y]) }
-            val sortedOff = IntArray(v) { wordOff[order[it]] }
-            for (i in 1 until v) check(compareWords(b, sortedOff[i - 1], sortedOff[i]) < 0) { "VKNG: duplicate word" }
-            return ContextNgram(b, v, n, unk, n2, n3, sortedOff, order, uniOff, bKey, bOff, tKey, tOff)
+            tOff[nt] = p
+            var maxBlock = 1
+            for (i in 0 until nb) maxBlock = maxOf(maxBlock, bOff[i + 1] - bOff[i])
+            for (i in 0 until nt) maxBlock = maxOf(maxBlock, tOff[i + 1] - tOff[i])
+            return ContextNgram(b, v, n, unk, n2, n3, vocab, vocabStart, order, uniOff, bKey, bOff, tKey, tOff, maxBlock)
         }
 
-        private fun skip(b: ByteBuffer, off: Int, limit: Int): Int {
+        private fun skip(c: Chunks, off: Int): Int {
             var p = off
             var k = 0
             while (true) {
-                check(p < limit && k < 10) { "VKNG: bad varint" }
-                val x = b.get(p++).toInt()
+                check(k < 10) { "VKNG: bad varint" }
+                val x = c.at(p++)
                 k++
                 if (x and 0x80 == 0) return p
             }
         }
 
-        private fun varint(b: ByteBuffer, off: Int): Long {
+        private fun varint(c: Chunks, off: Int): Long {
             var p = off
             var shift = 0
             var r = 0L
             while (true) {
-                val x = b.get(p++).toInt() and 0xff
+                val x = c.at(p++)
                 r = r or ((x and 0x7f).toLong() shl shift)
                 if (x and 0x80 == 0) return r
                 shift += 7
             }
-        }
-
-        private fun compareWords(b: ByteBuffer, x: Int, y: Int): Int {
-            val lx = ((b.get(x).toInt() and 0xff) shl 8) or (b.get(x + 1).toInt() and 0xff)
-            val ly = ((b.get(y).toInt() and 0xff) shl 8) or (b.get(y + 1).toInt() and 0xff)
-            val n = minOf(lx, ly)
-            for (i in 0 until n) {
-                val c = (b.get(x + 2 + i).toInt() and 0xff) - (b.get(y + 2 + i).toInt() and 0xff)
-                if (c != 0) return c
-            }
-            return lx - ly
         }
 
         /** A stable bottom-up merge sort of [a] (no boxing: the transient cost is one more IntArray). */

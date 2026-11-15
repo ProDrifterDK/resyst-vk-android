@@ -293,7 +293,7 @@ object OffersOracle {
             val nextEnd = d.words[i + 1].end
             val endKey = d.text.getOrNull(nextEnd) ?: if (d.chat) continue else ' '
             val job = offers.job(d.text.substring(0, nextEnd) + endKey, whole = true) ?: continue
-            check(job.start == w.start) { "${d.id}: job on another word" }
+            check(job.typed == w.text && job.text.endsWith(d.text.substring(w.start, nextEnd))) { "${d.id}: job on another word" }
             val o = offers.decide(job, check, d.keep) ?: continue
             out += Decision(d, i, o.alt, o.delta) to o
         }

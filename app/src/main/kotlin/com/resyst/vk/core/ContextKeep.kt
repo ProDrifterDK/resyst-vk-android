@@ -23,10 +23,10 @@ object ContextKeep {
     val PHRASES: List<List<String>> = listOf(listOf("al", "tiro"), listOf("la", "raja"))
 
     class Keep(words: Collection<String>, private val phrases: List<List<String>> = PHRASES) {
-        private val folded: Set<String> = words.mapTo(HashSet()) { Suggest.fold(it) }
+        private val folded: Set<String> = words.mapTo(HashSet()) { fold(it) }
 
         /** The typed word itself is on a keep-list. */
-        fun word(typed: String): Boolean = Suggest.fold(typed) in folded
+        fun word(typed: String): Boolean = fold(typed) in folded
 
         /**
          * [words] = the folded words of the text, [i] = the target's index: kept if the word is listed or it is part
@@ -34,17 +34,20 @@ object ContextKeep {
          */
         fun keeps(words: List<String>, i: Int): Boolean {
             if (word(words[i])) return true
-            val w = Suggest.fold(words[i])
+            val w = fold(words[i])
             for (p in phrases) for ((j, pw) in p.withIndex()) {
                 if (pw != w) continue
                 val s = i - j
                 if (s < 0 || s + p.size > words.size) continue
-                if (p.indices.all { Suggest.fold(words[s + it]) == p[it] }) return true
+                if (p.indices.all { fold(words[s + it]) == p[it] }) return true
             }
             return false
         }
 
         val size: Int get() = folded.size
+
+        /** [Suggest.fold] (accents off, ñ kept, lowercase) through [ContextCandidates.bare]: the same, without regex (HP5). */
+        private fun fold(w: String) = ContextCandidates.bare(w)
     }
 
     /** The keep set for a region's protected words plus the user's own words. */

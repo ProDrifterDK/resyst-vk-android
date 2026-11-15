@@ -49,8 +49,18 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<ContextCandidates.Alt>>?): Boolean = size > CAND_CACHE
     }
 
-    private fun candidates(lw: String): List<ContextCandidates.Alt> =
-        synchronized(candCache) { candCache[lw] } ?: cands.of(lw).also { c -> synchronized(candCache) { candCache[lw] = c } }
+    private fun candidates(lw: String): List<ContextCandidates.Alt> {
+        synchronized(candCache) { candCache[lw] }?.let { return it }
+        val t0 = System.nanoTime()
+        val c = cands.of(lw)
+        lastCandidatesNs = System.nanoTime() - t0
+        synchronized(candCache) { candCache[lw] = c }
+        return c
+    }
+
+    /** Diagnostics (the debug build's time log): the last confusion set computed, ns (0 = from the cache). */
+    @Volatile var lastCandidatesNs = 0L
+        private set
 
     /** Σ ln P of [seq] from token [from] on; an out-of-vocabulary word at [from] (the candidate) pays ln(unkTypes). */
     fun windowScore(seq: List<String>, from: Int): Double {
@@ -67,10 +77,34 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         return s
     }
 
-    /** W(alt) − W(typed) for each of [alts] between [left] and [right] (tokens; [typed] and [alts] lowercase). */
+    /**
+     * W(alt) − W(typed) for each of [alts] between [left] and [right] (tokens; [typed] and [alts] lowercase): the sums
+     * [windowScore] makes, term for term, with the context's ids looked up once (HP5).
+     */
     fun lmDiffs(left: List<String>, typed: String, alts: List<String>, right: List<String>): DoubleArray {
-        val base = windowScore(left + typed + right, left.size)
-        return DoubleArray(alts.size) { windowScore(left + alts[it] + right, left.size) - base }
+        val l = IntArray(left.size) { model.id(left[it]) }
+        val r = IntArray(right.size) { model.id(right[it]) }
+        val base = score(left, l, typed, right, r)
+        return DoubleArray(alts.size) { score(left, l, alts[it], right, r) - base }
+    }
+
+    /** [windowScore] of left + [mid] + right from [mid] on, over ids already looked up. */
+    private fun score(left: List<String>, l: IntArray, mid: String, right: List<String>, r: IntArray): Double {
+        val m = model.id(mid)
+        val from = left.size
+        val n = from + 1 + right.size
+        fun id(j: Int) = if (j < from) l[j] else if (j == from) m else r[j - from - 1]
+        fun tok(j: Int) = if (j < from) left[j] else if (j == from) mid else right[j - from - 1]
+        var s = 0.0
+        for (j in from until n) {
+            if (tok(j) == ContextTokens.BOS) continue
+            val b = if (j >= 1) id(j - 1) else -1
+            val a = if (j >= 2 && id(j - 1) != ContextNgram.BOS_ID) id(j - 2) else -1
+            var lp = model.logP(id(j), a, b)
+            if (j == from && m == ContextNgram.UNK) lp -= lnUnk
+            s += lp
+        }
+        return s
     }
 
     /** The r13e oracle's whole-sentence view (tests only): the guard's words and the sentence's words. */
@@ -110,6 +144,7 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         val from = if (si > 0) segs[si - 1].start else seg.start
         val guard = oracle?.guard ?: ContextSegments.words(text, from, seg.end).map { it.text.lowercase() }
         val tlf = lex.logFreq(lw)
+        lastCandidatesNs = 0L
         val alts = flag(candidates(lw), tlf, guard, p)
         if (alts.isEmpty()) return null
         // the context exactly as the r13e oracle cut it: tokens from the previous sentence's start
