@@ -17,7 +17,7 @@ Types through the DRAWN keys (accessibility tree, like scripts/e2e_r13d.py) into
 
 Writes build/e2e-r13f/r13f-e2e.json + PNGs. Debug package only (com.resyst.vk.debug); the default input method is
 restored at the end.
-Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,E]
+Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,E] [--out DIR]
 
 Environment:
   VK_E2E_FORBIDDEN_SERIALS  comma-separated device serials this script must refuse to touch (your own phones);
@@ -259,7 +259,11 @@ def main():
     ap.add_argument('--serial', required=True)
     ap.add_argument('--apk', default=os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
     ap.add_argument('--only', default='A,B,C,D,E')
+    ap.add_argument('--out', help='output directory (default build/e2e-r13f); e.g. a before-run on the 0.11.0 debug build')
     a = ap.parse_args()
+    global OUT
+    if a.out:
+        OUT = os.path.abspath(a.out)
     if a.serial in FORBIDDEN:
         sys.exit(f'refusing to run on {a.serial}')
     e2e.ADB.extend(['-s', a.serial])
@@ -298,7 +302,7 @@ def main():
         res = {'device': model, 'sdk': sdk, 'rows': rows,
                'passed': sum(r['ok'] for r in rows), 'failed': sum(not r['ok'] for r in rows)}
         json.dump(res, open(os.path.join(OUT, 'r13f-e2e.json'), 'w'), ensure_ascii=False, indent=1)
-        print(f"✦ {res['passed']} passed, {res['failed']} failed → build/e2e-r13f/r13f-e2e.json")
+        print(f"✦ {res['passed']} passed, {res['failed']} failed → {os.path.join(OUT, 'r13f-e2e.json')}")
     sys.exit(1 if any(not r['ok'] for r in rows) else 0)
 
 
