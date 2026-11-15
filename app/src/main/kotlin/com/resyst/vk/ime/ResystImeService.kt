@@ -1472,9 +1472,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (field != offerField || !offersAllowed()) return
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: return
-        val job = offers.job(before, whole = before.length < ContextOffers.WINDOW) ?: return
         // CO4: a word the user kept against a correction is his: no offer on it (read gate; nothing written)
-        if (personalRead()?.kept(Lang.ES, job.typed.lowercase()) == true) return
+        val job = offers.job(before, whole = before.length < ContextOffers.WINDOW)
+            ?.takeIf { personalRead()?.kept(Lang.ES, it.typed.lowercase()) != true }
+        // HP5: the word just completed is the next decision's target: its confusion set is computed after this decision
+        val next = offers.completedWord(before)
+        if (job == null && next == null) return
         val lex = lexicon ?: return
         val list = lex.get(Lang.ES) ?: return
         val valid = lex.valid(Lang.ES) ?: return
@@ -1483,13 +1486,19 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ctxIo.execute {
             val model = ctxModel.get() ?: return@execute
             val check = checkFor(model, list, valid, english)
-            val t0 = SystemClock.elapsedRealtimeNanos()
-            val c0 = if (timing) android.os.Debug.threadCpuTimeNanos() else 0L
-            val offer = runCatching { offers.decide(job, check, keep) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
-            // HP5 (debuggable builds): the decision's wall and thread-CPU time, never its text
-            if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null} " +
-                "candidatesUs=${check.lastCandidatesNs / 1000} cpuUs=${(android.os.Debug.threadCpuTimeNanos() - c0) / 1000}")
-            if (offer != null) mainHandler.post { showOffer(offer, field) }
+            if (job != null) {
+                val t0 = SystemClock.elapsedRealtimeNanos()
+                val c0 = if (timing) android.os.Debug.threadCpuTimeNanos() else 0L
+                val offer = runCatching { offers.decide(job, check, keep) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
+                // HP5 (debuggable builds): the decision's wall and thread-CPU time, never its text
+                if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null} " +
+                    "candidatesUs=${check.lastCandidatesNs / 1000} cpuUs=${(android.os.Debug.threadCpuTimeNanos() - c0) / 1000}")
+                if (offer != null) mainHandler.post { showOffer(offer, field) }
+            }
+            if (next != null) {
+                val ns = runCatching { check.prefetch(next) }.getOrDefault(0L)
+                if (timing) Log.i(TAG, "offertime: prefetch us=${ns / 1000}")
+            }
         }
     }
 

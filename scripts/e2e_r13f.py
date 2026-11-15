@@ -17,10 +17,21 @@ Types through the DRAWN keys (accessibility tree, like scripts/e2e_r13d.py) into
      Enter sends and empties it, like s4's composer): "va muy lenyo" + VK's Enter → the page sends "Va muy lento";
      "hola?" sent on the symbols layer, then Letras + "salgo" → "Salgo" in the emptied composer
   E  the r13d rows (scripts/e2e_r13d.py sections F, T, W, O, R)
+  O  r13f offers (context offers in the bar): "paso por tu caza como " → the chip "casa" ("Cambiar caza por casa") → a
+     tap → "Paso por tu casa como ", the cursor still at the end (an "a" typed after it lands there); "no se di vamos "
+     → the chip "si"; a right sentence → no chip and no offer decided; a password field and an incognito field → no
+     chip, no decision; an opted-out ("Sin memoria") composer → the chip works and words.json / rejections.json stay
+     byte-identical; the switch "Sugerencias por contexto" turned off in Settings → no chip; Java heap before / after the
+     model loads (dumpsys meminfo after a forced GC, and the debug build's own GC'd heap line), decision times (the
+     offertime lines), the APK size. The debug build is debuggable (ART runs it interpreted: ~8 ms a decision), so the
+     ≤ 2 ms budget is checked on --timing-apk: a NON-debuggable build of the same commit for the same debug package
+     (build it with `isDebuggable = false` in the debug build type and `timing = true` in ResystImeService, both
+     reverted afterwards), as installed and then AOT-compiled (`cmd package compile -m speed`, what an installed
+     release reaches); the debug APK is reinstalled after it
 
 Writes build/e2e-r13f/r13f-e2e.json + PNGs. Debug package only (com.resyst.vk.debug); the default input method is
 restored at the end.
-Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,W,E] [--out DIR]
+Usage: scripts/e2e_r13f.py --serial SERIAL [--apk PATH] [--only A,B,C,D,W,E,O] [--out DIR] [--timing-apk PATH]
 
 Environment:
   VK_E2E_FORBIDDEN_SERIALS  comma-separated device serials this script must refuse to touch (your own phones);
@@ -340,6 +351,237 @@ def section_w():
         sh('input keyevent 3', check=False)  # home
 
 
+# ── O: context offers (r13f offers) ──────────────────────────────────────
+PROFILES = 'shared_prefs/resyst_vk_profiles.xml'
+TIMING_TEXTS = ('mañana paso por tu caza como a las siete si no alcanzo te aviso ',
+                'no se di vamos a llegar a tiempo porque el trafico esta pesado ',
+                'esa pelicula es yan buena como dicen y la vimos el fin de semana ')
+offer_metrics = {}
+
+
+CHIP = re.compile(r'^(?:Cambiar (\S+) por (\S+)|Replace (\S+) with (\S+))$')  # the phone's language: es / en strings
+
+
+def offer_chips(k=None):
+    """The context offer chips on the bar as (typed, offered), from their TalkBack text ("Cambiar caza por casa" /
+    "Replace caza with casa": the string resources follow the phone's language)."""
+    k = k if k is not None else r13.km()
+    out = []
+    for d in k:
+        m = CHIP.match(d)
+        if m:
+            g = [x for x in m.groups() if x is not None]
+            out.append((g[0], g[1]))
+    return out
+
+
+def chip_node(k, pair):
+    return next(v for d, v in k.items() if CHIP.match(d) and [x for x in CHIP.match(d).groups() if x] == list(pair))
+
+
+def wait_chip(timeout=4.0):
+    t0 = time.time()
+    k = {}
+    while time.time() - t0 < timeout:
+        k = r13.km()
+        c = offer_chips(k)
+        if c:
+            return c, k
+        time.sleep(0.4)
+    return [], k
+
+
+def offertimes(log):
+    return [(int(us), ok == 'true') for us, ok in re.findall(r'offertime: decide us=(\d+) offer=(true|false)', log)]
+
+
+def logcat():
+    return sh('logcat -d -s ResystVK:I', check=False)
+
+
+def gc_and_meminfo(tag):
+    """dumpsys meminfo of the debug package after a forced GC (SIGUSR1 through run-as: debuggable builds only)."""
+    pid = sh(f'pidof {PKG}', check=False).strip().split()
+    if pid:
+        sh(f'run-as {PKG} kill -10 {pid[0]}', check=False)
+        time.sleep(2.5)
+    out = sh(f'dumpsys meminfo {PKG}', check=False)
+    open(os.path.join(OUT, f'r13f-O-meminfo-{tag}.txt'), 'w').write(out)
+
+    def kb(label):
+        m = re.search(re.escape(label) + r'\s+(\d+)', out)
+        return int(m.group(1)) if m else None
+    return {'pid': pid[0] if pid else None, 'java_heap_kb': kb('Java Heap:'), 'native_heap_kb': kb('Native Heap:'),
+            'total_pss_kb': kb('TOTAL PSS:') or kb('TOTAL:'), 'apk_mmap_pss_kb': kb('.apk mmap')}
+
+
+def run_as(cmd):
+    return sh(f"run-as {PKG} sh -c '{cmd}'", check=False)
+
+
+def set_offers(on):
+    """Settings › Escritura › "Sugerencias por contexto" through the screen (a tap on the switch)."""
+    sh(f'am start -W -n {e2e.SETTINGS} --es com.resyst.vk.page escritura')
+    time.sleep(1.8)
+    node = None
+    for _ in range(8):
+        for n in e2e.dump().iter('node'):
+            d = n.get('content-desc') or ''
+            if n.get('package') == PKG and (d.startswith('Sugerencias por contexto, ') or d.startswith('Context suggestions, ')):
+                node = n
+        if node is not None:
+            break
+        sh('input swipe 540 1500 540 900 300')
+        time.sleep(0.6)
+    if node is None:
+        raise RuntimeError('no "Sugerencias por contexto" switch on the Escritura page')
+    was = node.get('content-desc').endswith('activado') and not node.get('content-desc').endswith('desactivado')
+    shot('r13f-O7-settings-switch.png' if on else 'r13f-O6-settings-switch-off-before.png')
+    if was != on:
+        e2e.tap(node)
+        time.sleep(1.2)
+    stored = re.search(r'<string name="phone\.contextOffers">([^<]*)</string>', run_as(f'cat {PROFILES}'))
+    sh('input keyevent 4', check=False)  # back
+    time.sleep(0.8)
+    return was, stored.group(1) if stored else None
+
+
+def section_o(apk, timing_apk=None):
+    offer_metrics['apk_bytes'] = os.path.getsize(apk)
+    sh('logcat -c', check=False)
+    r13d.fresh('text')
+    time.sleep(3.0)  # the lexicons load; no offer was asked for yet, so the model is not mapped
+    before = gc_and_meminfo('before')
+    mapped_before = 'context: model mapped' in logcat()
+    # 1. paso por tu caza como → casa → tap → the word changes, the cursor stays at the end
+    r13c.type_seq('paso por tu caza como ')
+    chips, k = wait_chip()
+    shot('r13f-O1-chip-casa.png')
+    typed = field()
+    descs = [d for d in k if CHIP.match(d)]
+    check('O', '"paso por tu caza como " → the chip "casa" (TalkBack: "Cambiar caza por casa" / "Replace caza with casa")',
+          chips == [('caza', 'casa')], f'field {typed!r}, chips {descs}')
+    if chips:
+        e2e.tap(chip_node(k, chips[0]))
+        time.sleep(0.9)
+    after_tap = field()
+    left = offer_chips()
+    r13c.type_seq('a')
+    with_a = field()
+    shot('r13f-O2-after-tap.png')
+    check('O', 'a tap on the chip → "Paso por tu casa como ", the chip gone, the cursor still at the end (an "a" lands after "como ")',
+          after_tap == 'Paso por tu casa como ' and not left and with_a == 'Paso por tu casa como a', f'{after_tap!r} → {with_a!r}, chips {left}')
+    log = logcat()
+    m = re.search(r'context: model mapped vocab=(\d+) ms=(\d+)(?: heapKb=(-?\d+))?', log)
+    after = gc_and_meminfo('after')
+    offer_metrics['meminfo_before'] = before
+    offer_metrics['meminfo_after'] = after
+    offer_metrics['model_line'] = m.group(0) if m else None
+    jh = (after['java_heap_kb'] or 0) - (before['java_heap_kb'] or 0)
+    offer_metrics['java_heap_delta_kb'] = jh
+    check('O', 'Java heap after the model is mapped: dumpsys meminfo delta ≤ 5 MB (forced GC before each reading); not mapped before the first offer was asked for',
+          m is not None and not mapped_before and before['java_heap_kb'] is not None and jh <= 5 * 1024,
+          f'Java Heap {before["java_heap_kb"]} → {after["java_heap_kb"]} kB (Δ {jh} kB); in-process: {m.group(0) if m else None}; .apk mmap PSS {before["apk_mmap_pss_kb"]} → {after["apk_mmap_pss_kb"]} kB')
+    # 2. no se di vamos → si
+    r13d.fresh('text')
+    r13c.type_seq('no se di vamos ')
+    chips, _ = wait_chip()
+    shot('r13f-O3-chip-si.png')
+    check('O', '"no se di vamos " → the chip "si" ("Cambiar di por si")', chips == [('di', 'si')], f'field {field()!r}, chips {chips}')
+    # 3. a right sentence: no chip, no offer decided
+    r13d.fresh('text')
+    sh('logcat -c', check=False)
+    r13c.type_seq('mañana paso por tu casa como a las siete. ')
+    time.sleep(1.5)
+    chips = offer_chips()
+    times = offertimes(logcat())
+    shot('r13f-O4-right-sentence.png')
+    check('O', 'a right sentence ("Mañana paso por tu casa como a las siete. "): no chip, every decision says no',
+          not chips and times and not any(ok for _, ok in times), f'field {field()!r}, chips {chips}, decisions {len(times)} offers {sum(ok for _, ok in times)}')
+    # 4. secret and incognito fields: no chip, no decision
+    for kind, name in (('password', 'r13f-O5-password.png'), ('incognito', 'r13f-O5-incognito.png')):
+        r13d.fresh(kind)
+        sh('logcat -c', check=False)
+        r13c.type_seq('paso por tu caza como ')
+        time.sleep(1.5)
+        chips = offer_chips()
+        times = offertimes(logcat())
+        shot(name)
+        check('O', f'a {kind} field: no chip, no decision (PV1)', not chips and not times, f'field {field()!r}, chips {chips}, decisions {len(times)}')
+    # 5. an opted-out ("Sin memoria") composer: the chip works, nothing is stored
+    r13d.fresh('text')  # leaving a field flushes what was learned
+    words0, rej0 = run_as('cat files/personal/words.json'), run_as('cat files/personal/rejections.json')
+    r13d.fresh('social')
+    r13c.type_seq('paso por tu caza como ')
+    chips, k = wait_chip()
+    if chips:
+        e2e.tap(chip_node(k, chips[0]))
+        time.sleep(0.9)
+    social = field()
+    shot('r13f-O8-social.png')
+    r13d.fresh('text')  # flush again
+    time.sleep(1.0)
+    words1, rej1 = run_as('cat files/personal/words.json'), run_as('cat files/personal/rejections.json')
+    check('O', 'an opted-out ("Sin memoria") composer: the chip works ("Cambiar caza por casa" → "Paso por tu casa como ") and words.json / rejections.json stay byte-identical (PV2)',
+          chips == [('caza', 'casa')] and social == 'Paso por tu casa como ' and words0 == words1 and rej0 == rej1,
+          f'chips {chips}, field {social!r}, words.json {len(words0)}→{len(words1)} B same={words0 == words1}, rejections same={rej0 == rej1}')
+    # 6. the switch off: no chip, no decision; then on again
+    was, stored = set_offers(False)
+    r13d.fresh('text')
+    sh('logcat -c', check=False)
+    r13c.type_seq('paso por tu caza como ')
+    time.sleep(1.5)
+    chips = offer_chips()
+    times = offertimes(logcat())
+    shot('r13f-O6-switch-off.png')
+    check('O', 'Settings › "Sugerencias por contexto" off: no chip, no decision (PV4)',
+          was is True and stored == 'false' and not chips and not times, f'switch was on={was}, stored {stored!r}, chips {chips}, decisions {len(times)}')
+    was2, stored2 = set_offers(True)
+    check('O', 'the switch back on (default)', was2 is False and stored2 == 'true', f'{was2} {stored2!r}')
+    # decision times (the offertime lines: the decision only, the model's mapping excluded)
+    def timed(tag):
+        """Decision times (what the chip waits for) and, apart, the confusion set each word end computes ahead."""
+        out, pre = [], []
+        for text in TIMING_TEXTS:
+            r13d.fresh('text')
+            sh('logcat -c', check=False)
+            r13c.type_seq(text)
+            time.sleep(1.5)
+            log = logcat()
+            out += [t for t, _ in offertimes(log)]
+            pre += [int(x) for x in re.findall(r'offertime: prefetch us=(\d+)', log)]
+        us = sorted(out)
+        res = {'n': len(us), 'mean_ms': round(sum(us) / len(us) / 1000, 3), 'p50_ms': us[len(us) // 2] / 1000,
+               'p90_ms': us[len(us) * 9 // 10] / 1000, 'max_ms': us[-1] / 1000, 'all_us': out} if us else {'n': 0}
+        if pre:
+            p = sorted(pre)
+            res['prefetch'] = {'n': len(p), 'mean_ms': round(sum(p) / len(p) / 1000, 3), 'p90_ms': p[len(p) * 9 // 10] / 1000, 'max_ms': p[-1] / 1000}
+            res['cpu_per_word_end_mean_ms'] = round((sum(us) + sum(p)) / max(1, len(p)) / 1000, 3)
+        offer_metrics['decision_' + tag] = res
+        return {k: v for k, v in res.items() if k != 'all_us'}
+    debug = timed('debug_build_as_installed')  # debuggable: interpreted, recorded only
+    if timing_apk:
+        r13c.install('-r', '-t', '-d', timing_apk)
+        e2e.ensure_ime()
+        dbg = sh(f'dumpsys package {PKG} | grep -m1 pkgFlags', check=False)
+        cold = timed('measure_as_installed')
+        comp = sh(f'cmd package compile -m speed -f {PKG}', check=False).strip()
+        sh(f'am force-stop {PKG}', check=False)  # the IME process restarts on the compiled code
+        time.sleep(2.0)
+        e2e.ensure_ime()
+        warm = timed('measure_compiled')
+        offer_metrics['measure_build'] = {'apk': os.path.basename(timing_apk), 'pkgFlags': dbg.strip(), 'compile': comp}
+        r13c.install('-r', '-t', '-d', apk)  # the debug build under test again
+        e2e.ensure_ime()
+        check('O', 'decision time ≤ 2 ms on this phone (non-debuggable build of this commit, AOT-compiled as an installed release; every word end of three chat sentences)',
+              'DEBUGGABLE' not in dbg and warm.get('n', 0) > 10 and warm['mean_ms'] <= 2.0 and warm['p90_ms'] <= 2.0,
+              f'compiled {warm}; same build as installed (JIT warming) {cold}; debug build (debuggable, interpreted) {debug}')
+    else:
+        print(f'NOTE [O] decision time budget not checked: no --timing-apk (debug build, interpreted: {debug})')
+    check('O', f'APK ≤ 18 MB', offer_metrics['apk_bytes'] <= 18 * 1024 * 1024, f'{offer_metrics["apk_bytes"]} bytes')
+    json.dump(offer_metrics, open(os.path.join(OUT, 'r13f-e2e-offers.json'), 'w'), ensure_ascii=False, indent=1)
+
+
 # ── E: the r13d rows ─────────────────────────────────────────────────────
 def section_e():
     before = len(r13d.rows)
@@ -356,8 +598,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--serial', required=True)
     ap.add_argument('--apk', default=os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
-    ap.add_argument('--only', default='A,B,C,D,W,E')
+    ap.add_argument('--only', default='A,B,C,D,W,E,O')
     ap.add_argument('--out', help='output directory (default build/e2e-r13f); e.g. a before-run on the 0.11.0 debug build')
+    ap.add_argument('--timing-apk', help='section O: a non-debuggable build of this commit for the debug package (decision-time budget)')
     a = ap.parse_args()
     global OUT
     if a.out:
@@ -386,7 +629,8 @@ def main():
         time.sleep(3.0)
         version = sh(f'dumpsys package {PKG} | grep -m1 versionName').strip()
         check('setup', f'the debug build under test is {VERSION}', VERSION in version, version)
-        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('W', section_w), ('E', section_e)):
+        for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('W', section_w), ('E', section_e),
+                        ('O', lambda: section_o(a.apk, a.timing_apk))):
             if sec in only:
                 try:
                     sh('input keyevent KEYCODE_WAKEUP', check=False)  # no-op when awake

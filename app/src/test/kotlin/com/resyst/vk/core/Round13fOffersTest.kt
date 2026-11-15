@@ -473,12 +473,27 @@ class Round13fOffersTest {
             ns[n] = System.nanoTime() - t0
         }
         ns.sort()
+        // the IME's pipeline: the word end that completes a word computes its confusion set (prefetch), the next word
+        // end decides it — the decision then waits on the n-gram part only
+        val piped = ContextCheck(OffersOracle.model, OffersOracle.lex)
+        val pn = LongArray(jobs.size)
+        val pf = LongArray(jobs.size)
+        for ((n, x) in jobs.withIndex()) {
+            pf[n] = piped.prefetch(x.first.typed)
+            val t0 = System.nanoTime()
+            val a = offers.decide(x.first, piped, x.second.keep)
+            pn[n] = System.nanoTime() - t0
+            assertEquals("prefetch changes nothing", offers.decide(x.first, fresh, x.second.keep), a)
+        }
+        pn.sort()
         val cands = ContextCandidates(OffersOracle.lex)
         val c0 = System.nanoTime()
         for ((j, _) in jobs) if (OffersOracle.lex.isWord(j.typed.lowercase())) cands.of(j.typed)
         val candUs = (System.nanoTime() - c0) / 1000.0 / jobs.size
         val res = linkedMapOf("decisions" to jobs.size, "mean_us" to ns.average() / 1000, "p50_us" to ns[ns.size / 2] / 1000.0,
             "p99_us" to ns[ns.size * 99 / 100] / 1000.0, "max_us" to ns.last() / 1000.0, "candidates_mean_us" to candUs,
+            "pipelined_decide_mean_us" to pn.average() / 1000, "pipelined_decide_p99_us" to pn[pn.size * 99 / 100] / 1000.0,
+            "prefetch_mean_us" to pf.average() / 1000,
             "note" to "desktop JVM, warm (3 passes), single thread; job + decide on the live text of each word end")
         File(outDir, "latency.json").writeText(json(res))
         println("r13f offers latency (JVM): " + json(res))

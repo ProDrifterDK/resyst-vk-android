@@ -57,6 +57,15 @@ class ContextOffers {
         return Job(before.substring(from, next.end), target.start - from, target.end - from, target.text, inSeg.subList(0, ti + 1).map { it.text })
     }
 
+    /**
+     * HP5: the word a word end just completed (the next decision's target), if any: the last word of [before] with a
+     * separator after it.
+     */
+    fun completedWord(before: String): String? {
+        val w = ContextSegments.words(before).lastOrNull() ?: return null
+        return if (w.end < before.length) w.text else null
+    }
+
     /** The decision for [job] (any thread; touches no state): the offer if Δ ≥ τ_offer, else null. */
     fun decide(job: Job, check: ContextCheck, keep: ContextKeep.Keep?, p: ContextCheck.Params = ContextCheck.Params()): Offer? {
         val c = check.decide(job.text, job.start, job.end, p, keep) ?: return null
@@ -190,11 +199,15 @@ class ContextLexicon(private val list: Suggest, private val valid: ValidWords, p
     override fun isWord(w: String): Boolean = valid.contains(w) || (plain(w) && (list.rank(w) != null || w in list.regionalWords))
 
     override fun accentVariants(w: String): List<String> {
-        val out = LinkedHashSet<String>()
-        for (v in valid.accentVariants(w)) if (v == v.lowercase()) out += v
+        val v = valid.accentVariants(w)
         val f = ContextCandidates.bare(w) // = Suggest.fold, with its plain-text fast path (HP5)
-        for (m in list.foldMates(w, f)) { val l = m.lowercase(); if (plain(l)) out += l }
-        regionalByFold[f]?.let { out += it }
+        val m = list.foldMates(w, f)
+        val r = regionalByFold[f]
+        if (v.isEmpty() && m.isEmpty() && r == null) return emptyList() // most spellings tried are no word (HP5)
+        val out = LinkedHashSet<String>()
+        for (x in v) if (x == x.lowercase()) out += x
+        for (x in m) { val l = x.lowercase(); if (plain(l)) out += l }
+        r?.let { out += it }
         return out.toList()
     }
 

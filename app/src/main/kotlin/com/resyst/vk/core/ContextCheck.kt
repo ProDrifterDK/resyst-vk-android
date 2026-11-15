@@ -58,6 +58,19 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         return c
     }
 
+    /**
+     * HP5: computes [word]'s confusion set ahead of its decision (the IME calls it at the word end that completes
+     * [word], one word before the decision needs it), when [word] could be checked at all. Returns the ns spent.
+     */
+    fun prefetch(word: String): Long {
+        if (!eligibleShape(word)) return 0L
+        val lw = word.lowercase()
+        if (!lex.isWord(lw)) return 0L
+        val t0 = System.nanoTime()
+        candidates(lw)
+        return System.nanoTime() - t0
+    }
+
     /** Diagnostics (the debug build's time log): the last confusion set computed, ns (0 = from the cache). */
     @Volatile var lastCandidatesNs = 0L
         private set

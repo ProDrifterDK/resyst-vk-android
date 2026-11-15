@@ -72,6 +72,7 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
      */
     fun foldMates(w: String, key: String = fold(w)): List<String> {
         val f = key
+        if (foldRank[f] == null) return emptyList() // no list word has these letters (HP5: most look-ups end here)
         val idx = byFold
         var lo = 0
         var hi = idx.size
