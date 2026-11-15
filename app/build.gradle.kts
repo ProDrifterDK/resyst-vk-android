@@ -30,6 +30,9 @@ android {
         // r13a (VW9): the valid-word sets are memory-mapped from the APK (Lexicon.loadValid), which
         // needs them stored uncompressed (~1 MB for both languages).
         noCompress += "dawg"
+        // r13f (HP1): the context-offer model (assets/context/wt-m2.vkng, 11.8 MB) is memory-mapped the same
+        // way, never read onto the Java heap: stored, not deflated.
+        noCompress += "vkng"
     }
 
     signingConfigs {

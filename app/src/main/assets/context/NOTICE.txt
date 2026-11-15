@@ -1,0 +1,30 @@
+Resyst VK - context-offer model (assets/context/wt-m2.vkng)
+==========================================================
+
+A word-trigram model of Spanish used on the phone, offline, to offer a likely alternative for a typed word in the
+suggestion bar ("Sugerencias por contexto"). It holds counts of word sequences, no text.
+
+Built from:
+
+  * Wikipedia contributors, "Wikipedia, la enciclopedia libre", https://es.wikipedia.org
+    Spanish Wikipedia database dump of 2026-11-01, part 1 (eswiki-20261101-pages-articles1.xml-p1p159400.bz2,
+    https://dumps.wikimedia.org/eswiki/20261101/), plain article prose.
+    Licence: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0),
+    https://creativecommons.org/licenses/by-sa/4.0/
+
+  * Tatoeba contributors, https://tatoeba.org
+    Spanish sentences, per-language export of 2026-11-14 (spa_sentences.tsv.bz2).
+    Licence: Creative Commons Attribution 2.0 France (CC BY 2.0 FR),
+    https://creativecommons.org/licenses/by/2.0/fr/ (37 of the sentences are CC0 1.0).
+
+Changes: the texts were tokenized (lowercase words, numbers as one token), counted as word unigrams, bigrams and
+trigrams (Tatoeba weighted x8), pruned by count and quantised; no text is kept. Provenance (inputs, sha256s, builder
+commit, settings): wt-m2.provenance.json; builder: tools/ngram-build/ in the source repository.
+
+Licence of this file: as an adaptation of CC BY-SA 4.0 material, wt-m2.vkng is licensed under the GNU General
+Public License version 3 only (GPL-3.0-only), the licence Creative Commons lists as compatible with CC BY-SA 4.0.
+The full text is assets/LICENSE-GPL-3.txt. The rest of Resyst VK is GPL-3.0-or-later; distributed together with
+this file, the APK as a whole can be passed on under GPL-3.0.
+
+There is NO WARRANTY for this data, to the extent permitted by applicable law.
+Source: https://github.com/ProDrifterDK/resyst-vk-android

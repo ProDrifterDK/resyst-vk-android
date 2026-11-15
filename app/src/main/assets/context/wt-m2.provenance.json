@@ -1,0 +1,19 @@
+{
+ "asset": "wt-m2.vkng",
+ "format": "VKNG v2 (tools/ngram-build/NgramBuild.java header comment)",
+ "bytes": 11773356,
+ "sha256": "dae872a0e85e44a3f14b6ef1ad9889852f935b864509fdad8caf9a33aa9487c0",
+ "licence": "GPL-3.0-only (adaptation of CC BY-SA 4.0 data); see NOTICE.txt",
+ "builder": {
+  "files": ["tools/ngram-build/NgramBuild.java", "tools/ngram-build/extract_wiki.py", "tools/ngram-build/build.py"],
+  "commit": "ce8792c55ec9b7db20e3b3669439f8f4ade5143b",
+  "branch": "spike/r13e-ngram",
+  "jdk": "21",
+  "options": {"vocab": 100000, "k2": 6, "k3": 9, "shards": 8, "corpora": ["lines:1:eswiki-a1.txt", "tatoeba:8:spa_sentences.tsv"]}
+ },
+ "inputs": [
+  {"file": "eswiki-20261101-pages-articles1.xml-p1p159400.bz2", "url": "https://dumps.wikimedia.org/eswiki/20261101/eswiki-20261101-pages-articles1.xml-p1p159400.bz2", "sha256": "9a76b2a72b88c9fc73dcfdce123fb20539827ca2d92b9992c126e0ef5769a001", "licence": "CC BY-SA 4.0", "attribution": "Wikipedia contributors, Wikipedia, la enciclopedia libre"},
+  {"file": "spa_sentences.tsv.bz2", "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2", "downloaded": "2026-11-14", "sha256": "06b518dde1ba30a5547d8902c8e458ba0e45e67f22d3ca88855f701edbd5b359", "licence": "CC BY 2.0 FR (37 sentences CC0)", "attribution": "Tatoeba contributors"}
+ ],
+ "build_report": {"corpora": [{"path": "eswiki-a1.txt", "format": "lines", "weight": 1, "sentences": 2871479, "tokens": 82007005, "sha256": "9235077a15506bb1c13eb7605e91d5ff816c53cfc913f77d223f2a493ea1918b"}, {"path": "spa_sentences.tsv", "format": "tatoeba", "weight": 8, "sentences": 458844, "tokens": 3304365, "sha256": "20d88de1dfca76c535800f1129fc89d36cd4ed60be6e687cd449ae922f9448a8"}], "word_types": 704101, "V": 100000, "unk_types": 604106, "vocab_min_weighted_count": 21, "N": 114984156, "bigrams_distinct": 6847254, "bigrams_kept": 1404898, "trigrams_distinct": 28302646, "trigrams_kept": 1424429, "file_bytes": 11773356, "deflate9_bytes": 8011705, "sha256": "dae872a0e85e44a3f14b6ef1ad9889852f935b864509fdad8caf9a33aa9487c0", "k2": 6, "k3": 9, "seconds": 69}
+}
