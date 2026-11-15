@@ -1,0 +1,20 @@
+# r13e tokenizer golden cases: input <TAB> sentences joined by " | " (tokens space-separated).
+# Both tools/ngram-build/NgramBuild.java (corpus side) and core/ContextTokens.kt (runtime side) must reproduce these
+# exactly, or the model would be queried with tokens it never counted. \n in the input is a new line.
+Hola, ¿qué tal?	hola , qué tal
+Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender	ayer en la tarde estuvimos revisando el pixel con calma | la idea era entender
+Cuesta 3.5 lucas y listo. Voy	cuesta <n> lucas y listo | voy
+El Sr. Pérez y la Dra. Soto llegaron.	el sr pérez y la dra soto llegaron
+Lo firmó J. Pérez ayer.	lo firmó j pérez ayer
+¡Claro! Bueno… Ya veremos... ok	claro | bueno | ya veremos | ok
+Hola\n\nchao	hola | chao
+Dijo "no." Fin	dijo no | fin
+Cachai, el swap estaba lleno	cachai , el swap estaba lleno
+Llego tipo 8 y el 3er día (o el 4to) voy	llego tipo <n> y el <n> día , o el <n> , voy
+l'homme d’abord	l'homme d'abord
+franco-alemán - y luego	franco alemán , y luego
+Baja de kv.resyst.cl ahora	baja de kv resyst cl ahora
+GrapheneOS, Bastión y cachai	grapheneos , bastión y cachai
+;;Uno,, dos;	uno , dos
+🙂🙂 ok 🙂	ok
+ÁRBOL Ñandú	árbol ñandú

@@ -1,0 +1,1160 @@
+{
+"source": "r13e-s4 spike (spike/r13e-ngram de71341) Round13eS4Test.words: replay_live = each s4 row through 0.11.0's engine in s4's field (r13d per-word convention); the r13e oracle built its s4 contexts from these words",
+"rows": [
+{
+"msg": "m01",
+"typed": "oye",
+"replay": "Oye"
+},
+{
+"msg": "m01",
+"typed": "ya",
+"replay": "ya"
+},
+{
+"msg": "m01",
+"typed": "llegue",
+"replay": "llegue"
+},
+{
+"msg": "m02",
+"typed": "al",
+"replay": "Al"
+},
+{
+"msg": "m02",
+"typed": "final",
+"replay": "final"
+},
+{
+"msg": "m02",
+"typed": "no",
+"replay": "no"
+},
+{
+"msg": "m02",
+"typed": "pide",
+"replay": "pide"
+},
+{
+"msg": "m02",
+"typed": "salir",
+"replay": "salir"
+},
+{
+"msg": "m02",
+"typed": "antes",
+"replay": "antes"
+},
+{
+"msg": "m02",
+"typed": "mr",
+"replay": "Mr"
+},
+{
+"msg": "m02",
+"typed": "quede",
+"replay": "quede"
+},
+{
+"msg": "m02",
+"typed": "arreglando",
+"replay": "arreglando"
+},
+{
+"msg": "m02",
+"typed": "lo",
+"replay": "lo"
+},
+{
+"msg": "m02",
+"typed": "del",
+"replay": "del"
+},
+{
+"msg": "m02",
+"typed": "serbidor",
+"replay": "servidor"
+},
+{
+"msg": "m02",
+"typed": "ajsta",
+"replay": "ajsta"
+},
+{
+"msg": "m02",
+"typed": "tarde",
+"replay": "tarde"
+},
+{
+"msg": "m03",
+"typed": "mañana",
+"replay": "Mañana"
+},
+{
+"msg": "m03",
+"typed": "paso",
+"replay": "paso"
+},
+{
+"msg": "m03",
+"typed": "por",
+"replay": "por"
+},
+{
+"msg": "m03",
+"typed": "tu",
+"replay": "tu"
+},
+{
+"msg": "m03",
+"typed": "caza",
+"replay": "caza"
+},
+{
+"msg": "m03",
+"typed": "como",
+"replay": "como"
+},
+{
+"msg": "m03",
+"typed": "a",
+"replay": "a"
+},
+{
+"msg": "m03",
+"typed": "las",
+"replay": "las"
+},
+{
+"msg": "m03",
+"typed": "siete",
+"replay": "siete"
+},
+{
+"msg": "m03",
+"typed": "si",
+"replay": "Si"
+},
+{
+"msg": "m03",
+"typed": "no",
+"replay": "no"
+},
+{
+"msg": "m03",
+"typed": "alcanzo",
+"replay": "alcanzo"
+},
+{
+"msg": "m03",
+"typed": "te",
+"replay": "te"
+},
+{
+"msg": "m03",
+"typed": "avsuo",
+"replay": "avsuo"
+},
+{
+"msg": "m04",
+"typed": "ya",
+"replay": "Ya"
+},
+{
+"msg": "m04",
+"typed": "po",
+"replay": "po"
+},
+{
+"msg": "m05",
+"typed": "revise",
+"replay": "Revise"
+},
+{
+"msg": "m05",
+"typed": "lo",
+"replay": "lo"
+},
+{
+"msg": "m05",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m05",
+"typed": "me",
+"replay": "me"
+},
+{
+"msg": "m05",
+"typed": "mandaste",
+"replay": "mandaste"
+},
+{
+"msg": "m05",
+"typed": "esta",
+"replay": "Esta"
+},
+{
+"msg": "m05",
+"typed": "bien",
+"replay": "bien"
+},
+{
+"msg": "m05",
+"typed": "pero",
+"replay": "pero"
+},
+{
+"msg": "m05",
+"typed": "haybque",
+"replay": "haybque"
+},
+{
+"msg": "m05",
+"typed": "cambiar",
+"replay": "cambiar"
+},
+{
+"msg": "m05",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m05",
+"typed": "titulo",
+"replay": "titulo"
+},
+{
+"msg": "m05",
+"typed": "y",
+"replay": "y"
+},
+{
+"msg": "m05",
+"typed": "la",
+"replay": "la"
+},
+{
+"msg": "m05",
+"typed": "parte",
+"replay": "parte"
+},
+{
+"msg": "m05",
+"typed": "delfinak",
+"replay": "delfinak"
+},
+{
+"msg": "m06",
+"typed": "no",
+"replay": "No"
+},
+{
+"msg": "m06",
+"typed": "se",
+"replay": "se"
+},
+{
+"msg": "m06",
+"typed": "di",
+"replay": "di"
+},
+{
+"msg": "m06",
+"typed": "vamos",
+"replay": "vamos"
+},
+{
+"msg": "m06",
+"typed": "a",
+"replay": "a"
+},
+{
+"msg": "m06",
+"typed": "llehar",
+"replay": "llegar"
+},
+{
+"msg": "m06",
+"typed": "a",
+"replay": "a"
+},
+{
+"msg": "m06",
+"typed": "tiempo",
+"replay": "tiempo"
+},
+{
+"msg": "m06",
+"typed": "el",
+"replay": "El"
+},
+{
+"msg": "m06",
+"typed": "trafico",
+"replay": "trafico"
+},
+{
+"msg": "m06",
+"typed": "esta",
+"replay": "esta"
+},
+{
+"msg": "m06",
+"typed": "pesado",
+"replay": "pesado"
+},
+{
+"msg": "m07",
+"typed": "tengo",
+"replay": "Tengo"
+},
+{
+"msg": "m07",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m07",
+"typed": "cer",
+"replay": "cer"
+},
+{
+"msg": "m07",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m07",
+"typed": "correo",
+"replay": "correo"
+},
+{
+"msg": "m07",
+"typed": "anges",
+"replay": "antes"
+},
+{
+"msg": "m07",
+"typed": "de",
+"replay": "de"
+},
+{
+"msg": "m07",
+"typed": "las",
+"replay": "las"
+},
+{
+"msg": "m07",
+"typed": "cinco",
+"replay": "cinco"
+},
+{
+"msg": "m07",
+"typed": "despues",
+"replay": "Después"
+},
+{
+"msg": "m07",
+"typed": "quedo",
+"replay": "quedo"
+},
+{
+"msg": "m07",
+"typed": "libre",
+"replay": "libre"
+},
+{
+"msg": "m08",
+"typed": "dale",
+"replay": "Dale"
+},
+{
+"msg": "m08",
+"typed": "me",
+"replay": "me"
+},
+{
+"msg": "m08",
+"typed": "tinxa",
+"replay": "tinxa"
+},
+{
+"msg": "m09",
+"typed": "compre",
+"replay": "Compre"
+},
+{
+"msg": "m09",
+"typed": "lo",
+"replay": "lo"
+},
+{
+"msg": "m09",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m09",
+"typed": "fslyaba",
+"replay": "faltaba"
+},
+{
+"msg": "m09",
+"typed": "para",
+"replay": "para"
+},
+{
+"msg": "m09",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m09",
+"typed": "asado",
+"replay": "asado"
+},
+{
+"msg": "m09",
+"typed": "igual",
+"replay": "Igual"
+},
+{
+"msg": "m09",
+"typed": "faltaban",
+"replay": "faltaban"
+},
+{
+"msg": "m09",
+"typed": "las",
+"replay": "las"
+},
+{
+"msg": "m09",
+"typed": "bebidas",
+"replay": "bebidas"
+},
+{
+"msg": "m09",
+"typed": "las",
+"replay": "las"
+},
+{
+"msg": "m09",
+"typed": "traes",
+"replay": "traes"
+},
+{
+"msg": "m09",
+"typed": "tu",
+"replay": "tu"
+},
+{
+"msg": "m10",
+"typed": "salgo",
+"replay": "Salgo"
+},
+{
+"msg": "m10",
+"typed": "de",
+"replay": "de"
+},
+{
+"msg": "m10",
+"typed": "la",
+"replay": "la"
+},
+{
+"msg": "m10",
+"typed": "peva",
+"replay": "peva"
+},
+{
+"msg": "m10",
+"typed": "u",
+"replay": "u"
+},
+{
+"msg": "m10",
+"typed": "llego",
+"replay": "llego"
+},
+{
+"msg": "m10",
+"typed": "gipo",
+"replay": "tipo"
+},
+{
+"msg": "m10",
+"typed": "ocho",
+"replay": "ocho"
+},
+{
+"msg": "m10",
+"typed": "guardame",
+"replay": "Guárdame"
+},
+{
+"msg": "m10",
+"typed": "uj",
+"replay": "un"
+},
+{
+"msg": "m10",
+"typed": "plato",
+"replay": "plato"
+},
+{
+"msg": "m11",
+"typed": "el",
+"replay": "El"
+},
+{
+"msg": "m11",
+"typed": "teclado",
+"replay": "teclado"
+},
+{
+"msg": "m11",
+"typed": "andu o",
+"replay": "andu o"
+},
+{
+"msg": "m11",
+"typed": "muchl",
+"replay": "mucho"
+},
+{
+"msg": "m11",
+"typed": "mekor",
+"replay": "mejor"
+},
+{
+"msg": "m11",
+"typed": "hoy",
+"replay": "hoy"
+},
+{
+"msg": "m11",
+"typed": "vasi",
+"replay": "Casi"
+},
+{
+"msg": "m11",
+"typed": "no",
+"replay": "no"
+},
+{
+"msg": "m11",
+"typed": "guve",
+"replay": "guve"
+},
+{
+"msg": "m11",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m11",
+"typed": "borrae",
+"replay": "borrar"
+},
+{
+"msg": "m11",
+"typed": "nada",
+"replay": "nada"
+},
+{
+"msg": "m12",
+"typed": "esa",
+"replay": "Esa"
+},
+{
+"msg": "m12",
+"typed": "pelicula",
+"replay": "película"
+},
+{
+"msg": "m12",
+"typed": "es",
+"replay": "es"
+},
+{
+"msg": "m12",
+"typed": "yan",
+"replay": "yan"
+},
+{
+"msg": "m12",
+"typed": "biena",
+"replay": "buena"
+},
+{
+"msg": "m12",
+"typed": "como",
+"replay": "como"
+},
+{
+"msg": "m12",
+"typed": "dicen",
+"replay": "dicen"
+},
+{
+"msg": "m12",
+"typed": "la",
+"replay": "La"
+},
+{
+"msg": "m12",
+"typed": "vimos",
+"replay": "vimos"
+},
+{
+"msg": "m12",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m12",
+"typed": "fon",
+"replay": "fon"
+},
+{
+"msg": "m12",
+"typed": "de",
+"replay": "de"
+},
+{
+"msg": "m12",
+"typed": "sdmana",
+"replay": "semana"
+},
+{
+"msg": "m13",
+"typed": "ok",
+"replay": "Ok"
+},
+{
+"msg": "m13",
+"typed": "nos",
+"replay": "nos"
+},
+{
+"msg": "m13",
+"typed": "vemos",
+"replay": "vemos"
+},
+{
+"msg": "m14",
+"typed": "ayer",
+"replay": "Ayer"
+},
+{
+"msg": "m14",
+"typed": "nieva",
+"replay": "nieva"
+},
+{
+"msg": "m14",
+"typed": "en",
+"replay": "en"
+},
+{
+"msg": "m14",
+"typed": "la",
+"replay": "la"
+},
+{
+"msg": "m14",
+"typed": "cordillera",
+"replay": "cordillera"
+},
+{
+"msg": "m14",
+"typed": "hoy",
+"replay": "Hoy"
+},
+{
+"msg": "m14",
+"typed": "deberia",
+"replay": "debería"
+},
+{
+"msg": "m14",
+"typed": "estar",
+"replay": "estar"
+},
+{
+"msg": "m14",
+"typed": "despejado",
+"replay": "despejado"
+},
+{
+"msg": "m14",
+"typed": "para",
+"replay": "para"
+},
+{
+"msg": "m14",
+"typed": "subir",
+"replay": "subir"
+},
+{
+"msg": "m15",
+"typed": "revisa",
+"replay": "Revisa"
+},
+{
+"msg": "m15",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m15",
+"typed": "estado",
+"replay": "estado"
+},
+{
+"msg": "m15",
+"typed": "del",
+"replay": "del"
+},
+{
+"msg": "m15",
+"typed": "servidor",
+"replay": "servidor"
+},
+{
+"msg": "m15",
+"typed": "si",
+"replay": "Si"
+},
+{
+"msg": "m15",
+"typed": "yayalgo",
+"replay": "yayalgo"
+},
+{
+"msg": "m15",
+"typed": "raro",
+"replay": "raro"
+},
+{
+"msg": "m15",
+"typed": "avisame",
+"replay": "avísame"
+},
+{
+"msg": "m16",
+"typed": "nevesito",
+"replay": "Necesito"
+},
+{
+"msg": "m16",
+"typed": "un",
+"replay": "un"
+},
+{
+"msg": "m16",
+"typed": "resumen",
+"replay": "resumen"
+},
+{
+"msg": "m16",
+"typed": "coeto",
+"replay": "corto"
+},
+{
+"msg": "m16",
+"typed": "de",
+"replay": "de"
+},
+{
+"msg": "m16",
+"typed": "lo",
+"replay": "lo"
+},
+{
+"msg": "m16",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m16",
+"typed": "hicikos",
+"replay": "hicimos"
+},
+{
+"msg": "m16",
+"typed": "ayer",
+"replay": "ayer"
+},
+{
+"msg": "m16",
+"typed": "sin",
+"replay": "Sin"
+},
+{
+"msg": "m16",
+"typed": "ddtalles",
+"replay": "detalles"
+},
+{
+"msg": "m16",
+"typed": "gexnicos",
+"replay": "técnicos"
+},
+{
+"msg": "m17",
+"typed": "esd",
+"replay": "Esd"
+},
+{
+"msg": "m17",
+"typed": "xambio",
+"replay": "cambio"
+},
+{
+"msg": "m17",
+"typed": "no",
+"replay": "no"
+},
+{
+"msg": "m17",
+"typed": "me",
+"replay": "me"
+},
+{
+"msg": "m17",
+"typed": "convence",
+"replay": "convence"
+},
+{
+"msg": "m17",
+"typed": "prefiero",
+"replay": "Prefiero"
+},
+{
+"msg": "m17",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m17",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m17",
+"typed": "boton",
+"replay": "botón"
+},
+{
+"msg": "m17",
+"typed": "quede",
+"replay": "quede"
+},
+{
+"msg": "m17",
+"typed": "abajo",
+"replay": "abajo"
+},
+{
+"msg": "m17",
+"typed": "y",
+"replay": "y"
+},
+{
+"msg": "m17",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m17",
+"typed": "el",
+"replay": "el"
+},
+{
+"msg": "m17",
+"typed": "tezto",
+"replay": "texto"
+},
+{
+"msg": "m17",
+"typed": "sea",
+"replay": "sea"
+},
+{
+"msg": "m17",
+"typed": "mas",
+"replay": "mas"
+},
+{
+"msg": "m17",
+"typed": "corto",
+"replay": "corto"
+},
+{
+"msg": "m18",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m18",
+"typed": "opinas",
+"replay": "opinas"
+},
+{
+"msg": "m18",
+"typed": "dd",
+"replay": "de"
+},
+{
+"msg": "m18",
+"typed": "usar",
+"replay": "usar"
+},
+{
+"msg": "m18",
+"typed": "ogto",
+"replay": "ogto"
+},
+{
+"msg": "m18",
+"typed": "moddlo",
+"replay": "modelo"
+},
+{
+"msg": "m18",
+"typed": "pata",
+"replay": "pata"
+},
+{
+"msg": "m18",
+"typed": "las",
+"replay": "las"
+},
+{
+"msg": "m18",
+"typed": "pruebas",
+"replay": "pruebas"
+},
+{
+"msg": "m18",
+"typed": "el",
+"replay": "El"
+},
+{
+"msg": "m18",
+"typed": "actual",
+"replay": "actual"
+},
+{
+"msg": "m18",
+"typed": "es",
+"replay": "es"
+},
+{
+"msg": "m18",
+"typed": "miy",
+"replay": "muy"
+},
+{
+"msg": "m18",
+"typed": "lenyo",
+"replay": "lenyo"
+},
+{
+"msg": "m19",
+"typed": "dald",
+"replay": "Dale"
+},
+{
+"msg": "m19",
+"typed": "sigue",
+"replay": "sigue"
+},
+{
+"msg": "m19",
+"typed": "con",
+"replay": "con"
+},
+{
+"msg": "m19",
+"typed": "eso",
+"replay": "eso"
+},
+{
+"msg": "m20",
+"typed": "bisva",
+"replay": "Bisva"
+},
+{
+"msg": "m20",
+"typed": "si",
+"replay": "si"
+},
+{
+"msg": "m20",
+"typed": "hay",
+"replay": "hay"
+},
+{
+"msg": "m20",
+"typed": "una",
+"replay": "una"
+},
+{
+"msg": "m20",
+"typed": "version",
+"replay": "version"
+},
+{
+"msg": "m20",
+"typed": "nueva",
+"replay": "nueva"
+},
+{
+"msg": "m20",
+"typed": "de",
+"replay": "de"
+},
+{
+"msg": "m20",
+"typed": "la",
+"replay": "la"
+},
+{
+"msg": "m20",
+"typed": "libreria",
+"replay": "librería"
+},
+{
+"msg": "m20",
+"typed": "si",
+"replay": "Si"
+},
+{
+"msg": "m20",
+"typed": "la",
+"replay": "la"
+},
+{
+"msg": "m20",
+"typed": "hay",
+"replay": "hay"
+},
+{
+"msg": "m20",
+"typed": "dime",
+"replay": "dime"
+},
+{
+"msg": "m20",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m20",
+"typed": "xambio",
+"replay": "cambio"
+},
+{
+"msg": "m20",
+"typed": "y",
+"replay": "y"
+},
+{
+"msg": "m20",
+"typed": "si",
+"replay": "si"
+},
+{
+"msg": "m20",
+"typed": "valr",
+"replay": "vale"
+},
+{
+"msg": "m20",
+"typed": "lapena",
+"replay": "lapena"
+},
+{
+"msg": "m20",
+"typed": "avtialozar",
+"replay": "actualizar"
+},
+{
+"msg": "m21",
+"typed": "aje",
+"replay": "Aje"
+},
+{
+"msg": "m21",
+"typed": "bueno",
+"replay": "bueno"
+},
+{
+"msg": "m21",
+"typed": "que",
+"replay": "que"
+},
+{
+"msg": "m21",
+"typed": "funciono",
+"replay": "funciono"
+},
+{
+"msg": "m21",
+"typed": "ahkra",
+"replay": "Ahora"
+},
+{
+"msg": "m21",
+"typed": "deja",
+"replay": "deja"
+},
+{
+"msg": "m21",
+"typed": "godo",
+"replay": "godo"
+},
+{
+"msg": "m21",
+"typed": "documentado",
+"replay": "documentado"
+},
+{
+"msg": "m22",
+"typed": "mañana",
+"replay": "Mañana"
+},
+{
+"msg": "m22",
+"typed": "seguimos",
+"replay": "seguimos"
+},
+{
+"msg": "m22",
+"typed": "deja",
+"replay": "Deja"
+},
+{
+"msg": "m22",
+"typed": "anotado",
+"replay": "anotado"
+},
+{
+"msg": "m22",
+"typed": "lo",
+"replay": "lo"
+},
+{
+"msg": "m22",
+"typed": "pendiente",
+"replay": "pendiente"
+}
+]
+}

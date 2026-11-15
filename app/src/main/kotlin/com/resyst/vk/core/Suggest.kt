@@ -62,6 +62,31 @@ class Suggest(words: List<String>, private val lang: Lang? = null, regional: Col
 
     val size: Int get() = words.size
 
+    /** r13f (offers): the region's rule words ([regional]), read-only, for the context offers' lexicon and keep-list. */
+    val regionalWords: Set<String> get() = regional
+
+    /**
+     * r13f (offers): the list's words spelled with the same letters as [w] once accents are removed ([fold]), in list
+     * order of the folded index. Read-only over arrays built at load ([prepare]): safe off the main thread.
+     */
+    fun foldMates(w: String): List<String> {
+        val f = fold(w)
+        val idx = byFold
+        var lo = 0
+        var hi = idx.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (folded[idx[mid]] < f) lo = mid + 1 else hi = mid
+        }
+        var out: ArrayList<String>? = null
+        var i = lo
+        while (i < idx.size && folded[idx[i]] == f) {
+            (out ?: ArrayList<String>(2).also { out = it }).add(words[idx[i]])
+            i++
+        }
+        return out ?: emptyList()
+    }
+
     /**
      * r10 bilingual guard (BL4): the other language's lexicon. A typed word that is NOT in this
      * lexicon but is a common word over there ([FOREIGN_RANK]) is never re-spelled into this

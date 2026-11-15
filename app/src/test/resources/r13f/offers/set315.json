@@ -1,0 +1,2837 @@
+[
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "",
+"typed": "ayer",
+"gold": "ayer",
+"right": " en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qu"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer ",
+"typed": "en",
+"gold": "en",
+"right": " la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué a"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en ",
+"typed": "la",
+"gold": "la",
+"right": " tarde estuvimos revisando el Pixel con calma. La idea era entender por qué anda"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la ",
+"typed": "tarde",
+"gold": "tarde",
+"right": " estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde ",
+"typed": "esruvimos",
+"gold": "estuvimos",
+"right": " revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos ",
+"typed": "revisndo",
+"gold": "revisando",
+"right": " el Pixel con calma. La idea era entender por qué andaba tan lento, y al final e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando ",
+"typed": "el",
+"gold": "el",
+"right": " Pixel con calma. La idea era entender por qué andaba tan lento, y al final el p"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el ",
+"typed": "pkxel",
+"gold": "pixel",
+"right": " con calma. La idea era entender por qué andaba tan lento, y al final el problem"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel ",
+"typed": "con",
+"gold": "con",
+"right": " calma. La idea era entender por qué andaba tan lento, y al final el problema er"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con ",
+"typed": "calna",
+"gold": "calma",
+"right": ". La idea era entender por qué andaba tan lento, y al final el problema era la m"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. ",
+"typed": "la",
+"gold": "la",
+"right": " idea era entender por qué andaba tan lento, y al final el problema era la memor"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La ",
+"typed": "idea",
+"gold": "idea",
+"right": " era entender por qué andaba tan lento, y al final el problema era la memoria, d"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea ",
+"typed": "era",
+"gold": "era",
+"right": " entender por qué andaba tan lento, y al final el problema era la memoria, demas"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era ",
+"typed": "entender",
+"gold": "entender",
+"right": " por qué andaba tan lento, y al final el problema era la memoria, demasiadas app"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender ",
+"typed": "pr",
+"gold": "por",
+"right": " qué andaba tan lento, y al final el problema era la memoria, demasiadas apps ab"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por ",
+"typed": "que",
+"gold": "qué",
+"right": " andaba tan lento, y al final el problema era la memoria, demasiadas apps abiert"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué ",
+"typed": "andaba",
+"gold": "andaba",
+"right": " tan lento, y al final el problema era la memoria, demasiadas apps abiertas al m"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba ",
+"typed": "ltan",
+"gold": "tan",
+"right": " lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan ",
+"typed": "lento",
+"gold": "lento",
+"right": ", y al final el problema era la memoria, demasiadas apps abiertas al mismo tiemp"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, ",
+"typed": "y",
+"gold": "y",
+"right": " al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y ",
+"typed": "al",
+"gold": "al",
+"right": " final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cac"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al ",
+"typed": "final",
+"gold": "final",
+"right": " el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final ",
+"typed": "el",
+"gold": "el",
+"right": " problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el s"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el ",
+"typed": "provlema",
+"gold": "problema",
+"right": " era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estab"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema ",
+"typed": "era",
+"gold": "era",
+"right": " la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba ll"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era ",
+"typed": "la",
+"gold": "la",
+"right": " memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la ",
+"typed": "memoria",
+"gold": "memoria",
+"right": ", demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, ",
+"typed": "demasiadas",
+"gold": "demasiadas",
+"right": " apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ve"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas ",
+"typed": "apps",
+"gold": "apps",
+"right": " abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps ",
+"typed": "abieras",
+"gold": "abiertas",
+"right": " al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas ",
+"typed": "al",
+"gold": "al",
+"right": " mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al ",
+"typed": "mismo",
+"gold": "mismo",
+"right": " tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, ",
+"typed": "el",
+"gold": "el",
+"right": " swap estaba lleno. Igual fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el ",
+"typed": "swap",
+"gold": "swap",
+"right": " estaba lleno. Igual fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap ",
+"typed": "estaba",
+"gold": "estaba",
+"right": " lleno. Igual fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba ",
+"typed": "lleno",
+"gold": "lleno",
+"right": ". Igual fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Ayer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. ",
+"typed": "igual",
+"gold": "igual",
+"right": " fue bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "yer en la tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual ",
+"typed": "fue",
+"gold": "fue",
+"right": " bacán ver los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "tarde estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ",
+"typed": "ver",
+"gold": "ver",
+"right": " los números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "e estuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver ",
+"typed": "los",
+"gold": "los",
+"right": " números en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "tuvimos revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los ",
+"typed": "numeros",
+"gold": "números",
+"right": " en vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "revisando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números ",
+"typed": "en",
+"gold": "en",
+"right": " vivo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "isando el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en ",
+"typed": "vivo",
+"gold": "vivo",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "el Pixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\n",
+"typed": "hoy",
+"gold": "hoy",
+"right": " quiero probar el teclado en serio. Si el autocorrector cambia una palabra que e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ixel con calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy ",
+"typed": "quiero",
+"gold": "quiero",
+"right": " probar el teclado en serio. Si el autocorrector cambia una palabra que escribí "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "n calma. La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero ",
+"typed": "probae",
+"gold": "probar",
+"right": " el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ". La idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar ",
+"typed": "el",
+"gold": "el",
+"right": " teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "a idea era entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el ",
+"typed": "teclado",
+"gold": "teclado",
+"right": " en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo qu"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ra entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado ",
+"typed": "en",
+"gold": "en",
+"right": " serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que t"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "entender por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en ",
+"typed": "seriom",
+"gold": "serio",
+"right": ". Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "r por qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. ",
+"typed": "si",
+"gold": "si",
+"right": " el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "or qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si ",
+"typed": "el",
+"gold": "el",
+"right": " autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pi"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "qué andaba tan lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el ",
+"typed": "autocorrector",
+"gold": "autocorrector",
+"right": " cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejem"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " lento, y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector ",
+"typed": "acambia",
+"gold": "cambia",
+"right": " una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " y al final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia ",
+"typed": "una",
+"gold": "una",
+"right": " palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "l final el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una ",
+"typed": "palabra",
+"gold": "palabra",
+"right": " que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "el problema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra ",
+"typed": "que",
+"gold": "que",
+"right": " escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pal"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "roblema era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que ",
+"typed": "escribi",
+"gold": "escribí",
+"right": " bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que pa"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "era la memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí ",
+"typed": "bien",
+"gold": "bien",
+"right": ", eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, n"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " memoria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, ",
+"typed": "eso",
+"gold": "eso",
+"right": " es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "oria, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso ",
+"typed": "es",
+"gold": "es",
+"right": " lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez qu"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "a, demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es ",
+"typed": "lo",
+"gold": "lo",
+"right": " que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que v"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "demasiadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo ",
+"typed": "qje",
+"gold": "que",
+"right": " tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "siadas apps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que ",
+"typed": "tenenos",
+"gold": "tenemos",
+"right": " que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "pps abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos ",
+"typed": "qje",
+"gold": "que",
+"right": " pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "abiertas al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que ",
+"typed": "pillae",
+"gold": "pillar",
+"right": ". Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " al mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. ",
+"typed": "por",
+"gold": "por",
+"right": " ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "mismo tiempo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ",
+"typed": "ejemplo",
+"gold": "ejemplo",
+"right": ", no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "mpo. Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, ",
+"typed": "no",
+"gold": "no",
+"right": " es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mis"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ". Cachai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no ",
+"typed": "es",
+"gold": "es",
+"right": " lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "achai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es ",
+"typed": "lo",
+"gold": "lo",
+"right": " mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo cas"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "ai, el swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo ",
+"typed": "mimsmo",
+"gold": "mismo",
+"right": " pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " swap estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo ",
+"typed": "pala",
+"gold": "pala",
+"right": " que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza,"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " estaba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala ",
+"typed": "que",
+"gold": "que",
+"right": " para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "aba lleno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que ",
+"typed": "para",
+"gold": "para",
+"right": ", ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "eno. Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ",
+"typed": "ni",
+"gold": "ni",
+"right": " vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ". Igual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni ",
+"typed": "vez",
+"gold": "vez",
+"right": " que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ual fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez ",
+"typed": "que",
+"gold": "que",
+"right": " ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "fue bacán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ",
+"typed": "ves",
+"gold": "ves",
+"right": ", ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "acán ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ",
+"typed": "ni",
+"gold": "ni",
+"right": " haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "n ver los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni ",
+"typed": "haya",
+"gold": "haya",
+"right": " que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " los números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya ",
+"typed": "que",
+"gold": "que",
+"right": " halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " números en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que ",
+"typed": "halla",
+"gold": "halla",
+"right": ". Tampoco es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "s en vivo.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. ",
+"typed": "tampco",
+"gold": "tampoco",
+"right": " es lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "o.\n\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco ",
+"typed": "es",
+"gold": "es",
+"right": " lo mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "\nHoy quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es ",
+"typed": "lo",
+"gold": "lo",
+"right": " mismo casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "y quiero probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo ",
+"typed": "mismo",
+"gold": "mismo",
+"right": " casa que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ro probar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo ",
+"typed": "casa",
+"gold": "casa",
+"right": " que caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "obar el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa ",
+"typed": "que",
+"gold": "que",
+"right": " caza, ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " el teclado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que ",
+"typed": "xaza",
+"gold": "caza",
+"right": ", ni tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "clado en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ",
+"typed": "ni",
+"gold": "ni",
+"right": " tubo que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "do en serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni ",
+"typed": "tubo",
+"gold": "tubo",
+"right": " que tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " serio. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo ",
+"typed": "que",
+"gold": "que",
+"right": " tuvo."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "io. Si el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que ",
+"typed": "tuvom",
+"gold": "tuvo",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "el autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\n",
+"typed": "el",
+"gold": "el",
+"right": " servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "autocorrector cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl ",
+"typed": "servidor",
+"gold": "servidor",
+"right": " del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ctor cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor ",
+"typed": "del",
+"gold": "del",
+"right": " Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Ma"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": " cambia una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del ",
+"typed": "bastion",
+"gold": "bastión",
+"right": " sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hag"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "una palabra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión ",
+"typed": "sigje",
+"gold": "sigue",
+"right": " corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el d"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "labra que escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue ",
+"typed": "corriendo",
+"gold": "corriendo",
+"right": " el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, des"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "escribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo ",
+"typed": "el",
+"gold": "el",
+"right": " juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, despué"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ribí bien, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el ",
+"typed": "juego",
+"gold": "juego",
+"right": ", y el Bastión también guarda los respaldos. Mañana hago el deploy, después un c"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "en, eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, ",
+"typed": "y",
+"gold": "y",
+"right": " el Bastión también guarda los respaldos. Mañana hago el deploy, después un comm"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ", eso es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y ",
+"typed": "el",
+"gold": "el",
+"right": " Bastión también guarda los respaldos. Mañana hago el deploy, después un commit "
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "so es lo que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el ",
+"typed": "bastion",
+"gold": "bastión",
+"right": " también guarda los respaldos. Mañana hago el deploy, después un commit chico y "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " que tenemos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión ",
+"typed": "tamvien",
+"gold": "también",
+"right": " guarda los respaldos. Mañana hago el deploy, después un commit chico y un push "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "emos que pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también ",
+"typed": "guaeda",
+"gold": "guarda",
+"right": " los respaldos. Mañana hago el deploy, después un commit chico y un push a la br"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "e pillar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda ",
+"typed": "ls",
+"gold": "los",
+"right": " respaldos. Mañana hago el deploy, después un commit chico y un push a la branch"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "llar. Por ejemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los ",
+"typed": "respaldoss",
+"gold": "respaldos",
+"right": ". Mañana hago el deploy, después un commit chico y un push a la branch nueva. Ha"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "jemplo, no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. ",
+"typed": "mañana",
+"gold": "mañana",
+"right": " hago el deploy, después un commit chico y un push a la branch nueva. Habríamos "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " no es lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana ",
+"typed": "hago",
+"gold": "hago",
+"right": " el deploy, después un commit chico y un push a la branch nueva. Habríamos termi"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "s lo mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago ",
+"typed": "el",
+"gold": "el",
+"right": " deploy, después un commit chico y un push a la branch nueva. Habríamos terminad"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "o mismo pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el ",
+"typed": "deploy",
+"gold": "deploy",
+"right": ", después un commit chico y un push a la branch nueva. Habríamos terminado antes"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "pala que para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, ",
+"typed": "despues",
+"gold": "después",
+"right": " un commit chico y un push a la branch nueva. Habríamos terminado antes si el bu"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " para, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después ",
+"typed": "un",
+"gold": "un",
+"right": " commit chico y un push a la branch nueva. Habríamos terminado antes si el build"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "ra, ni vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un ",
+"typed": "commmit",
+"gold": "commit",
+"right": " chico y un push a la branch nueva. Habríamos terminado antes si el build no se "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "vez que ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit ",
+"typed": "chico",
+"gold": "chico",
+"right": " y un push a la branch nueva. Habríamos terminado antes si el build no se hubier"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "e ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico ",
+"typed": "y",
+"gold": "y",
+"right": " un push a la branch nueva. Habríamos terminado antes si el build no se hubiera "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ves, ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y ",
+"typed": "un",
+"gold": "un",
+"right": " push a la branch nueva. Habríamos terminado antes si el build no se hubiera caí"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ", ni haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un ",
+"typed": "push",
+"gold": "push",
+"right": " a la branch nueva. Habríamos terminado antes si el build no se hubiera caído do"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "haya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push ",
+"typed": "a",
+"gold": "a",
+"right": " la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ya que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a ",
+"typed": "la",
+"gold": "la",
+"right": " branch nueva. Habríamos terminado antes si el build no se hubiera caído dos vec"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "que halla. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la ",
+"typed": "branch",
+"gold": "branch",
+"right": " nueva. Habríamos terminado antes si el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "la. Tampoco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch ",
+"typed": "nueva",
+"gold": "nueva",
+"right": ". Habríamos terminado antes si el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "poco es lo mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. ",
+"typed": "habriamos",
+"gold": "habríamos",
+"right": " terminado antes si el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " mismo casa que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos ",
+"typed": "terminado",
+"gold": "terminado",
+"right": " antes si el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "a que caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado ",
+"typed": "antes",
+"gold": "antes",
+"right": " si el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "caza, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes ",
+"typed": "si",
+"gold": "si",
+"right": " el build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "a, ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si ",
+"typed": "el",
+"gold": "el",
+"right": " build no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "ni tubo que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el ",
+"typed": "vuild",
+"gold": "build",
+"right": " no se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "o que tuvo.\n\nEl servidor del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build ",
+"typed": "no",
+"gold": "no",
+"right": " se hubiera caído dos veces."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " del Bastión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos ",
+"typed": "veces",
+"gold": "veces",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "tión sigue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\n",
+"typed": "algunas",
+"gold": "algunas",
+"right": " palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleid"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ue corriendo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas ",
+"typed": "palabras",
+"gold": "palabras",
+"right": " raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoide"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ndo el juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras ",
+"typed": "raras",
+"gold": "raras",
+"right": ", ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y a"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "juego, y el Bastión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ",
+"typed": "ornitorrinco",
+"gold": "ornitorrinco",
+"right": ", idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjuga"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "stión también guarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, ",
+"typed": "idiosincrasia",
+"gold": "idiosincrasia",
+"right": ", desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "uarda los respaldos. Mañana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, ",
+"typed": "desoxirribonucleico",
+"gold": "desoxirribonucleico",
+"right": " y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condu"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "añana hago el deploy, después un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y ",
+"typed": "esternocleidomastoideo",
+"gold": "esternocleidomastoideo",
+"right": ". Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pus"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "spués un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. ",
+"typed": "y",
+"gold": "y",
+"right": " algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiés"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ués un commit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y ",
+"typed": "algunas",
+"gold": "algunas",
+"right": " conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ommit chico y un push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas ",
+"typed": "conjugaciones",
+"gold": "conjugaciones",
+"right": ", cupiese, satisficiera, condujéramos, anduvieron y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "n push a la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, ",
+"typed": "cupiese",
+"gold": "cupiese",
+"right": ", satisficiera, condujéramos, anduvieron y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "la branch nueva. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, ",
+"typed": "satisficiera",
+"gold": "satisficiera",
+"right": ", condujéramos, anduvieron y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "a. Habríamos terminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, ",
+"typed": "condueramos",
+"gold": "condujéramos",
+"right": ", anduvieron y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "erminado antes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, ",
+"typed": "anduvieron",
+"gold": "anduvieron",
+"right": " y pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "tes si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron ",
+"typed": "y",
+"gold": "y",
+"right": " pusiésemos."
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "s si el build no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y ",
+"typed": "pusiesemos",
+"gold": "pusiésemos",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " no se hubiera caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\n",
+"typed": "graheneos",
+"gold": "grapheneos",
+"right": " me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, Gr"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "era caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS ",
+"typed": "me",
+"gold": "me",
+"right": " gusta harto porque es fome configurarlo, pero después no molesta. Cachai, Graph"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " caído dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me ",
+"typed": "gusta",
+"gold": "gusta",
+"right": " harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " dos veces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta ",
+"typed": "harto",
+"gold": "harto",
+"right": " porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no tra"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "eces.\n\nAlgunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto ",
+"typed": "porq",
+"gold": "porque",
+"right": " es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servi"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "Algunas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque ",
+"typed": "es",
+"gold": "es",
+"right": " fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicio"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "unas palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es ",
+"typed": "fome",
+"gold": "fome",
+"right": " configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "palabras raras, ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome ",
+"typed": "clnfkgurarlo",
+"gold": "configurarlo",
+"right": ", pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por de"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ", ornitorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, ",
+"typed": "pero",
+"gold": "pero",
+"right": " después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "itorrinco, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero ",
+"typed": "despjes",
+"gold": "después",
+"right": " no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "o, idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después ",
+"typed": "no",
+"gold": "no",
+"right": " molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "idiosincrasia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no ",
+"typed": "molesta",
+"gold": "molesta",
+"right": ". Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que busc"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "asia, desoxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. ",
+"typed": "cachai",
+"gold": "cachai",
+"right": ", GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, so"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "soxirribonucleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, ",
+"typed": "grapheneos",
+"gold": "grapheneos",
+"right": " no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digi"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "cleico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS ",
+"typed": "no",
+"gold": "no",
+"right": " trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ico y esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no ",
+"typed": "trae",
+"gold": "trae",
+"right": " servicios de Google por defecto. Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " esternocleidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae ",
+"typed": "dervicios",
+"gold": "servicios",
+"right": " de Google por defecto. Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "eidomastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios ",
+"typed": "de",
+"gold": "de",
+"right": " Google por defecto. Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "omastoideo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de ",
+"typed": "goohle",
+"gold": "google",
+"right": " por defecto. Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "deo. Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google ",
+"typed": "por",
+"gold": "por",
+"right": " defecto. Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " Y algunas conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por ",
+"typed": "defecto",
+"gold": "defecto",
+"right": ". Eso es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "s conjugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. ",
+"typed": "eso",
+"gold": "eso",
+"right": " es lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "njugaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso ",
+"typed": "es",
+"gold": "es",
+"right": " lo que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "gaciones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es ",
+"typed": "lo",
+"gold": "lo",
+"right": " que buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "iones, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo ",
+"typed": "qje",
+"gold": "que",
+"right": " buscamos, soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "s, cupiese, satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que ",
+"typed": "busvamos",
+"gold": "buscamos",
+"right": ", soberanía digital."
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": ", satisficiera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, ",
+"typed": "soberania",
+"gold": "soberanía",
+"right": " digital."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "iera, condujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía ",
+"typed": "digital",
+"gold": "digital",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ujéramos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\n",
+"typed": "this",
+"gold": "this",
+"right": " sentence is in English, just to check that the bilingual mode works without fig"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "mos, anduvieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis ",
+"typed": "sentence",
+"gold": "sentence",
+"right": " is in English, just to check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "vieron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence ",
+"typed": "is",
+"gold": "is",
+"right": " in English, just to check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ron y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is ",
+"typed": "in",
+"gold": "in",
+"right": " English, just to check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " y pusiésemos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in ",
+"typed": "english",
+"gold": "english",
+"right": ", just to check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "emos.\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, ",
+"typed": "just",
+"gold": "just",
+"right": " to check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "\n\nGrapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just ",
+"typed": "to",
+"gold": "to",
+"right": " check that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "rapheneOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to ",
+"typed": "checl",
+"gold": "check",
+"right": " that the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "eOS me gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check ",
+"typed": "that",
+"gold": "that",
+"right": " the bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "e gusta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that ",
+"typed": "the",
+"gold": "the",
+"right": " bilingual mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "sta harto porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the ",
+"typed": "bilingual",
+"gold": "bilingual",
+"right": " mode works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "porque es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual ",
+"typed": "mode",
+"gold": "mode",
+"right": " works without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "e es fome configurarlo, pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode ",
+"typed": "works",
+"gold": "works",
+"right": " without fighting me."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " pero después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting ",
+"typed": "me",
+"gold": "me",
+"right": "."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " después no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\n",
+"typed": "la",
+"gold": "la",
+"right": " pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo rei"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "spués no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa ",
+"typed": "peha",
+"gold": "pega",
+"right": " de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " no molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega ",
+"typed": "de",
+"gold": "de",
+"right": " mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio de"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " molesta. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de ",
+"typed": "mañna",
+"gold": "mañana",
+"right": " parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la "
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "a. Cachai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana ",
+"typed": "ñarte",
+"gold": "parte",
+"right": " temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "hai, GrapheneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte ",
+"typed": "temprano",
+"gold": "temprano",
+"right": ", a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. A"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "eneOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, ",
+"typed": "a",
+"gold": "a",
+"right": " las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al f"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "eOS no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a ",
+"typed": "las",
+"gold": "las",
+"right": " ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "no trae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ",
+"typed": "ocho",
+"gold": "ocho",
+"right": " y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ae servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho ",
+"typed": "y",
+"gold": "y",
+"right": " media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo im"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " servicios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y ",
+"typed": "media",
+"gold": "media",
+"right": ". Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importan"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ios de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. ",
+"typed": "si",
+"gold": "si",
+"right": " el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " de Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si ",
+"typed": "el",
+"gold": "el",
+"right": " Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es q"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": " Google por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el ",
+"typed": "bastion",
+"gold": "bastión",
+"right": " se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el te"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "por defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión ",
+"typed": "se",
+"gold": "se",
+"right": " cae, lo reinicio desde la casa y listo. Al final, lo importante es que el tecla"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " defecto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se ",
+"typed": "cae",
+"gold": "cae",
+"right": ", lo reinicio desde la casa y listo. Al final, lo importante es que el teclado a"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "cto. Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, ",
+"typed": "lo",
+"gold": "lo",
+"right": " reinicio desde la casa y listo. Al final, lo importante es que el teclado apren"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": ". Eso es lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo ",
+"typed": "reinicio",
+"gold": "reinicio",
+"right": " desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo e"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "lo que buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio ",
+"typed": "desde",
+"gold": "desde",
+"right": " la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " buscamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde ",
+"typed": "la",
+"gold": "la",
+"right": " casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "scamos, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la ",
+"typed": "casa",
+"gold": "casa",
+"right": " y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "s, soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa ",
+"typed": "y",
+"gold": "y",
+"right": " listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no có"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " soberanía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y ",
+"typed": "listl",
+"gold": "listo",
+"right": ". Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo esc"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "nía digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. ",
+"typed": "al",
+"gold": "al",
+"right": " final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " digital.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al ",
+"typed": "final",
+"gold": "final",
+"right": ", lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un di"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "l.\n\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, ",
+"typed": "lo",
+"gold": "lo",
+"right": " importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccio"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "\nThis sentence is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo ",
+"typed": "impoetsnte",
+"gold": "importante",
+"right": " es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. Grap"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "nce is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante ",
+"typed": "es",
+"gold": "es",
+"right": " que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. Graphen"
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " is in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es ",
+"typed": "qje",
+"gold": "que",
+"right": " el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS,"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "in English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que ",
+"typed": "el",
+"gold": "el",
+"right": " teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Ba"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "English, just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el ",
+"typed": "teclado",
+"gold": "teclado",
+"right": " aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " just to check that the bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado ",
+"typed": "aprenda",
+"gold": "aprenda",
+"right": " cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai d"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "he bilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo ",
+"typed": "yo",
+"gold": "yo",
+"right": ", no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ilingual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, ",
+"typed": "no",
+"gold": "no",
+"right": " cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer com"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": "ngual mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no ",
+"typed": "como",
+"gold": "cómo",
+"right": " escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sug"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " mode works without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo ",
+"typed": "escribe",
+"gold": "escribe",
+"right": " un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia "
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "rks without fighting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe ",
+"typed": "un",
+"gold": "un",
+"right": " diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia ant"
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "ting me.\n\nLa pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. ",
+"typed": "grapheneos",
+"gold": "grapheneos",
+"right": ", Bastión y cachai deberían aparecer como sugerencia antes de terminar este text"
+},
+{
+"src": "s1",
+"cat": "s1_accent",
+"lang": null,
+"left": " pega de mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, ",
+"typed": "bastion",
+"gold": "bastión",
+"right": " y cachai deberían aparecer como sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " mañana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión ",
+"typed": "y",
+"gold": "y",
+"right": " cachai deberían aparecer como sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "añana parte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y ",
+"typed": "cachai",
+"gold": "cachai",
+"right": " deberían aparecer como sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "arte temprano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai ",
+"typed": "debeeian",
+"gold": "deberían",
+"right": " aparecer como sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "rano, a las ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían ",
+"typed": "añarecer",
+"gold": "aparecer",
+"right": " como sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "as ocho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer ",
+"typed": "como",
+"gold": "como",
+"right": " sugerencia antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "ho y media. Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como ",
+"typed": "suherencia",
+"gold": "sugerencia",
+"right": " antes de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": " Si el Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia ",
+"typed": "anyes",
+"gold": "antes",
+"right": " de terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": " Bastión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia antes ",
+"typed": "de",
+"gold": "de",
+"right": " terminar este texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "stión se cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia antes de ",
+"typed": "terminar",
+"gold": "terminar",
+"right": " este texto."
+},
+{
+"src": "s1",
+"cat": "s1_typo",
+"lang": null,
+"left": "cae, lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia antes de terminar ",
+"typed": "esye",
+"gold": "este",
+"right": " texto."
+},
+{
+"src": "s1",
+"cat": "s1_ok",
+"lang": null,
+"left": "lo reinicio desde la casa y listo. Al final, lo importante es que el teclado aprenda cómo escribo yo, no cómo escribe un diccionario. GrapheneOS, Bastión y cachai deberían aparecer como sugerencia antes de terminar este ",
+"typed": "texto",
+"gold": "texto",
+"right": "."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Otra ",
+"typed": "ves",
+"gold": "vez",
+"right": " se cayó el servidor."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Si me ",
+"typed": "vez",
+"gold": "ves",
+"right": " cansado, avísame."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Si me ",
+"typed": "ves",
+"gold": "ves",
+"right": " cansado, avísame."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Otra ",
+"typed": "vez",
+"gold": "vez",
+"right": " se cayó el servidor."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Ojalá ",
+"typed": "halla",
+"gold": "haya",
+"right": " suerte en la entrevista."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Ojalá ",
+"typed": "haya",
+"gold": "haya",
+"right": " suerte en la entrevista."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "No sé dónde se ",
+"typed": "haya",
+"gold": "halla",
+"right": " el control remoto."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "No sé dónde se ",
+"typed": "halla",
+"gold": "halla",
+"right": " el control remoto."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "El agua salía por el ",
+"typed": "tuvo",
+"gold": "tubo",
+"right": " roto."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "El agua salía por el ",
+"typed": "tubo",
+"gold": "tubo",
+"right": " roto."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Ayer ",
+"typed": "tubo",
+"gold": "tuvo",
+"right": " que trabajar hasta tarde."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Ayer ",
+"typed": "tuvo",
+"gold": "tuvo",
+"right": " que trabajar hasta tarde."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Vamos a mi ",
+"typed": "caza",
+"gold": "casa",
+"right": " después del trabajo."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Vamos a mi ",
+"typed": "casa",
+"gold": "casa",
+"right": " después del trabajo."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "La ",
+"typed": "casa",
+"gold": "caza",
+"right": " de ballenas está prohibida."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "La ",
+"typed": "caza",
+"gold": "caza",
+"right": " de ballenas está prohibida."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "El perro saltó la ",
+"typed": "vaya",
+"gold": "valla",
+"right": " del patio."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "El perro saltó la ",
+"typed": "valla",
+"gold": "valla",
+"right": " del patio."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Espero que te ",
+"typed": "valla",
+"gold": "vaya",
+"right": " bien mañana."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Espero que te ",
+"typed": "vaya",
+"gold": "vaya",
+"right": " bien mañana."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Ya lo he ",
+"typed": "echo",
+"gold": "hecho",
+"right": " todo."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Ya lo he ",
+"typed": "hecho",
+"gold": "hecho",
+"right": " todo."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Te ",
+"typed": "hecho",
+"gold": "echo",
+"right": " de menos."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Te ",
+"typed": "echo",
+"gold": "echo",
+"right": " de menos."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Vimos una ",
+"typed": "hola",
+"gold": "ola",
+"right": " gigante en la playa."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Vimos una ",
+"typed": "ola",
+"gold": "ola",
+"right": " gigante en la playa."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Necesito una ",
+"typed": "para",
+"gold": "pala",
+"right": " para cavar el hoyo."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Necesito una ",
+"typed": "pala",
+"gold": "pala",
+"right": " para cavar el hoyo."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Quería ir, ",
+"typed": "peso",
+"gold": "pero",
+"right": " no pude."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Quería ir, ",
+"typed": "pero",
+"gold": "pero",
+"right": " no pude."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Este mes bajé de ",
+"typed": "pero",
+"gold": "peso",
+"right": " gracias al gimnasio."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Este mes bajé de ",
+"typed": "peso",
+"gold": "peso",
+"right": " gracias al gimnasio."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "es",
+"left": "Hoy me voy a la ",
+"typed": "calma",
+"gold": "cama",
+"right": " temprano."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Hoy me voy a la ",
+"typed": "cama",
+"gold": "cama",
+"right": " temprano."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Ayer mi hermano me ",
+"typed": "envio",
+"gold": "envió",
+"right": " las fotos."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "El ",
+"typed": "envio",
+"gold": "envío",
+"right": " llegó dos días tarde."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Esto es para ",
+"typed": "mi",
+"gold": "mí",
+"right": " solo."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Creo que ",
+"typed": "mi",
+"gold": "mi",
+"right": " casa es más grande."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "No sé ",
+"typed": "que",
+"gold": "qué",
+"right": " hacer con esto."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Dijo ",
+"typed": "que",
+"gold": "que",
+"right": " vendría mañana."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "No sé ",
+"typed": "como",
+"gold": "cómo",
+"right": " llegar a tu casa."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Es tan alto ",
+"typed": "como",
+"gold": "como",
+"right": " su padre."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Le pregunté y me dijo que ",
+"typed": "si",
+"gold": "sí",
+"right": "."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Mañana, ",
+"typed": "si",
+"gold": "si",
+"right": " llueve, no salimos."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Quiero un poco ",
+"typed": "mas",
+"gold": "más",
+"right": " de café."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Eso lo sabes ",
+"typed": "tu",
+"gold": "tú",
+"right": " mejor que nadie."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Me gusta ",
+"typed": "tu",
+"gold": "tu",
+"right": " auto nuevo."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Fue ",
+"typed": "el",
+"gold": "él",
+"right": " quien llamó."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Fue ",
+"typed": "el",
+"gold": "el",
+"right": " perro quien ladró."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "No ",
+"typed": "se",
+"gold": "sé",
+"right": " nada de eso."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Ella ",
+"typed": "se",
+"gold": "se",
+"right": " fue temprano."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Ojalá que ",
+"typed": "este",
+"gold": "esté",
+"right": " bien."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Me gusta ",
+"typed": "este",
+"gold": "este",
+"right": " libro."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Mi mamá ",
+"typed": "esta",
+"gold": "está",
+"right": " en la casa."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "es",
+"left": "Me gusta ",
+"typed": "esta",
+"gold": "esta",
+"right": " canción."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Ayer el diario ",
+"typed": "publico",
+"gold": "publicó",
+"right": " la noticia."
+},
+{
+"src": "ctx",
+"cat": "ctx_accent",
+"lang": "es",
+"left": "Es un parque ",
+"typed": "publico",
+"gold": "público",
+"right": " muy grande."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "I will see you over ",
+"typed": "their",
+"gold": "there",
+"right": " tomorrow."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "I will see you over ",
+"typed": "there",
+"gold": "there",
+"right": " tomorrow."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "They forgot ",
+"typed": "there",
+"gold": "their",
+"right": " keys at home."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "They forgot ",
+"typed": "their",
+"gold": "their",
+"right": " keys at home."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "It is ",
+"typed": "to",
+"gold": "too",
+"right": " late to go out."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "It is ",
+"typed": "too",
+"gold": "too",
+"right": " late to go out."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "I want ",
+"typed": "too",
+"gold": "to",
+"right": " go home now."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "I want ",
+"typed": "to",
+"gold": "to",
+"right": " go home now."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "The dog wagged ",
+"typed": "it's",
+"gold": "its",
+"right": " tail."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "The dog wagged ",
+"typed": "its",
+"gold": "its",
+"right": " tail."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "She is taller ",
+"typed": "then",
+"gold": "than",
+"right": " her brother."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "She is taller ",
+"typed": "than",
+"gold": "than",
+"right": " her brother."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "We ate and ",
+"typed": "than",
+"gold": "then",
+"right": " we left."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "We ate and ",
+"typed": "then",
+"gold": "then",
+"right": " we left."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "I need to ",
+"typed": "loose",
+"gold": "lose",
+"right": " some weight."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "I need to ",
+"typed": "lose",
+"gold": "lose",
+"right": " some weight."
+},
+{
+"src": "ctx",
+"cat": "ctx_fix",
+"lang": "en",
+"left": "These pants are too ",
+"typed": "lose",
+"gold": "loose",
+"right": " on me."
+},
+{
+"src": "ctx",
+"cat": "ctx_keep",
+"lang": "en",
+"left": "These pants are too ",
+"typed": "loose",
+"gold": "loose",
+"right": " on me."
+}
+]

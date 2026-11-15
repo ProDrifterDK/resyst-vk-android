@@ -114,9 +114,12 @@ object S4Chat {
             if (!trail.spells(Suggest.currentWord(text))) trail.reset()
         }
 
+        /** r13f (offers): called after every key with the field's text (null = nobody listens; no effect on typing). */
+        var observer: ((Composer, KeyEv) -> Unit)? = null
+
         fun run(m: Message) {
             msg = m.id
-            for (k in m.keys) key(k)
+            for (k in m.keys) { key(k); observer?.invoke(this, k) }
         }
 
         private fun key(k: KeyEv) {
