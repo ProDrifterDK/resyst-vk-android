@@ -21,6 +21,8 @@ enum class Icon {
     ARROW_LEFT, ARROW_RIGHT, EXPAND,
     // r10: the edit panel's d-pad
     ARROW_UP, ARROW_DOWN,
+    // r13f (offers, CH2): the context offer chip (⇄: this word for that one)
+    SWAP,
 }
 
 object KeyIcons {
@@ -202,6 +204,15 @@ object KeyIcons {
                 val d = if (icon == Icon.ARROW_UP) -1f else 1f
                 c.drawLine(cx, cy - d * h * 0.75f, cx, cy + d * h * 0.7f, stroke)
                 arrowHead(c, cx, cy + d * h * 0.8f, 0f, d, h * 0.55f, stroke)
+            }
+            Icon.SWAP -> {
+                // two opposed arrows, one row each: → above, ← below
+                val y1 = cy - h * 0.38f
+                val y2 = cy + h * 0.38f
+                c.drawLine(cx - h * 0.8f, y1, cx + h * 0.72f, y1, stroke)
+                arrowHead(c, cx + h * 0.82f, y1, 1f, 0f, h * 0.45f, stroke)
+                c.drawLine(cx + h * 0.8f, y2, cx - h * 0.72f, y2, stroke)
+                arrowHead(c, cx - h * 0.82f, y2, -1f, 0f, h * 0.45f, stroke)
             }
             Icon.EXPAND -> {
                 // two outward arrows: back to the full width

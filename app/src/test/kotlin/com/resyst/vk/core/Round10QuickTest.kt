@@ -20,8 +20,9 @@ class Round10QuickTest {
         val kinds = view.substringAfter("enum class StripKind {").substringBefore("}")
             .split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         // r11b (authority: the r11b brief, GIF search box): GIF_BACK / GIF_FIELD / GIF_GO replace the whole strip only
-        // while the GIF search box is open; the typing strip itself still holds only typing aids
-        assertEquals(setOf("PASTE", "SUGGESTION", "SETTINGS", "DAYNIGHT", "UPDATE", "UPDATE_X", "NO_MEMORY", "GIF_BACK", "GIF_FIELD", "GIF_GO"), kinds)
+        // while the GIF search box is open; the typing strip itself still holds only typing aids. r13f (authority: the
+        // r13f offers brief, CH1/CH2): OFFER is the context offer chip — a typing aid (the word for its context, one tap)
+        assertEquals(setOf("PASTE", "SUGGESTION", "OFFER", "SETTINGS", "DAYNIGHT", "UPDATE", "UPDATE_X", "NO_MEMORY", "GIF_BACK", "GIF_FIELD", "GIF_GO"), kinds)
         val layout = view.substringAfter("private fun layoutStrip()").substringBefore("var l = 6 * dp")
         assertTrue("the GIF search strip returns before any typing-strip item is added", layout.substringAfter("gifSearch?.let").substringBefore("StripKind.SETTINGS").contains("return"))
         assertFalse("the sun/moon is opt-in", KbSettings().dayNightChip)

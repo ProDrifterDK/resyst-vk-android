@@ -196,6 +196,10 @@ class ContextLexicon(private val list: Suggest, private val valid: ValidWords, p
 
     override fun isEn(w: String): Boolean = english?.contains(w) == true
 
+    /** Built over exactly these objects (the IME rebuilds it when a lexicon reloads or English gets mapped). */
+    fun sameAs(list: Suggest, valid: ValidWords, english: ValidWords?): Boolean =
+        this.list === list && this.valid === valid && this.english === english
+
     private fun plain(w: String) = w.isNotEmpty() && w.all { it.isLetter() || it == '\'' }
 
     companion object {

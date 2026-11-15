@@ -55,6 +55,8 @@ data class KbSettings(
     val oneHanded: OneHand = OneHand.OFF,
     /** r10 (UX-8): closing a Spanish sentence with ?/! offers the missing ¿/¡ in the bar. */
     val autoOpeners: Boolean = true,
+    /** r13f (offers, PV4): a typed word probably wrong for its context gets its alternative as a bar chip (needs [suggest]). */
+    val contextOffers: Boolean = true,
     /** r10 (bet 4): suggest + correct in the language of the last words (ES ⇄ EN), see [BiLang]. */
     val bilingual: Boolean = true,
     /** r10 (bet 4): which Spanish the lexicon is ranked for ([Regional]). */
@@ -263,6 +265,7 @@ object ProfileCodec {
         "profanityFilter" to s.profanityFilter.toString(),
         "oneHanded" to s.oneHanded.name,
         "autoOpeners" to s.autoOpeners.toString(),
+        "contextOffers" to s.contextOffers.toString(),
         "bilingual" to s.bilingual.toString(),
         "region" to s.region.name,
     )
@@ -403,6 +406,7 @@ object ProfileCodec {
             profanityFilter = bool("profanityFilter", d.profanityFilter),
             oneHanded = enumOr(str("oneHanded"), d.oneHanded),
             autoOpeners = bool("autoOpeners", d.autoOpeners),
+            contextOffers = bool("contextOffers", d.contextOffers),
             bilingual = bool("bilingual", d.bilingual),
             region = enumOr(str("region"), d.region),
         )

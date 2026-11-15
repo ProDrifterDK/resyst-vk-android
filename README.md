@@ -69,6 +69,7 @@ Bundled third-party data keeps its own license, with the notice next to each fil
 - Spanish valid-word set (`valid-es.dawg`): RLA-ES by Santiago Bosio, GPL-3+ or LGPL-3+ or MPL-1.1+.
 - English valid-word set (`valid-en.dawg`): SCOWL by Kevin Atkinson, permissive notice.
 - DM Sans font: SIL Open Font License 1.1. Emoji data: Unicode License.
+- Context-offer model (`assets/context/wt-m2.vkng`, "Sugerencias por contexto"): word-trigram counts built from Wikipedia contributors, *Wikipedia, la enciclopedia libre* (CC BY-SA 4.0) and Tatoeba contributors (CC BY 2.0 FR). As an adaptation of CC BY-SA 4.0 material it is licensed **GPL-3.0-only** (the GPL version Creative Commons lists as compatible), inside this GPL-3.0-or-later app: an APK that contains it can be passed on under GPL-3.0. Notice and build provenance (inputs, sha256s, builder commit) in `assets/context/`; the builder is `tools/ngram-build/`.
 
 ---
 

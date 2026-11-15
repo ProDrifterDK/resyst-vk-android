@@ -30,6 +30,11 @@ import com.resyst.vk.core.ClipOffer
 import com.resyst.vk.core.ClipRules
 import com.resyst.vk.core.ClipSnapshot
 import com.resyst.vk.core.ClipboardHistory
+import com.resyst.vk.core.ContextCheck
+import com.resyst.vk.core.ContextKeep
+import com.resyst.vk.core.ContextLexicon
+import com.resyst.vk.core.ContextNgram
+import com.resyst.vk.core.ContextOffers
 import com.resyst.vk.core.Corrector
 import com.resyst.vk.core.DayNight
 import com.resyst.vk.core.EditOp
@@ -73,6 +78,7 @@ import com.resyst.vk.core.GifCopy
 import com.resyst.vk.core.GifQuery
 import com.resyst.vk.core.KlipyParse
 import com.resyst.vk.core.KlipyUrls
+import com.resyst.vk.R
 import com.resyst.vk.settings.GifStore
 import com.resyst.vk.settings.KlipyClient
 import com.resyst.vk.settings.SettingsActivity
@@ -146,6 +152,20 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** r11c: the first show after onCreate asks too, whatever `restarting` says (OC1). */
     private var askedSinceCreate = false
 
+    // ── context offers (r13f) ───────────────────────────────────────────
+    /** The bar's context offer (state machine, memory only: PV2). */
+    private val offers = ContextOffers()
+    /** HP1/HP2: the model, mapped on first need, released with the IME / the switch. */
+    private val ctxModel by lazy { ContextModel(this, timing) }
+    /** HP5: decisions (and the model's first mapping) run here, never on the key path. */
+    private val ctxIo = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "vk-context").apply { isDaemon = true } }
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** Bumped on every field start: a decision computed for another field is dropped (ST3). */
+    private var offerField = 0
+    /** The last checker built (rebuilt only when the model or a lexicon object changes). */
+    @Volatile private var ctxCheck: ContextCheck? = null
+    private var ctxKeep: Pair<com.resyst.vk.core.Suggest, ContextKeep.Keep>? = null
+
     override fun onCreate() {
         super.onCreate()
         repo = SettingsRepo(this)
@@ -186,6 +206,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         PersonalStore.flush()
         sound?.release()
         sound = null
+        // r13f (offers, HP2): nothing in flight, the model released with the IME
+        ctxIo.shutdownNow()
+        ctxCheck = null
+        ctxModel.release()
         super.onDestroy()
     }
 
@@ -335,6 +359,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_CAP_WORDS or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS) != 0
         // r13 (LR1/LR6): coming back to the same editor keeps its correction memory; another one drops it
         val fieldKey = "${info.packageName}/${info.fieldId}/${info.inputType}"
+        // r13f (offers, ST2/ST5): any start drops the chip; another field also forgets the kept pairs
+        if (fieldKey == lastFieldKey) offers.dropOffer() else offers.reset()
+        offerField++
+        selEnd = info.initialSelEnd
+        view?.setOffer(null, null)
         engine.start(FieldInfo(fieldKind, multiLine, action, autoCap), sameField = fieldKey == lastFieldKey)
         lastFieldKey = fieldKey
         fieldEnter = enterIcon(action, multiLine) to enterDesc(action, multiLine)
@@ -372,11 +401,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         touchTrail.reset()
         PersonalStore.flush()
         view?.setSuggestions(emptyList())
+        offers.dropOffer() // r13f (offers, ST2): the keyboard went away
+        offerField++
+        view?.setOffer(null, null)
     }
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
         selStart = newSelStart // r13f (CL2): a field emptied from outside reports offset 0
+        selEnd = newSelEnd // r13f (offers, ST2): a selection drops the offer
         // r12 (PS4): a cursor the user moved (tap, selection) or text the app rewrote ends a pick's provisional space
         if (engine.hasProvisional) engine.selectionChanged(currentInputConnection?.getTextBeforeCursor(WINDOW, 0) ?: "", newSelStart, newSelEnd)
         refreshContext()
@@ -394,6 +427,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         writing.settings = st
         writing.suggestField = !noSuggestField
         engine.corrector = writing.corrector()
+        // r13f (offers, PV4/HP2): the switch off (or suggestions off) = no chip, the model released
+        if (!st.suggest || !st.contextOffers) {
+            if (offers.dropOffer()) v.setOffer(null, null)
+            ctxCheck = null
+            ctxModel.release()
+        }
         v.setStyle(st, Palette.of(st.theme, st.accent))
         refreshMemory()
         sound?.configure(st.sound, st.soundPack)
@@ -492,6 +531,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
         }
         if (sends.isNotEmpty()) rememberValue()
+        // r13f (offers): VK's Enter sent the field: the sentence moved on with its words (ST1/ST5); any other word end
+        // may have completed the next word of a sentence: the offer for the word before it is scheduled (HP5)
+        if (sends.isNotEmpty()) { if (offers.sent()) view?.setOffer(null, null) } else if (ends) scheduleOffer()
         // r13f (CL1): back on the letters the caps answer is read again (the engine re-applied the last one)
         if (engine.layer == Layer.LETTERS && layerBefore != Layer.LETTERS) engine.updateAutoCap(capsHint(ic, before))
         if (engine.layer != layerBefore) rebuildLayout()
@@ -571,6 +613,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         afterKey(before, outs, Learner.Edit.KEY, late = ends)
         trail(KeyType.CHAR, outs, "") // r13d (TB2): an accented letter has no touch record of its own
         view?.setShift(engine.shift)
+        if (ends) scheduleOffer() // r13f (offers): a closing variant ends the next word too
     }
 
     override fun onLongPressOpened() {
@@ -604,6 +647,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ic.endBatchEdit()
         learn(before, outs, Learner.Edit.PICK)
         feedback(null)
+        scheduleOffer() // r13f (offers): a picked word (with its space) is a typed next word
     }
 
     override fun onCursorDrag(steps: Int) {
@@ -1367,10 +1411,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     /** r13f (CL2): the selection start the editor last reported (-1 = unknown). */
     private var selStart = -1
+    /** r13f (offers): the selection end the editor last reported (-1 = unknown). */
+    private var selEnd = -1
 
     private fun refreshContextNow() {
         val ic = currentInputConnection ?: return
         val v = view ?: return
+        refreshOffer(ic, v)
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val wasLayer = engine.layer
         engine.updateAutoCap(capsHint(ic, before))
@@ -1399,6 +1446,93 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             clean = st.profanityFilter, vocab = vocabLangs(), near = writing.near(currentWord),
         )
         v.setSuggestions((offers + sugg).take(Bar.LIMIT))
+    }
+
+    // ── r13f: context offers ────────────────────────────────────────────
+    /**
+     * PV1/PV3/PV4: where the bar may offer a word for its context: suggestions and the switch on, a field the space
+     * corrector writes in (FieldPolicy.suggestions: prose text, also opted-out prose composers — nothing is stored
+     * there, PV2), never secret or incognito, not the GIF box or a value field, and only while writing Spanish (the
+     * model is Spanish).
+     */
+    private fun offersAllowed(): Boolean {
+        val st = s
+        return st.suggest && st.contextOffers && policy.suggestions && !policy.secret && !policy.incognito &&
+            fieldKind == FieldKind.TEXT && !gifSearching && !barShowsValues && writeLang == Lang.ES
+    }
+
+    /** HP5: after a word end the key path only posts this; the read and the decision happen later, off the key. */
+    private fun scheduleOffer() {
+        if (!offersAllowed()) return
+        val field = offerField
+        mainHandler.post { startOffer(field) }
+    }
+
+    private fun startOffer(field: Int) {
+        if (field != offerField || !offersAllowed()) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: return
+        val job = offers.job(before, whole = before.length < ContextOffers.WINDOW) ?: return
+        // CO4: a word the user kept against a correction is his: no offer on it (read gate; nothing written)
+        if (personalRead()?.kept(Lang.ES, job.typed.lowercase()) == true) return
+        val lex = lexicon ?: return
+        val list = lex.get(Lang.ES) ?: return
+        val valid = lex.valid(Lang.ES) ?: return
+        val english = lex.valid(Lang.EN)
+        val keep = ctxKeep?.takeIf { it.first === list }?.second ?: ContextKeep.of(list.regionalWords).also { ctxKeep = list to it }
+        ctxIo.execute {
+            val model = ctxModel.get() ?: return@execute
+            val check = checkFor(model, list, valid, english)
+            val t0 = SystemClock.elapsedRealtimeNanos()
+            val offer = runCatching { offers.decide(job, check, keep) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
+            // HP5 (debuggable builds): the decision's time, never its text
+            if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null}")
+            if (offer != null) mainHandler.post { showOffer(offer, field) }
+        }
+    }
+
+    /** The checker over this model and these lexicon objects (rebuilt only when one of them changes). */
+    private fun checkFor(model: ContextNgram, list: com.resyst.vk.core.Suggest, valid: com.resyst.vk.core.ValidWords, english: com.resyst.vk.core.ValidWords?): ContextCheck {
+        val c = ctxCheck
+        val l = c?.lex as? ContextLexicon
+        if (c != null && c.model === model && l != null && l.sameAs(list, valid, english)) return c
+        return ContextCheck(model, ContextLexicon(list, valid, english)).also { ctxCheck = it }
+    }
+
+    /** ST3: a decision arrived; shown only if the live text still holds its word. */
+    private fun showOffer(offer: ContextOffers.Offer, field: Int) {
+        if (field != offerField || !offersAllowed()) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: return
+        if (!offers.arrive(offer, before, whole = before.length < ContextOffers.WINDOW)) return
+        view?.setOffer(offer.label, getString(R.string.context_offer_desc, offer.typed, offer.label))
+    }
+
+    /** ST1/ST2/CO5: after every edit or cursor move, the offer stays only while its sentence is live and untouched. */
+    private fun refreshOffer(ic: InputConnection, v: KeyboardView) {
+        if (offers.current == null) return
+        if (!offersAllowed()) { offers.dropOffer(); v.setOffer(null, null); return }
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
+        val collapsed = selStart < 0 || selEnd < 0 || selStart == selEnd
+        if (offers.refresh(before, whole = before.length < ContextOffers.WINDOW, collapsed = collapsed)) v.setOffer(null, null)
+    }
+
+    /** CO2/ST4: the chip was tapped — the only way a context offer edits text. */
+    override fun onContextOffer() {
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
+        val label = offers.current?.label
+        val outs = offers.take(before, whole = before.length < ContextOffers.WINDOW)
+        view?.setOffer(null, null)
+        if (outs == null) { refreshContext(); return } // stale: nothing to do (ST2)
+        engine.endProvisional() // r12 (PS4): the edit ends a pick's provisional space
+        ic.beginBatchEdit()
+        run(outs, ic)
+        ic.endBatchEdit()
+        learner.reset()
+        touchTrail.reset()
+        feedback(null)
+        if (label != null) view?.announceForAccessibility(getString(R.string.context_offer_done, label))
     }
 
     // ── r10: text editing (bet 5) ───────────────────────────────────────

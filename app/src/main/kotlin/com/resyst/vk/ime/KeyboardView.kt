@@ -128,6 +128,8 @@ class KeyboardView(context: Context) : View(context) {
         /** r11b: the GIF search strip's ← (back to the grid, no request) and «Buscar» (one request). */
         fun onGifSearchBack() = Unit
         fun onGifSearchGo() = Unit
+        /** r13f (offers): the context offer chip — replace the earlier word with the offered one. */
+        fun onContextOffer() = Unit
     }
 
     var listener: Listener? = null
@@ -144,6 +146,9 @@ class KeyboardView(context: Context) : View(context) {
     private var suggestions: List<String> = emptyList()
     private var pasteLabel: String? = null
     private var pasteImage = false
+    /** r13f (offers, CH1/CH2): the context offer chip — its label (the replacement) and TalkBack text; null = none. */
+    private var offerLabel: String? = null
+    private var offerDesc: String = ""
     /** r10 (F-6): why personal memory is off in this field, null = it is on (no mark). */
     private var noMemory: String? = null
 
@@ -367,7 +372,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PASTE, SUGGESTION, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY, GIF_BACK, GIF_FIELD, GIF_GO }
+    private enum class StripKind { PASTE, SUGGESTION, OFFER, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY, GIF_BACK, GIF_FIELD, GIF_GO }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -446,6 +451,16 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     fun reset() { cancelPointers(); invalidate() }
+
+    /**
+     * r13f (offers): the context offer chip: [label] = the word it puts in (`casa`), [desc] = what TalkBack says
+     * ("Cambiar caza por casa"); null = no chip. It takes the last suggestion slot (CH1).
+     */
+    fun setOffer(label: String?, desc: String?) {
+        if (label == offerLabel && (desc ?: "") == offerDesc) return
+        offerLabel = label; offerDesc = desc ?: ""
+        layoutStrip(); invalidate(); a11y.invalidateRoot()
+    }
 
     /** The leading "Pegar" chip: [label] = what it pastes (already masked), null = no chip. */
     fun setPasteOffer(label: String?, image: Boolean) {
@@ -692,6 +707,19 @@ class KeyboardView(context: Context) : View(context) {
             val w = min(want, max(slot, min(room, 96 * dp)))
             stripItems += StripItem(StripKind.PASTE, label, RectF(l, 6 * dp, l + w, h - 6 * dp))
             l += w + 4 * dp
+        }
+        // r13f (offers, CH1): the offer chip takes the LAST slot, at the right end of the suggestions: the first
+        // suggestion (what space applies), ↶ and ¿…? keep their places
+        val offer = offerLabel
+        if (offer != null && r - l > 120 * dp) {
+            if (shown.isNotEmpty()) shown = shown.dropLast(1)
+            text.textSize = 15 * dp
+            text.typeface = typeface(650)
+            val room = r - l
+            val want = text.measureText(offer) + 42 * dp
+            val w = min(max(want, 72 * dp), if (shown.isEmpty()) room else room / 2)
+            stripItems += StripItem(StripKind.OFFER, offer, RectF(r - w - 4 * dp, 6 * dp, r - 4 * dp, h - 6 * dp))
+            r -= w + 8 * dp
         }
         if (shown.isNotEmpty() && r - l > 40 * dp) {
             val cw = (r - l) / shown.size
@@ -949,6 +977,7 @@ class KeyboardView(context: Context) : View(context) {
         when (s.kind) {
             StripKind.SETTINGS -> listener?.onQuickPanel()
             StripKind.SUGGESTION -> listener?.onSuggestion(s.text)
+            StripKind.OFFER -> listener?.onContextOffer()
             StripKind.PASTE -> listener?.onPasteOffer()
             StripKind.NO_MEMORY -> listener?.onNoMemory()
             StripKind.DAYNIGHT -> listener?.onDayNight()
@@ -1287,6 +1316,25 @@ class KeyboardView(context: Context) : View(context) {
                     text.typeface = typeface(600)
                     val avail = r.width() - 38 * dp
                     val label = ellipsize(s.text, avail)
+                    text.textAlign = Paint.Align.LEFT
+                    val fm = text.fontMetrics
+                    c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
+                    text.textAlign = Paint.Align.CENTER
+                }
+                StripKind.OFFER -> {
+                    // r13f (offers, CH2): an accent pill with ⇄ and the word it puts in — not a plain completion
+                    val pressed = s in pressedStrip
+                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
+                    stroke.color = palette.accentGlow
+                    stroke.strokeWidth = 1 * dp
+                    stroke.strokeCap = Paint.Cap.BUTT
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
+                    KeyIcons.draw(c, Icon.SWAP, r.left + 17 * dp, r.centerY(), 13 * dp, palette.accent, stroke, fill)
+                    text.color = palette.accent
+                    text.textSize = 15 * dp
+                    text.typeface = typeface(650)
+                    val label = ellipsize(s.text, r.width() - 38 * dp)
                     text.textAlign = Paint.Align.LEFT
                     val fm = text.fontMetrics
                     c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
@@ -1814,6 +1862,7 @@ class KeyboardView(context: Context) : View(context) {
                     StripKind.UPDATE -> if (chipNews) WhatsNew.describe(s.text) else "Resyst VK ${s.text} disponible. Toca para actualizar"
                     StripKind.UPDATE_X -> if (chipNews) WhatsNew.dismissDescription(s.text) else "Descartar el aviso de la versión ${s.text}"
                     StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
+                    StripKind.OFFER -> offerDesc.ifEmpty { s.text }
                     StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
                     StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"
                     StripKind.GIF_BACK -> "Volver a los GIF"

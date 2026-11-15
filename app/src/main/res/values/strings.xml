@@ -4,4 +4,9 @@
     <string name="ime_name">Resyst VK ✦</string>
     <string name="subtype_es">Español (Resyst)</string>
     <string name="subtype_en">English (Resyst)</string>
+    <!-- r13f (offers): the context offer chip and its switch. Spanish is the app's language (default). -->
+    <string name="context_offers_title">Sugerencias por contexto</string>
+    <string name="context_offers_summary">Si una palabra parece la equivocada para la frase (caza en vez de casa), la barra ofrece la otra · un toque la cambia · el teclado nunca la cambia solo · sin red</string>
+    <string name="context_offer_desc">Cambiar %1$s por %2$s</string>
+    <string name="context_offer_done">Cambiado: %1$s</string>
 </resources>

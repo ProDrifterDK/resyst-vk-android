@@ -28,6 +28,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
+import com.resyst.vk.R
 import com.resyst.vk.core.ClipSettings
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.ConnectionLog
@@ -432,6 +433,8 @@ class SettingsActivity : Activity() {
 
             Ctl.SUGGEST -> toggle(ctl.label, "Léxico offline por frecuencia (sin red)", s.suggest) { v -> commit { it.copy(suggest = v) } }
             Ctl.SPACE_CORRECTS -> toggle(ctl.label, "Solo si la corrección es segura · ⌫ la deshace", s.spaceCorrects) { v -> commit { it.copy(spaceCorrects = v) } }
+            // r13f (offers, PV4): title and line from the string resources (Spanish, English)
+            Ctl.CONTEXT_OFFERS -> toggle(getString(R.string.context_offers_title), getString(R.string.context_offers_summary), s.contextOffers) { v -> commit { it.copy(contextOffers = v) } }
             Ctl.PERSONAL -> toggle(ctl.label, "Aprende tus palabras y correos frecuentes · solo en este teléfono", s.personal) { v -> commit { it.copy(personal = v) } }
             Ctl.AUTO_CAP -> toggle(ctl.label, "Al inicio de frase", s.autoCap) { v -> commit { it.copy(autoCap = v) } }
             Ctl.DOUBLE_SPACE -> toggle(ctl.label, "Dos espacios seguidos escriben «. »", s.doubleSpace) { v -> commit { it.copy(doubleSpace = v) } }
@@ -1377,6 +1380,11 @@ class SettingsActivity : Activity() {
 
     private fun footer() {
         root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (CC BY-SA 4.0) · diccionario español RLA-ES de Hunspell (se usa bajo la GPL; lo ofrece como GPL, LGPL o MPL) y SCOWL (en_US)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
+        // r13f (offers, LC1): the context-offer model's sources, next to the dictionaries (assets/context/NOTICE.txt)
+        root.addView(label("Sugerencias por contexto: modelo construido con textos de Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0) y de Tatoeba contributors (CC BY 2.0 FR); el modelo se distribuye bajo la GPL 3 (solo versión 3)", 11f, t.muted).apply {
+            gravity = Gravity.CENTER
+            tag = "credits-context"
+        }, lp(top = 6f))
         // r13c (LI1, LI5): the app's own license + source. A tap hands the page to the browser: the
         // browser makes that request, not the keyboard, so the "Libro de conexiones" stays as it is.
         root.addView(label("Resyst VK es software libre bajo la GPL 3 · código fuente en GitHub (se abre en el navegador)", 11f, pal.accent, 550).apply {

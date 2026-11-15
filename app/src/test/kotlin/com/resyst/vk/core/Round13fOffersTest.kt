@@ -443,6 +443,38 @@ class Round13fOffersTest {
         assertFalse("the oldest pair was dropped", g.suppressed("w" + tag(0), "v" + tag(0)))
     }
 
+    // ── PV / LC — the switch, the gates, the credits ─────────────────────────────────────────────────────────
+    @Test fun pvTheSwitchTheGatesAndTheCredits() {
+        // PV4: on by default, stored phone-wide, on the Escritura page under Sugerencias; the modes that turn
+        // suggestions off turn the offers off with them (the gate reads suggest first)
+        assertTrue(KbSettings().contextOffers)
+        val st = ProfileCodec.seed().updatePhone { it.copy(contextOffers = false) }
+        assertFalse(ProfileCodec.decode(ProfileCodec.encode(st)).settings.contextOffers)
+        assertEquals(Ctl.SUGGEST, Ctl.CONTEXT_OFFERS.dependsOn)
+        assertEquals("escritura", SettingsIA.pageOf(Ctl.CONTEXT_OFFERS)?.id)
+        assertFalse(Mode.CODE.apply(KbSettings()).suggest)
+        // PV1 / PV3 / PV4: the IME's gate (secret, incognito, the corrector's field gate, the switch, Spanish)
+        val ime = File("src/main/kotlin/com/resyst/vk/ime/ResystImeService.kt").readText()
+        val gate = ime.substringAfter("private fun offersAllowed()").substringBefore("\n    }")
+        for (s in listOf("st.suggest", "st.contextOffers", "policy.suggestions", "!policy.secret", "!policy.incognito", "FieldKind.TEXT", "Lang.ES")) assertTrue(s, gate.contains(s))
+        // PV2 / CO2: the offer code stores nothing and edits only from the tap
+        val glue = ime.substringAfter("// ── r13f: context offers").substringBefore("// ── r10: text editing")
+        for (s in listOf("PersonalStore.changed", "learner.afterEdit", "learner.kept", "strike(", "rememberValue", ".unlearn(")) assertFalse(s, glue.contains(s))
+        assertEquals("one edit path: the tap", 1, Regex("run\\(outs, ic\\)").findAll(glue).count())
+        assertTrue(glue.substringAfter("override fun onContextOffer()").contains("offers.take("))
+        // HP5: the key path only posts
+        assertTrue(ime.substringAfter("private fun scheduleOffer()").substringBefore("\n    }").contains("mainHandler.post"))
+        // LC1: credits next to the dictionaries, README, strings in Spanish and English
+        val credits = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText().substringAfter("private fun footer()").substringBefore("companion object")
+        for (c in listOf("Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0)", "Tatoeba contributors (CC BY 2.0 FR)", "FrequencyWords (CC BY-SA 4.0)")) assertTrue(c, credits.contains(c))
+        val readme = File("../README.md").readText()
+        assertTrue(readme.contains("GPL-3.0-only") && readme.contains("Tatoeba contributors") && readme.contains("Wikipedia contributors"))
+        val es = File("src/main/res/values/strings.xml").readText()
+        val en = File("src/main/res/values-en/strings.xml").readText()
+        assertTrue(es.contains(">Sugerencias por contexto<") && es.contains(">Cambiar %1\$s por %2\$s<"))
+        assertTrue(en.contains(">Context suggestions<") && en.contains(">Replace %1\$s with %2\$s<"))
+    }
+
     // ── JSON (deterministic) ──────────────────────────────────────────────────────────────────────────────────
     private fun json(x: Any?): String = when (x) {
         null -> "null"

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- r13f (offers): English for the context offer chip and its switch (the rest of the app is Spanish). -->
+    <string name="context_offers_title">Context suggestions</string>
+    <string name="context_offers_summary">When a word looks wrong for its sentence (caza instead of casa), the bar offers the other one · one tap swaps it · the keyboard never changes it on its own · offline</string>
+    <string name="context_offer_desc">Replace %1$s with %2$s</string>
+    <string name="context_offer_done">Changed: %1$s</string>
+</resources>
