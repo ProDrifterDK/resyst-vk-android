@@ -273,6 +273,9 @@ def main():
     sdk = sh('getprop ro.build.version.sdk').strip()
     print(f'✦ device: {model} (API {sdk}) previous IME={previous}')
     try:
+        sh('input keyevent KEYCODE_WAKEUP', check=False)  # a dozing screen has no focused field
+        sh('wm dismiss-keyguard', check=False)  # no credential on the test phone; a locked one stays locked
+        time.sleep(1.5)
         r13c.install('-r', '-t', '-d', a.apk)
         sh(f'pm clear {PKG}', check=False)  # debug package only
         sh(f'ime enable {IME}')
@@ -284,6 +287,7 @@ def main():
         for sec, fn in (('A', section_a), ('B', section_b), ('C', section_c), ('D', section_d), ('E', section_e)):
             if sec in only:
                 try:
+                    sh('input keyevent KEYCODE_WAKEUP', check=False)  # no-op when awake
                     fn()
                 except Exception as ex:  # one broken section must not hide the others
                     check(sec, 'section ran', False, repr(ex))
