@@ -23,6 +23,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
+import com.resyst.vk.core.AutoCaps
 import com.resyst.vk.core.Bar
 import com.resyst.vk.core.BiLang
 import com.resyst.vk.core.ClipOffer
@@ -297,6 +298,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val flags = info.inputType and InputType.TYPE_MASK_FLAGS
         policy = FieldPolicy.of(info.inputType, info.imeOptions)
+        selStart = info.initialSelStart
         // r8: which flags real apps send (Instagram diagnosis). Debuggable builds only; flags + package, never text.
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             Log.i(TAG, "field: pkg=${info.packageName} ${FieldPolicy.describe(info.inputType, info.imeOptions)} restarting=$restarting")
@@ -374,6 +376,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        selStart = newSelStart // r13f (CL2): a field emptied from outside reports offset 0
         // r12 (PS4): a cursor the user moved (tap, selection) or text the app rewrote ends a pick's provisional space
         if (engine.hasProvisional) engine.selectionChanged(currentInputConnection?.getTextBeforeCursor(WINDOW, 0) ?: "", newSelStart, newSelEnd)
         refreshContext()
@@ -473,17 +476,24 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             if (newsOnChip) consumeNews("typed past") // WN3: seen, and the user went on
             refreshUpdate()
         }
-        // delete + commit (correction, undo, double-space) must land as one edit
-        if (outs.size > 1) ic.beginBatchEdit()
-        run(outs, ic)
-        if (outs.size > 1) ic.endBatchEdit()
+        // delete + commit (correction, undo, double-space) must land as one edit; r13f (SE1/SE2): the correction
+        // before Enter is that edit, closed BEFORE the editor action / Enter key event goes out, so the app (the
+        // page's keydown handler too) reads the corrected text
+        val sends = outs.takeLastWhile { it is Out.Action || it == Out.EnterKey }
+        val edits = outs.dropLast(sends.size)
+        if (edits.size > 1) ic.beginBatchEdit()
+        run(edits, ic)
+        if (edits.size > 1) ic.endBatchEdit()
+        run(sends, ic)
         afterKey(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY, late = ends)
         trail(key.type, outs, near)
         if (ends) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
             view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
         }
-        if (outs.any { it is Out.Action || it == Out.EnterKey }) rememberValue()
+        if (sends.isNotEmpty()) rememberValue()
+        // r13f (CL1): back on the letters the caps answer is read again (the engine re-applied the last one)
+        if (engine.layer == Layer.LETTERS && layerBefore != Layer.LETTERS) engine.updateAutoCap(capsHint(ic, before))
         if (engine.layer != layerBefore) rebuildLayout()
         view?.setShift(engine.shift)
         if (timing) keyTimer.add(SystemClock.elapsedRealtimeNanos() - t0, if (key.type == KeyType.SPACE) " space" else if (ends) " end" else "")
@@ -1345,13 +1355,25 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         barTimer.add(SystemClock.elapsedRealtimeNanos() - t0)
     }
 
+    /**
+     * The caps hint for the engine: the editor's answer (getCursorCapsMode) plus r13f's [AutoCaps] (a field emptied
+     * from outside at offset 0, CL2; a sentence-initial ¿ / ¡, OP1). [before] = the text before the cursor, read now.
+     */
+    private fun capsHint(ic: InputConnection, before: CharSequence): Boolean {
+        val info = currentInputEditorInfo
+        val editor = info != null && ic.getCursorCapsMode(info.inputType) != 0
+        return AutoCaps.hint(editor, before, selStart)
+    }
+
+    /** r13f (CL2): the selection start the editor last reported (-1 = unknown). */
+    private var selStart = -1
+
     private fun refreshContextNow() {
         val ic = currentInputConnection ?: return
         val v = view ?: return
-        val info = currentInputEditorInfo
-        val caps = info != null && ic.getCursorCapsMode(info.inputType) != 0
+        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         val wasLayer = engine.layer
-        engine.updateAutoCap(caps)
+        engine.updateAutoCap(capsHint(ic, before))
         v.setShift(engine.shift)
         if (wasLayer != engine.layer) rebuildLayout()
         val st = s
@@ -1359,12 +1381,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         barShowsValues = values != null
         if (values != null) {
             currentWord = ""
-            val before = ic.getTextBeforeCursor(ValueMemory.MAX_LEN, 0) ?: ""
+            val vBefore = ic.getTextBeforeCursor(ValueMemory.MAX_LEN, 0) ?: ""
             val after = ic.getTextAfterCursor(1, 0) ?: ""
-            v.setSuggestions(ValueMemory.bar(before, after, values, fieldKind))
+            v.setSuggestions(ValueMemory.bar(vBefore, after, values, fieldKind))
             return
         }
-        val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         writeLang = detectLang(before) // r10 bet 4: the language being written right now
         // r10 offers lead the bar (they only exist for one edit): "↶ typed" after a space
         // correction (UX-5), "¿…?" when a Spanish sentence closed without its opener (UX-8)

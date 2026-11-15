@@ -26,15 +26,17 @@ class Round10BilingualTest {
         BiLang.detect(BiLang.recentWords(text, windowFull = false), kb, rank, knows)
 
     // ── FL: the language flick on space ─────────────────────────────────
-    @Test fun aQuickVerticalFlickIsAFlick() { // FL1
-        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(0f, -24f, 120))
-        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(3f, 22f, 200)) // down works too
-        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(9f, -20f, 300))
+    @Test fun aQuickVerticalFlickIsAFlick() { // FL1; r13f (SG1): 40 dp, the 20-26 dp drifts of s4's space taps are taps
+        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(0f, -44f, 120))
+        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(3f, 42f, 200)) // down works too
+        assertEquals(SpaceGesture.Kind.FLICK, SpaceGesture.classify(9f, -40f, 300))
+        assertEquals(SpaceGesture.Kind.NONE, SpaceGesture.classify(0f, -24f, 120))
     }
 
     @Test fun axesNeverStealEachOther() { // FL2
         assertEquals(SpaceGesture.Kind.CURSOR, SpaceGesture.classify(30f, 4f, 120))
         assertEquals(SpaceGesture.Kind.CURSOR, SpaceGesture.classify(-15f, 0f, 900))
+        assertEquals("r13f (SG2): a quick 15 dp slip is a tap", SpaceGesture.Kind.NONE, SpaceGesture.classify(15f, 0f, 70))
         // diagonal: too much x for a flick, too much y for a cursor drag
         assertEquals(SpaceGesture.Kind.NONE, SpaceGesture.classify(15f, -25f, 120))
         assertEquals(SpaceGesture.Kind.NONE, SpaceGesture.classify(20f, -20f, 120))

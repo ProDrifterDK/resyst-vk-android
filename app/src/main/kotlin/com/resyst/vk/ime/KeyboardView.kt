@@ -876,7 +876,8 @@ class KeyboardView(context: Context) : View(context) {
         }
         if (b.key.type == KeyType.SPACE) {
             if (!p.cursorMode && !p.longFired && !p.flicked) {
-                // r10 (FL1/FL2): a quick vertical flick switches the language, a horizontal drag moves the cursor
+                // r10 (FL1/FL2): a quick vertical flick switches the language, a horizontal drag moves the cursor;
+                // r13f (SG1/SG2): only deliberate ones (a long swipe; a long drag, or hold then drag)
                 when (SpaceGesture.classify((x - p.downX) / dp, (y - p.downY) / dp, SystemClock.uptimeMillis() - p.downAt)) {
                     SpaceGesture.Kind.FLICK -> {
                         p.flicked = true
@@ -886,7 +887,7 @@ class KeyboardView(context: Context) : View(context) {
                     }
                     SpaceGesture.Kind.CURSOR -> {
                         p.cursorMode = true
-                        p.cursorX = x
+                        p.cursorX = p.downX // r13f (SG2): the drag counts from where the finger landed
                         handler.removeCallbacksAndMessages(p)
                     }
                     SpaceGesture.Kind.NONE -> Unit

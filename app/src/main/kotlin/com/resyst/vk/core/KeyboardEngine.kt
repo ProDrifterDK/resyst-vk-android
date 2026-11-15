@@ -20,6 +20,9 @@ fun interface Corrector {
  * r13c (EP1–EP8): every word ending corrects like space — a closing mark (`, . ; : ! ? ) ] } » ” …`,
  * typed or long-pressed) or Enter where it inserts a new line — and the mark lands after the fix.
  * (TS1) a word whose correction the user rejected stays as typed for the rest of this field.
+ *
+ * r13f: Enter as the field's key (single-line: an editor action or KEYCODE_ENTER) corrects the word first (SE1), and
+ * a layer key that brings the letters back re-applies the last caps hint (CL1).
  */
 class KeyboardEngine {
     var layer: Layer = Layer.LETTERS
@@ -92,6 +95,7 @@ class KeyboardEngine {
         layer = if (info.kind == FieldKind.NUMBER || info.kind == FieldKind.PHONE) Layer.NUMPAD else Layer.LETTERS
         shift = ShiftState.OFF
         shiftHeld = false
+        capsHint = false
         lastWasSpace = false
         undo = null
         rejected = null
@@ -135,8 +139,12 @@ class KeyboardEngine {
         chordUsed = false
     }
 
+    /** r13f (CL1): the last caps hint given, re-applied when a layer key brings the letters back. */
+    private var capsHint = false
+
     /** Called after every cursor/text change with the editor's caps-mode hint. */
     fun updateAutoCap(capsHint: Boolean) {
+        this.capsHint = capsHint
         if (shiftHeld || shift == ShiftState.LOCKED || shift == ShiftState.ONCE) return
         shift = if (autoCapEnabled && field.autoCap && capsHint && layer == Layer.LETTERS) ShiftState.AUTO else ShiftState.OFF
     }
@@ -159,9 +167,17 @@ class KeyboardEngine {
                 }
             }
             KeyType.SPACE -> space(before, now, after)
-            KeyType.ENTER -> (if (field.multiLine) ending(before, after, "\n") else null) ?: listOf(enter()) // EP1
+            // EP1: a new line ends (and corrects) the word; r13f (SE1): so does Enter as the field's key, the fix
+            // first (one batch edit for the IME), then the action / key event, nothing added
+            KeyType.ENTER -> if (field.multiLine) ending(before, after, "\n") ?: listOf(enter())
+                else ending(before, after, "")?.plus(enter()) ?: listOf(enter())
             KeyType.BACKSPACE -> revert(pendingUndo, before) ?: run { deleting(before, after); listOf(Out.Backspace) }
-            KeyType.LAYER -> { layer = key.target ?: Layer.LETTERS; emptyList() }
+            KeyType.LAYER -> {
+                val from = layer
+                layer = key.target ?: Layer.LETTERS
+                if (layer == Layer.LETTERS && from != Layer.LETTERS) updateAutoCap(capsHint) // r13f (CL1)
+                emptyList()
+            }
             KeyType.SHIFT, KeyType.SPACER, KeyType.EMOJI -> emptyList()
         }
         if (key.type != KeyType.SPACE) lastWasSpace = false
