@@ -1432,3 +1432,95 @@ Written before the code; each item names what the replay, a JVM test or the devi
 
 ### Version
 - VR3 0.11.0 / versionCode 13 are the build defaults.
+
+## Round 13f — chat typing from live session s4 (0.12.0)
+
+The oracle is the owner's fourth live session, s4 (Pixel 8 Pro, VK 0.11.0, the Hermes web chat composer in
+Firefox, 22 messages, each sent with VK's own Enter), committed unchanged as app/src/test/resources/r13f/
+(s4-live.json, s4-keys.json, s4-final.txt, s4-intended.txt; decoded from the raw touches by
+scripts/r13e_s4_decode.py). The field is inputType 0x4c0a1: TEXT | CAP_SENTENCES | AUTO_CORRECT |
+IME_MULTI_LINE without MULTI_LINE, so VK treats it as single-line and its Enter is the field's action key.
+Measured on 8ffd08a (= the published 0.11.0) before any code:
+- `salgo` (the first word after a message that ended `?⏎`), `el actual` (after `? `) and `¿que` stayed
+  lowercase. Each time the mark was typed on the symbols layer; the editor's caps answer arrived while the
+  symbols layer was showing (`updateAutoCap` gives no shift off the letters layer), and the ABC key only
+  rebuilds the layout: nothing re-reads the caps answer when the letters come back.
+- `¿que` also needs the openers rule: Android's TextUtils.getCapsMode stops at `¿` / `¡` (category Po), so
+  even a re-read caps answer is "no" right after a sentence-initial opener.
+- `lenyo⏎` was sent uncorrected: KeyboardEngine runs the word-end correction on Enter only where Enter is a
+  new line; in a single-line field the Enter goes out (editor action or KEYCODE_ENTER) with the typo.
+- Space-bar gestures (`SpaceGesture`: a vertical move of 20 dp within 300 ms = language flick, a horizontal
+  move over 14 dp = cursor drag). s4 has 234 touches on the space bar: 6 classified as flicks, 1 as a drag.
+  Their traces (scripts/r13f_space_traces.py → r13f/s4-space-traces.json) split into two groups:
+  - 4 accidental, intended as a space: m05 `del|final` (21 dp up, 83 ms), m11 `mu ho|que` (26 dp up, 95 ms),
+    m20 `la|pena` (22 dp up, 66 ms) and the drag m15 `yay|algo` (15 dp sideways, 75 ms). They made
+    `delfinak` (plus l→k: the English layout's middle row is shifted half a key), `lapena`, `yayalgo`.
+  - 3 deliberate, the owner switching back to Spanish right after noticing an accidental switch: m06
+    (114 dp up), m11 (87 dp up, right after `que `), m21 (64 dp up, right after `ahkra `). Each follows an
+    accidental flick and restores Spanish; as spaces they would have typed `no s e`, `que  `, `ahkra  `.
+  - s1-s3 (796 space touches): no flick, no drag; the largest moves are 11 dp sideways, 15 dp up.
+
+Written before the code; each item names what a JVM test, the replay or the device run must catch.
+
+### F1 — the auto-capital after a layer return and in an emptied field (`KeyboardEngine`, IME glue)
+- CL1 Back on the letters layer the shift keeps the state it got while another layer was showing (OFF), so a
+  sentence start typed after `?`, `¿`, `!` or any symbol stays lowercase. Rule: the engine keeps the last
+  caps answer it was given; a layer key that brings the letters back re-applies it (ONCE / LOCKED / a held
+  shift are never overridden); the IME also re-reads the editor on that return.
+- CL2 A field emptied from outside (the page clears the composer after a send: the IME sees only a
+  selection update) keeps a stale "no caps" answer from the editor. Rule: a cursor at offset 0 with nothing
+  before it is a sentence start (the IME's own answer is OR-ed with the editor's; an editor that cannot
+  read its text is not affected because the offset comes from the selection update).
+- CL3 The re-read capitalizes mid-sentence: returning from symbols after `3`, `,`, `@`, `#` or an emoji
+  keeps lowercase (the caps answer there is "no").
+
+### F2 — the capital after a sentence-initial ¿ / ¡ (`AutoCaps`)
+- OP1 `¿que` at a sentence start stays lowercase. Rule: when the text before the cursor ends with one or
+  more `¿` / `¡` (with quotes or brackets around them), Android's own sentence rule is applied to the text
+  before the openers: start of field, a new line, or `.` `?` `!` followed by a blank (not an abbreviation's
+  or an ellipsis' period, Android's own check).
+- OP2 A mid-sentence opener is capitalized: `Oye, ¿vienes`, `y ¿por qué`, `dime ¿cuál` keep lowercase.
+- OP3 Literary lowercase is capitalized. Measured on r13b's held-out prose (Quiroga 1917, 12,013 words, 318
+  openers): the r13e-s4 measurement reports 122 right / 25 wrong; the report lists the 25 and which a
+  clean rule removes (the ellipsis `...` is no sentence end for Android: OP1 follows it), with the final
+  counts. Series of exclamations or questions written in lowercase (`¡Pum! ¡todo`) need meaning, not a rule.
+- OP4 The rule leaks outside auto-capital fields: it only feeds `updateAutoCap`, which keeps its gates
+  (CAP_SENTENCES / CAP_WORDS / CAP_CHARACTERS, the auto-capital setting, the letters layer).
+
+### F3 — the word is corrected before VK's own Enter sends it (`KeyboardEngine`, IME glue)
+- SE1 In a field where Enter is the action key (single-line, or IME_MULTI_LINE without MULTI_LINE) the word
+  in progress goes out as typed. Rule: Enter ends the word like a space does — the same correction
+  (`correctionFor`: rejected words, this field's protected words, late retypes, two-strike rejections and
+  the touch record all apply), committed in one batch edit (delete + commit) BEFORE the editor action or the
+  KEYCODE_ENTER event; nothing else is added (no space, no mark).
+- SE2 The action runs inside the batch and the app reads the old text: the batch is closed before the action
+  / key event is sent.
+- SE3 Undo semantics change: the correction is remembered like any word-end correction (⌫ right after it,
+  while the text is still there, restores the typed word: a search box that keeps its text); a sent message
+  cannot be undone. Decision: the correction at Enter is NOT more conservative than at a space — the report
+  gives the false-correction count of every s1-s4 `ok` row ended by Enter in a single-line field (must be
+  0, like at a space) against the typos it fixes.
+- SE4 Enter corrects where it must not: a multi-line field keeps r13c's EP1 (the newline after the fix);
+  fields without corrections (secret, email, URL, opted-out handles: no corrector) send as typed; the GIF
+  search box keeps its own Enter.
+
+### F4 — the space bar is less trigger-happy (`SpaceGesture`, `KeyboardView`)
+- SG1 A tap whose finger drifts 20-26 dp up switches the language (and the layout) and types nothing.
+  Rule: a language flick needs a deliberate vertical swipe: |dy| ≥ 40 dp (about 0.6 of a key row; s4's
+  accidental moves reach 26 dp, its deliberate swipes start at 64 dp; with s4's density uncertainty,
+  1.78-2.0, they stay 28 vs 61 dp), |dy| > 2·|dx|, within 300 ms.
+- SG2 A tap that slides 15 dp sideways enters cursor mode and types nothing. Rule: a cursor drag is either a
+  hold-then-drag (the finger down ≥ 200 ms — every space tap in s1-s4 lasted ≤ 153 ms — then ≥ 9 dp
+  sideways, one cursor step) or a long drag (≥ 24 dp sideways); |dx| > |dy| as before. The drag is counted
+  from where the finger landed, so the travel spent deciding is not lost.
+- SG3 The fixtures are not the owner's: s4-space-traces.json is every s4 space-bar touch from the raw log
+  (relative path in dp and ms; no absolute coordinates, no text); the 4 accidental gestures must be spaces,
+  the 3 deliberate ones must stay flicks, and every other space touch of s1-s4 must stay a space.
+- SG4 A changed language is invisible: the space bar keeps showing the active language's name and the
+  English layout (no ñ) shows at once; TalkBack hears "English" / "Español" (unchanged).
+- SG5 The long press (keyboard picker) and a flick or drag steal each other: a flick or a drag cancels the
+  pending long press (unchanged); a hold-then-drag starts before the default long press (350 ms).
+
+### Version
+- VR4 0.12.0 / versionCode 14 are the build defaults. "Novedades" is the strip chip that opens the website
+  for any new versionName (r13c WN1-WN8); there is no per-version text in the app to add.
