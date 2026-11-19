@@ -70,9 +70,10 @@ class Round10EditPadTest {
         assertFalse("wobble", DeleteSwipe.isSwipe(-23 * dp, 0f, dp))
         assertFalse("rightwards", DeleteSwipe.isSwipe(60 * dp, 0f, dp))
         assertFalse("mostly vertical", DeleteSwipe.isSwipe(-30 * dp, -16 * dp, dp))
-        // the view cancels the char repeat when the swipe takes over and fires once
-        val bs = view.substringAfter("KeyType.BACKSPACE && !p.swiped", "")
-        assertTrue(bs.contains("DeleteSwipe.isSwipe") && bs.substringBefore("return").contains("removeCallbacksAndMessages(p)"))
-        assertTrue(view.contains("listener?.onDeleteWord()"))
+        // the view cancels the char repeat when the swipe takes over and fires once (r13h: the rule lives in
+        // core/HeldKey, once per touch; the view applies its act)
+        val held = File("src/main/kotlin/com/resyst/vk/core/PointerGuard.kt").readText().substringAfter("KeyType.BACKSPACE -> {", "")
+        assertTrue(held.substringBefore("}").contains("!swiped && DeleteSwipe.isSwipe(x - downX, y - downY, dp)) { swiped = true; return listOf(Act.DeleteWord)"))
+        assertTrue(view.contains("HeldKey.Act.DeleteWord -> { handler.removeCallbacksAndMessages(p); listener?.onDeleteWord(); invalidate() }"))
     }
 }
