@@ -1635,7 +1635,8 @@ Measured before any code, on the raw touch logs of s1-s4 (getevent -lt, protocol
 with r13e_s4_decode.py's slot state, one sample per SYN_REPORT of a live contact, as Android's InputReader delivers a
 MOVE whenever an axis changes):
 - Between two consecutive reports (4.2 ms) no keyboard contact moves more than 0.86 key widths; within 12 ms, every
-  keyboard touch of s1-s4 stays under 0.5 key widths except ONE: s4, the `n` of `cinco` (m07 `antes de las cinco`).
+  keyboard touch of s1-s4 (6,434) stays under 0.35 key widths except four: three page scrolls of s2 (below) and ONE
+  typing touch: s4, the `n` of `cinco` (m07 `antes de las cinco`).
   That contact's finger rested on `n` for 75 ms; at +78.7 ms the report shows the contact area collapsing (touch major
   0xb9 → 0x4c, pressure 52 → 13: the finger lifting), then the same tracking id travels 322 px (3.2 key widths) left in
   25 ms (steps 53, 86, 81, 55, 33, 18 px: the firmware smoothing a jump) with a huge new contact (touch major 0x2f1,
@@ -1676,7 +1677,8 @@ Written before the code; each item names what a JVM test, the replay or the devi
   roll-over that drops the first key (letters), a lost key (Enter, layer keys: they commit where they lift, the second
   key never comes). Rule: every sample (MotionEvent history included) of a held key's pointer is checked; a move of
   ≥ 1 key width against the previous sample (any age: a real finger moving that far is reported on the way) or against
-  any sample of the last 12 ms is a JUMP: the touch ends at the last calm sample (its tap: the space if no gesture had
+  any sample of the last 12 ms, or of ≥ 1.3 key widths within 25 ms (a shorter jump smoothed over the firmware's
+  ~25 ms), is a JUMP: the touch ends at the last calm sample (its tap: the space if no gesture had
   started, the letter it was on, ⌫'s repeat stops, Enter / layer key as tapped) and a new touch starts where the pointer
   settles (or lifts). Every key type, also while a long-press popup is open (the selected variant is committed).
 - JG2 The decision comes too late: the smoothed jump crosses 24 dp before it reaches a key width, so the drag (and its
@@ -1686,15 +1688,17 @@ Written before the code; each item names what a JVM test, the replay or the devi
 - JG3 The new touch inherits the tail of the smoothing (60-100 px more): a space landing would become a drag. Rule: after
   a JUMP the pointer is LANDING until a 12 ms window moves less than 0.4 key widths; the new touch's down point and
   time are taken there (a lift while landing is a tap at the lift point).
-- JG4 Real gestures broken by the guard: no keyboard touch of s1-s4 may be a JUMP (relative paths of every moving
-  keyboard contact, committed without absolute coordinates); every s1-s4 space touch classifies as with 0.12.0 (SG3);
+- JG4 Real gestures broken by the guard: no typing touch of s1-s4 may be a JUMP (relative paths of every moving
+  keyboard contact, committed without absolute coordinates; s2's three page scrolls, made before the keyboard was up,
+  are jumps and are listed as such); every s1-s4 space touch classifies as with 0.12.0 (SG3);
   a hold-then-drag, a 30 dp quick drag, a deliberate flick and a ⌫ swipe still work (JVM and device).
 - JG5 Defence in depth: whatever slips through, no single sample moves the caret more than 3 steps (the excess of a
   sample is dropped, not carried over).
-- JG6 Thresholds tuned on one event. Rule: the guard is set from what real fingers did (max 0.49 key widths in 12 ms
-  over 6,433 keyboard touches) with ≥ 2× margin both ways (the merge: 2.2 key widths in 12 ms); the report lists the
-  per-session counts and the margins. A merge between neighbouring keys (< 1 key width) cannot be told from a slide and
-  stays a slide.
+- JG6 Thresholds tuned on one event. Rule: the guard is set from what real fingers did (typing: max 0.34 key widths in
+  12 ms and 0.47 in 25 ms over 6,434 keyboard touches; the owner's deliberate flicks: 0.49 in 12 ms, 0.93 in 25 ms)
+  with a margin to the merge (1.67 key widths in 12 ms, 3.27 in 25 ms); the report lists the per-session counts and
+  the margins. A smoothed merge shorter than ~1.3 key widths (a letter and the space below it) cannot be told from a
+  quick slide or a flick: it stays what 0.12.0 made of it, with JG2's deferral and JG5's cap.
 
 ### G3 — one tap applies every pending offer of the sentence (`ContextOffers`, `KeyboardView`, IME glue)
 - MO1 A newer offer replaces the older one (0.12.0 showed one chip at a time): two wrong words, one offer. Rule: every
