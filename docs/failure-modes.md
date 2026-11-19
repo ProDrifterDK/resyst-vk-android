@@ -1622,3 +1622,96 @@ Written before the code; each item names what a JVM test, the offline replay or 
   provenance (inputs, sha256s, builder commit) next to the asset; README's third-party section says the asset is
   GPL-3.0-only (CC BY-SA 4.0 → GPLv3) inside a GPL-3.0-or-later app. The owner accepted both licences, including the
   unconfirmed Tatoeba compatibility.
+
+## Round 13h — space-bar gestures, merged touches and multi-offer apply (0.12.1)
+
+The owner's feedback on 0.12.0 (Pixel 8 Pro, gesture navigation):
+1. The language flick (a vertical swipe on the space bar) collides with Android's swipe-up-to-home gesture: off.
+2. Context offers for earlier words arrive a little later than for the current word, before he finishes: kept.
+3. Typing fast, the caret sometimes jumps to the start of the line, right around a space and the next letter.
+4. Two or more pending offers in one sentence should be applied with one tap.
+
+Measured before any code, on the raw touch logs of s1-s4 (getevent -lt, protocol B; scripts/r13h_jumps.py reads them
+with r13e_s4_decode.py's slot state, one sample per SYN_REPORT of a live contact, as Android's InputReader delivers a
+MOVE whenever an axis changes):
+- Between two consecutive reports (4.2 ms) no keyboard contact moves more than 0.86 key widths; within 12 ms, every
+  keyboard touch of s1-s4 stays under 0.5 key widths except ONE: s4, the `n` of `cinco` (m07 `antes de las cinco`).
+  That contact's finger rested on `n` for 75 ms; at +78.7 ms the report shows the contact area collapsing (touch major
+  0xb9 → 0x4c, pressure 52 → 13: the finger lifting), then the same tracking id travels 322 px (3.2 key widths) left in
+  25 ms (steps 53, 86, 81, 55, 33, 18 px: the firmware smoothing a jump) with a huge new contact (touch major 0x2f1,
+  pressure 127: the next finger landing) and rests on `c` until it lifts 45 ms later. Two touches, one pointer: the
+  owner's hypothesis, proven once in 1,364 s4 keyboard touches. 0.11.0 took it as a slide of the `n` onto `c`: `cico`
+  went into the chat and the corrector made it `cinco` by luck.
+- No space→letter merge is in s1-s4 (0.11.0 era). Under 0.12.0's rules the same jump starting on the space bar is a
+  cursor drag as soon as it passes 24 dp sideways (|dx| > |dy|): it sends one DPAD step per 9 dp of the jump, more
+  than ten for a jump to the left half of the keyboard, i.e. the caret runs towards the start of the line, and the
+  space and the next letter are lost. A jump mostly upwards (to the row above space) is a flick: the language changes.
+  This matches report 3. The three fast upward swipes of s2 (2.2 key widths in 25 ms) are page scrolls made before the
+  keyboard was up (nothing they would have typed is in s2's text).
+- Manual language switches that exist besides the flick: Settings home › Idioma (one tap from the settings home);
+  a long press on the space bar opens Android's keyboard picker, which lists Resyst VK's Español and English subtypes
+  (SubtypeSync enables both once on API 34+; picking one switches VK through onCurrentInputMethodSubtypeChanged), with
+  a globe drawn on the space bar and TalkBack's "Mantén pulsado para cambiar de teclado" when the system's own switch
+  button is hidden; the bilingual suggestions follow the language typed without changing the layout.
+
+Written before the code; each item names what a JVM test, the replay or the device run must catch.
+
+### G1 — the language flick becomes a setting, off by default (`KbSettings`, `SpaceGesture`, `KeyboardView`, Settings)
+- LF1 An upward swipe from the space bar switches the language when the owner meant the home gesture. Rule: a switch
+  "Cambiar idioma deslizando la barra espaciadora" (EN "Switch language by swiping the space bar"), stored phone-wide
+  as `phone.spaceFlick`, default OFF; with it off no space-bar gesture ever changes the language.
+- LF2 Existing users keep the flick after the update. Rule: 0.12.0 stores had no such key, so they read as off (the
+  one-time migration is the default itself: nothing to rewrite, and a later "on" is stored and kept); a JVM test
+  decodes a 0.12.0-shaped store. Novedades says so.
+- LF3 With the flick off, what an upward swipe types. Decided on s1-s4's 1,030 space touches: drifts while tapping
+  reach 26 dp (meant as spaces, SG1), deliberate swipes start at 64 dp. So with the switch off a vertical move under
+  40 dp is still a tap (a space), and a vertical swipe of 40 dp or more (|dy| > 2·|dx|, any duration) types nothing:
+  it was not a tap (the home gesture that started on the keyboard, or a habit flick). On: SG1 unchanged.
+- LF4 No manual way to switch left. Rule: the switch's summary and the bilingual summary name the long press on the
+  space bar (Android's picker) and Settings › Idioma; the device run proves the long press lists both languages and
+  that picking English switches the layout. The cursor drag and the long press are unchanged by the switch.
+
+### G2 — a merged touch is two touches (`PointerGuard`, `HeldKey`, `KeyboardView`)
+- JG1 Two fingers reported as one moving pointer act as a drag: a cursor run (space), a word delete (⌫ swipe), a
+  roll-over that drops the first key (letters), a lost key (Enter, layer keys: they commit where they lift, the second
+  key never comes). Rule: every sample (MotionEvent history included) of a held key's pointer is checked; a move of
+  ≥ 1 key width against the previous sample (any age: a real finger moving that far is reported on the way) or against
+  any sample of the last 12 ms is a JUMP: the touch ends at the last calm sample (its tap: the space if no gesture had
+  started, the letter it was on, ⌫'s repeat stops, Enter / layer key as tapped) and a new touch starts where the pointer
+  settles (or lifts). Every key type, also while a long-press popup is open (the selected variant is committed).
+- JG2 The decision comes too late: the smoothed jump crosses 24 dp before it reaches a key width, so the drag (and its
+  DPAD steps) or a roll-over would already have happened. Rule: a sample that moved ≥ 0.4 key widths within 12 ms is
+  FAST: its effects (gesture classification, cursor steps, ⌫ swipe, letter roll-over, popup selection) wait; they are
+  applied at the next calm sample or at the lift, or dropped by a JUMP.
+- JG3 The new touch inherits the tail of the smoothing (60-100 px more): a space landing would become a drag. Rule: after
+  a JUMP the pointer is LANDING until a 12 ms window moves less than 0.4 key widths; the new touch's down point and
+  time are taken there (a lift while landing is a tap at the lift point).
+- JG4 Real gestures broken by the guard: no keyboard touch of s1-s4 may be a JUMP (relative paths of every moving
+  keyboard contact, committed without absolute coordinates); every s1-s4 space touch classifies as with 0.12.0 (SG3);
+  a hold-then-drag, a 30 dp quick drag, a deliberate flick and a ⌫ swipe still work (JVM and device).
+- JG5 Defence in depth: whatever slips through, no single sample moves the caret more than 3 steps (the excess of a
+  sample is dropped, not carried over).
+- JG6 Thresholds tuned on one event. Rule: the guard is set from what real fingers did (max 0.49 key widths in 12 ms
+  over 6,433 keyboard touches) with ≥ 2× margin both ways (the merge: 2.2 key widths in 12 ms); the report lists the
+  per-session counts and the margins. A merge between neighbouring keys (< 1 key width) cannot be told from a slide and
+  stays a slide.
+
+### G3 — one tap applies every pending offer of the sentence (`ContextOffers`, `KeyboardView`, IME glue)
+- MO1 A newer offer replaces the older one (0.12.0 showed one chip at a time): two wrong words, one offer. Rule: every
+  offer still live in the open sentence is kept (ordered by position, one per target word; a new decision for the
+  same word replaces it); stale ones drop out as before (ST1-ST3, CO5) one by one.
+- MO2 The chip with ≥ 2 offers reads e.g. "2 cambios" (EN "2 changes"); TalkBack: "Cambiar caza por casa y esta por
+  está" (EN "Replace caza with casa and esta with está"); one offer: the 0.12.0 chip unchanged.
+- MO3 One tap applies some of them, or edits blind: every offer is re-located in the field at the tap; those still
+  live are applied, in one batch edit (delete from the earliest target, commit the sentence with every replacement and
+  the text typed after the last one); the cursor ends after the same text; text after the cursor is untouched.
+- MO4 No way back: after a tap the bar offers "↶" with the original words while the text before the cursor still ends
+  with what the tap wrote; one tap restores every word in one batch edit (the cursor after the same text); any edit or
+  cursor move ends the offer. A restored pair counts as a kept original (ST5).
+- MO5 Privacy as 0.12.0: never in secret or incognito fields, nothing stored in opted-out fields; the ↶ record lives in
+  RAM, cleared with the field, the keyboard hidden, or the switch.
+
+### Version
+- VR5 0.12.1 / versionCode 15 are the build defaults. "Novedades" is the strip chip that opens the website for the
+  new versionName (r13c WN1-WN8); the website text (docs/novedades-0.12.1.md, for the site) says the flick is off and
+  where to turn it on.
