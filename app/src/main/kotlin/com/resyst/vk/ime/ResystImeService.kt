@@ -627,6 +627,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onSuggestion(word: String) {
         val ic = currentInputConnection ?: return
+        if (word == offerUndoChip) { undoContextOffers(ic); return } // r13h (MO4): the context offers' ↶
         if (word.startsWith(TextEdit.UNDO_PREFIX) || word == openerOffer?.let(TextEdit::openerLabel)) {
             barOffer(word, ic)
             return
@@ -1517,7 +1518,24 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: return
         if (!offers.arrive(offer, before, whole = before.length < ContextOffers.WINDOW)) return
-        view?.setOffer(offer.label, getString(R.string.context_offer_desc, offer.typed, offer.label))
+        showChip()
+    }
+
+    /**
+     * The chip for what is live (CH2): one offer = its word, "Cambiar caza por casa" (0.12.0); r13h (MO2) several =
+     * "2 cambios", "Cambiar caza por casa y esta por está"; none = no chip.
+     */
+    private fun showChip() {
+        val v = view ?: return
+        val live = offers.live
+        when (live.size) {
+            0 -> v.setOffer(null, null)
+            1 -> v.setOffer(live[0].label, getString(R.string.context_offer_desc, live[0].typed, live[0].label))
+            else -> v.setOffer(
+                getString(R.string.context_offers_many, live.size),
+                getString(R.string.context_offers_many_desc, live.joinToString(getString(R.string.context_offers_and)) { getString(R.string.context_offers_pair, it.typed, it.label) }),
+            )
+        }
     }
 
     /** ST1/ST2/CO5: after every edit or cursor move, the offer stays only while its sentence is live and untouched. */
@@ -1526,15 +1544,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (!offersAllowed()) { offers.dropOffer(); v.setOffer(null, null); return }
         val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
         val collapsed = selStart < 0 || selEnd < 0 || selStart == selEnd
-        if (offers.refresh(before, whole = before.length < ContextOffers.WINDOW, collapsed = collapsed)) v.setOffer(null, null)
+        if (offers.refresh(before, whole = before.length < ContextOffers.WINDOW, collapsed = collapsed)) showChip()
     }
 
     /** CO2/ST4: the chip was tapped — the only way a context offer edits text. */
     override fun onContextOffer() {
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
-        val label = offers.current?.label
-        val outs = offers.take(before, whole = before.length < ContextOffers.WINDOW)
+        val label = offers.live.joinToString(getString(R.string.context_offers_and)) { it.label }.ifEmpty { null }
+        val outs = offers.take(before, whole = before.length < ContextOffers.WINDOW) // r13h (MO3): every live offer, one edit
         view?.setOffer(null, null)
         if (outs == null) { refreshContext(); return } // stale: nothing to do (ST2)
         engine.endProvisional() // r12 (PS4): the edit ends a pick's provisional space
@@ -1547,13 +1565,35 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (label != null) view?.announceForAccessibility(getString(R.string.context_offer_done, label))
     }
 
+    /** r13h (MO4): the bar's ↶ after a tap on the chip — every replaced word back while the text is unchanged. */
+    private fun undoContextOffers(ic: InputConnection) {
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
+        val words = offers.undoLabel(before)
+        val outs = offers.undo(before)
+        offerUndoChip = null
+        if (outs == null) { refreshContext(); return } // the text changed: nothing to restore
+        engine.endProvisional() // r12 (PS4)
+        ic.beginBatchEdit()
+        run(outs, ic)
+        ic.endBatchEdit()
+        learner.reset()
+        touchTrail.reset()
+        feedback(null)
+        if (words != null) view?.announceForAccessibility(getString(R.string.context_offers_undone, words.joinToString(", ")))
+    }
+
     // ── r10: text editing (bet 5) ───────────────────────────────────────
     /** The ¿/¡ offer on the bar right now (null = none). */
     private var openerOffer: TextEdit.Opener? = null
 
+    /** r13h (MO4): the context offers' ↶ on the bar right now (null = none). */
+    private var offerUndoChip: String? = null
+
     private fun barOffers(before: CharSequence, st: com.resyst.vk.core.KbSettings): List<String> {
         val out = ArrayList<String>(2)
-        engine.undoOffer(before)?.let { out += TextEdit.UNDO_PREFIX + it }
+        offerUndoChip = offers.undoLabel(before.toString())?.let { TextEdit.UNDO_PREFIX + it.joinToString(", ") }
+        offerUndoChip?.let { out += it }
+        engine.undoOffer(before)?.let { u -> (TextEdit.UNDO_PREFIX + u).takeIf { it != offerUndoChip }?.let { out += it } }
         openerOffer = if (st.autoOpeners && writeLang == Lang.ES && !policy.secret && proseField) {
             TextEdit.opener(before, before.length >= WINDOW)
         } else null

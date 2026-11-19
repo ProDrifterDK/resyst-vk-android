@@ -517,8 +517,10 @@ class Round13fOffersTest {
         // PV2 / CO2: the offer code stores nothing and edits only from the tap
         val glue = ime.substringAfter("// ── r13f: context offers").substringBefore("// ── r10: text editing")
         for (s in listOf("PersonalStore.changed", "learner.afterEdit", "learner.kept", "strike(", "rememberValue", ".unlearn(")) assertFalse(s, glue.contains(s))
-        assertEquals("one edit path: the tap", 1, Regex("run\\(outs, ic\\)").findAll(glue).count())
+        // r13h (MO4): two edit paths, both taps: the chip, and the ↶ that undoes it
+        assertEquals("edit paths: the chip's tap and its ↶", 2, Regex("run\\(outs, ic\\)").findAll(glue).count())
         assertTrue(glue.substringAfter("override fun onContextOffer()").contains("offers.take("))
+        assertTrue(glue.substringAfter("private fun undoContextOffers(").contains("offers.undo("))
         // HP5: the key path only posts
         assertTrue(ime.substringAfter("private fun scheduleOffer()").substringBefore("\n    }").contains("mainHandler.post"))
         // LC1: credits next to the dictionaries, README, strings in Spanish and English

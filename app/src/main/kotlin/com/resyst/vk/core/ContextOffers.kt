@@ -11,6 +11,10 @@ import kotlin.math.ln
  *
  * Where an offer sits is re-read from the field every time, never remembered as an offset (ST2): the words of its
  * sentence up to and including the target ([Offer.prefix]) must still open the last sentence before the cursor.
+ *
+ * r13h (G3, MO1-MO5): every offer still live in the open sentence is kept ([live], by position, one per target word),
+ * one tap applies all of them in one edit ([take]), and the bar's ↶ restores them while the text is unchanged
+ * ([undoLabel], [undo]).
  */
 class ContextOffers {
     /**
@@ -22,9 +26,18 @@ class ContextOffers {
     /** [typed] → [alt] (lowercase) shown as [label] (the typed word's case), its Δ, and the words of its sentence up to it. */
     data class Offer(val typed: String, val alt: String, val label: String, val delta: Double, val prefix: List<String>)
 
-    /** The offer on the bar, or null. */
-    var current: Offer? = null
-        private set
+    /** r13h (MO1): the offers on the bar, in sentence order (one per target word). */
+    private val shown = ArrayList<Offer>(4)
+
+    /** The offers on the bar, in sentence order; the chip shows one, or "N cambios" for several. */
+    val live: List<Offer> get() = shown.toList()
+
+    /** The last offer of the sentence, or null (0.12.0's single chip). */
+    val current: Offer? get() = shown.lastOrNull()
+
+    /** r13h (MO4): what the last tap wrote and what it replaced, while the ↶ may restore it. */
+    private class Applied(val wrote: String, val was: String, val pairs: List<Offer>)
+    private var applied: Applied? = null
 
     /** ST5: offers of a pair (typed → alt) the user left until their sentence moved on, in this field; bounded. */
     private val kept = object : LinkedHashMap<String, Int>(16, 0.75f, true) {
@@ -73,12 +86,19 @@ class ContextOffers {
         return Offer(job.typed, c.alt.word, Suggest.matchCase(c.alt.word, job.typed), c.delta, job.prefix)
     }
 
-    /** A decision arrived (main thread): shown if the live text still holds its word in an open sentence (ST3). */
+    /**
+     * A decision arrived (main thread): shown if the live text still holds its word in an open sentence (ST3). r13h
+     * (MO1): the offers already shown stay while they are live (the stale ones go, as [refresh] would drop them); a new
+     * decision for the same word replaces its offer.
+     */
     fun arrive(offer: Offer, before: String, whole: Boolean): Boolean {
         if (suppressed(offer.typed, offer.alt)) return false
         val w = locate(offer, before, whole)
         if (w.where != Where.LIVE || w.contrast) return false
-        current = offer // a newer offer replaces an older one (one chip at a time)
+        refresh(before, whole, collapsed = true)
+        shown.removeAll { it.prefix.size == offer.prefix.size }
+        shown += offer
+        shown.sortBy { it.prefix.size }
         return true
     }
 
@@ -88,22 +108,28 @@ class ContextOffers {
      * alternative was typed later in the sentence (CO5).
      */
     fun refresh(before: String, whole: Boolean, collapsed: Boolean): Boolean {
-        val o = current ?: return false
-        if (!collapsed) { current = null; return true }
-        val w = locate(o, before, whole)
-        when {
-            w.where == Where.LIVE && !w.contrast -> return false
-            w.where == Where.MOVED_ON -> keptOriginal(o)
+        if (applied != null && !before.endsWith(applied!!.wrote)) applied = null // MO4: the ↶ lasts while the text is unchanged
+        if (shown.isEmpty()) return false
+        if (!collapsed) { shown.clear(); return true }
+        val it = shown.iterator()
+        var changed = false
+        while (it.hasNext()) {
+            val o = it.next()
+            val w = locate(o, before, whole)
+            if (w.where == Where.LIVE && !w.contrast) continue
+            if (w.where == Where.MOVED_ON) keptOriginal(o)
+            it.remove()
+            changed = true
         }
-        current = null
-        return true
+        return changed
     }
 
     /** VK's own Enter sent the field (a chat's send): the sentence moved on with the original word (ST1/ST5). */
     fun sent(): Boolean {
-        val o = current ?: return false
-        keptOriginal(o)
-        current = null
+        applied = null
+        if (shown.isEmpty()) return false
+        shown.forEach { keptOriginal(it) }
+        shown.clear()
         return true
     }
 
@@ -113,24 +139,52 @@ class ContextOffers {
      * way.
      */
     fun take(before: String, whole: Boolean): List<Out>? {
-        val o = current ?: return null
-        current = null
-        val w = locate(o, before, whole)
-        val t = w.word ?: return null
-        if (w.where != Where.LIVE) return null
-        return listOf(Out.DeleteBefore(before.length - t.start), Out.Commit(o.label + before.substring(t.end)))
+        if (shown.isEmpty()) return null
+        val all = shown.toList()
+        shown.clear()
+        // MO3: each offer re-located at the tap; the live ones are applied, from the last word back
+        val hits = all.mapNotNull { o ->
+            val w = locate(o, before, whole)
+            val t = w.word
+            if (w.where == Where.LIVE && t != null) o to t else null
+        }.distinctBy { it.second.start }.sortedBy { it.second.start }
+        if (hits.isEmpty()) return null
+        val from = hits.first().second.start
+        val sb = StringBuilder(before.substring(from))
+        for ((o, t) in hits.asReversed()) sb.replace(t.start - from, t.end - from, o.label)
+        val wrote = sb.toString()
+        applied = Applied(wrote, before.substring(from), hits.map { it.first })
+        return listOf(Out.DeleteBefore(before.length - from), Out.Commit(wrote))
     }
 
-    /** The keyboard was hidden or restarted in the same field: the offer goes, the kept pairs stay. */
+    /** r13h (MO4): the typed words the bar's ↶ would restore, while the text before the cursor ends with the tap's edit. */
+    fun undoLabel(before: String): List<String>? {
+        val a = applied ?: return null
+        if (!before.endsWith(a.wrote)) { applied = null; return null }
+        return a.pairs.map { it.typed }
+    }
+
+    /** r13h (MO4): the ↶ — every replaced word back, one edit, the cursor after the same text; the pairs count as kept. */
+    fun undo(before: String): List<Out>? {
+        val a = applied ?: return null
+        applied = null
+        if (!before.endsWith(a.wrote)) return null
+        a.pairs.forEach { keptOriginal(it) }
+        return listOf(Out.DeleteBefore(a.wrote.length), Out.Commit(a.was))
+    }
+
+    /** The keyboard was hidden or restarted in the same field: the offers and the ↶ go, the kept pairs stay. */
     fun dropOffer(): Boolean {
-        val had = current != null
-        current = null
+        val had = shown.isNotEmpty()
+        shown.clear()
+        applied = null
         return had
     }
 
-    /** Another field: the offer and the field's kept pairs go (ST5). */
+    /** Another field: the offers, the ↶ and the field's kept pairs go (ST5). */
     fun reset() {
-        current = null
+        shown.clear()
+        applied = null
         kept.clear()
     }
 
