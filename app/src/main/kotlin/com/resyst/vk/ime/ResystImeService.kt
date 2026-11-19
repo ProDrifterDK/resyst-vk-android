@@ -1562,6 +1562,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         learner.reset()
         touchTrail.reset()
         feedback(null)
+        // r13h (MO4): a same-length swap (caza → casa) moves no selection, so the editor sends no update: the bar is
+        // refreshed here (it now leads with the ↶)
+        refreshContext()
         if (label != null) view?.announceForAccessibility(getString(R.string.context_offer_done, label))
     }
 
@@ -1579,6 +1582,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         learner.reset()
         touchTrail.reset()
         feedback(null)
+        refreshContext() // the same-length swap back: no selection update either
         if (words != null) view?.announceForAccessibility(getString(R.string.context_offers_undone, words.joinToString(", ")))
     }
 

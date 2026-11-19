@@ -1711,7 +1711,9 @@ Written before the code; each item names what a JVM test, the replay or the devi
   the text typed after the last one); the cursor ends after the same text; text after the cursor is untouched.
 - MO4 No way back: after a tap the bar offers "↶" with the original words while the text before the cursor still ends
   with what the tap wrote; one tap restores every word in one batch edit (the cursor after the same text); any edit or
-  cursor move ends the offer. A restored pair counts as a kept original (ST5).
+  cursor move ends the offer. A restored pair counts as a kept original (ST5). Found on the device (after the code): a
+  same-length swap (`caza` → `casa`, `esta` → `está`) leaves the selection where it was, so the editor sends no
+  selection update and the bar was never refreshed (no ↶); the IME refreshes the bar itself after the tap and the ↶.
 - MO5 Privacy as 0.12.0: never in secret or incognito fields, nothing stored in opted-out fields; the ↶ record lives in
   RAM, cleared with the field, the keyboard hidden, or the switch.
 
