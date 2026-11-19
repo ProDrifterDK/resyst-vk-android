@@ -13,9 +13,13 @@ import kotlin.math.abs
  * deliberate swipes went 64-114 dp; every space tap of s1-s4 lasted ≤ 153 ms. So a flick needs [FLICK_DP] (40 dp,
  * was 20), and a cursor drag either [CURSOR_DP] (24 dp, was 14) or, once the finger has been down [CURSOR_HOLD_MS],
  * [CURSOR_HOLD_DP] (one cursor step: hold, then drag).
+ *
+ * r13h (LF1/LF3): the flick is a setting, off by default (it collided with Android's swipe-up-to-home). Off, a
+ * vertical swipe of [FLICK_DP] or more is [Kind.SWIPE] — not a tap, so it types nothing and changes nothing — and a
+ * smaller drift is still a tap (a space).
  */
 object SpaceGesture {
-    enum class Kind { NONE, CURSOR, FLICK }
+    enum class Kind { NONE, CURSOR, FLICK, SWIPE }
 
     const val FLICK_DP = 40f
     const val FLICK_MAX_MS = 300L
@@ -23,12 +27,16 @@ object SpaceGesture {
     const val CURSOR_HOLD_MS = 200L
     const val CURSOR_HOLD_DP = 9f
 
-    /** [dxDp] / [dyDp]: the finger now relative to where it landed; [elapsedMs]: since it landed. */
-    fun classify(dxDp: Float, dyDp: Float, elapsedMs: Long): Kind {
+    /** [dxDp] / [dyDp]: the finger now relative to where it landed; [elapsedMs]: since it landed. The flick on. */
+    fun classify(dxDp: Float, dyDp: Float, elapsedMs: Long): Kind = classify(dxDp, dyDp, elapsedMs, flick = true)
+
+    /** [flick] = the setting "Cambiar idioma deslizando la barra espaciadora". */
+    fun classify(dxDp: Float, dyDp: Float, elapsedMs: Long, flick: Boolean): Kind {
         val ax = abs(dxDp)
         val ay = abs(dyDp)
         return when {
-            ay >= FLICK_DP && ay > 2 * ax && elapsedMs <= FLICK_MAX_MS -> Kind.FLICK
+            flick && ay >= FLICK_DP && ay > 2 * ax && elapsedMs <= FLICK_MAX_MS -> Kind.FLICK
+            !flick && ay >= FLICK_DP && ay > 2 * ax -> Kind.SWIPE
             ax > ay && (ax >= CURSOR_DP || (elapsedMs >= CURSOR_HOLD_MS && ax >= CURSOR_HOLD_DP)) -> Kind.CURSOR
             else -> Kind.NONE
         }

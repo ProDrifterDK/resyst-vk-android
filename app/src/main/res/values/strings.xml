@@ -9,4 +9,13 @@
     <string name="context_offers_summary">Si una palabra parece la equivocada para la frase (caza en vez de casa), la barra ofrece la otra · un toque la cambia · el teclado nunca la cambia solo · sin red</string>
     <string name="context_offer_desc">Cambiar %1$s por %2$s</string>
     <string name="context_offer_done">Cambiado: %1$s</string>
+    <!-- r13h (G3): two or more context offers in one sentence, one chip; its TalkBack text joins the pairs. -->
+    <string name="context_offers_many">%1$d cambios</string>
+    <string name="context_offers_pair">%1$s por %2$s</string>
+    <string name="context_offers_many_desc">Cambiar %1$s</string>
+    <string name="context_offers_and">" y "</string>
+    <string name="context_offers_undone">Deshecho: %1$s</string>
+    <!-- r13h (G1): the space-bar language flick, off by default. -->
+    <string name="space_flick_title">Cambiar idioma deslizando la barra espaciadora</string>
+    <string name="space_flick_summary">Desliza el espacio hacia arriba o abajo para pasar de español a inglés · apagado de fábrica porque choca con el gesto de inicio de Android · sin esto: mantén pulsado el espacio o usa «Idioma»</string>
 </resources>

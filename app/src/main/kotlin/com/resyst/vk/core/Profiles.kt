@@ -59,6 +59,11 @@ data class KbSettings(
     val contextOffers: Boolean = true,
     /** r10 (bet 4): suggest + correct in the language of the last words (ES ⇄ EN), see [BiLang]. */
     val bilingual: Boolean = true,
+    /**
+     * r13h (LF1/LF2): a vertical swipe on the space bar switches ES ⇄ EN. OFF by default (it collided with Android's
+     * swipe-up-to-home); 0.12.0 stores have no such key and read as off — the one-time migration is this default.
+     */
+    val spaceFlick: Boolean = false,
     /** r10 (bet 4): which Spanish the lexicon is ranked for ([Regional]). */
     val region: Region = Region.ES_CL,
 ) {
@@ -267,6 +272,7 @@ object ProfileCodec {
         "autoOpeners" to s.autoOpeners.toString(),
         "contextOffers" to s.contextOffers.toString(),
         "bilingual" to s.bilingual.toString(),
+        "spaceFlick" to s.spaceFlick.toString(),
         "region" to s.region.name,
     )
 
@@ -408,6 +414,7 @@ object ProfileCodec {
             autoOpeners = bool("autoOpeners", d.autoOpeners),
             contextOffers = bool("contextOffers", d.contextOffers),
             bilingual = bool("bilingual", d.bilingual),
+            spaceFlick = bool("spaceFlick", d.spaceFlick),
             region = enumOr(str("region"), d.region),
         )
     }

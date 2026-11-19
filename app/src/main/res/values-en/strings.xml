@@ -5,4 +5,11 @@
     <string name="context_offers_summary">When a word looks wrong for its sentence (caza instead of casa), the bar offers the other one · one tap swaps it · the keyboard never changes it on its own · offline</string>
     <string name="context_offer_desc">Replace %1$s with %2$s</string>
     <string name="context_offer_done">Changed: %1$s</string>
+    <string name="context_offers_many">%1$d changes</string>
+    <string name="context_offers_pair">%1$s with %2$s</string>
+    <string name="context_offers_many_desc">Replace %1$s</string>
+    <string name="context_offers_and">" and "</string>
+    <string name="context_offers_undone">Undone: %1$s</string>
+    <string name="space_flick_title">Switch language by swiping the space bar</string>
+    <string name="space_flick_summary">Swipe the space bar up or down to switch between Spanish and English · off by default because it collides with Android\'s home gesture · without it: hold the space bar or use «Idioma»</string>
 </resources>

@@ -690,6 +690,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     /** A vertical flick on space: ES ⇄ EN, phone-wide, pushed to the system subtype (FL1/FL5). */
     override fun onSpaceFlick() {
+        if (!s.spaceFlick) return // r13h (LF1): the view only reports it with the switch on
         val next = BiLang.other(s.lang)
         store = store.updatePhone { it.copy(lang = next) }
         repo.save(store) // listener → syncSubtype pushes the new language to the system picker

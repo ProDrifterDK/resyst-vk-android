@@ -421,7 +421,8 @@ class SettingsActivity : Activity() {
 
             Ctl.LANG -> choice(ctl.label, listOf(Lang.ES to "Español", Lang.EN to "English"), s.lang) { v -> commit { it.copy(lang = v) } }
             Ctl.SYSTEM_LANGS -> link("${ctl.label} ›") { SubtypeSync(this).openSubtypeSettings() }
-            Ctl.BILINGUAL -> toggle(ctl.label, "Escribe en español o inglés: el teclado sigue tus últimas palabras · desliza el espacio hacia arriba para cambiar de idioma", s.bilingual) { v -> commit { it.copy(bilingual = v) } }
+            Ctl.BILINGUAL -> toggle(ctl.label, "Escribe en español o inglés: las sugerencias siguen tus últimas palabras · el teclado cambia de idioma con «Idioma» o manteniendo pulsado el espacio", s.bilingual) { v -> commit { it.copy(bilingual = v) } }
+            Ctl.SPACE_FLICK -> toggle(getString(R.string.space_flick_title), getString(R.string.space_flick_summary), s.spaceFlick) { v -> commit { it.copy(spaceFlick = v) } }
             Ctl.REGION -> choice(ctl.label, Region.values().map { it to it.label }, s.region) { v -> commit { it.copy(region = v) } }
             Ctl.HIDE_TOP_ROW -> toggle(ctl.label, "Quita la fila de acentos / números sobre las letras", s.hideTopRow) { v -> commit { it.copy(hideTopRow = v) } }
             Ctl.TOP_ROW -> choice(ctl.label, listOf(TopRow.ACCENTS to "Acentos", TopRow.NUMBERS to "Números"), s.topRow) { v -> commit { it.copy(topRow = v) } }

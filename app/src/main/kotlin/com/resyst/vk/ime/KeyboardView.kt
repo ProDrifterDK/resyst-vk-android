@@ -32,6 +32,7 @@ import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.DeleteSwipe
 import com.resyst.vk.core.EditOp
 import com.resyst.vk.core.EditPad
+import com.resyst.vk.core.HeldKey
 import com.resyst.vk.core.ImeSwitcher
 import com.resyst.vk.core.Key
 import com.resyst.vk.core.KeyCap
@@ -43,11 +44,11 @@ import com.resyst.vk.core.Mode
 import com.resyst.vk.core.NavInsets
 import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.PointerGuard
 import com.resyst.vk.core.PopupGeometry
 import com.resyst.vk.core.Quick
 import com.resyst.vk.core.QuickAction
 import com.resyst.vk.core.ShiftState
-import com.resyst.vk.core.SpaceGesture
 import com.resyst.vk.core.StripPlan
 import com.resyst.vk.core.UpdateNotice
 import com.resyst.vk.core.UpdateSurface
@@ -378,27 +379,32 @@ class KeyboardView(context: Context) : View(context) {
 
     // ── touch ────────────────────────────────────────────────────────────
     private class Ptr(val id: Int, var box: Box?, val downX: Float) {
-        /** r10: this ⌫ touch became a word-delete swipe (no more repeats). */
-        var swiped = false
         var popup: VariantPopup? = null
         var popupItems: List<String> = emptyList()
         var popupTop = 0f
         var sel = 0
-        var cursorMode = false
-        var cursorX = 0f
         var longFired = false
         var strip: StripItem? = null
         /** r10: a one-handed rail button (move to that side / OFF = full width). */
         var rail: OneHand? = null
-        /** r10 (bet 4): where/when the finger landed, for the space flick; a flick commits nothing. */
-        var downY = 0f
-        var downAt = 0L
-        var flicked = false
+        /**
+         * r13h: a key's moving finger — the space flick / cursor drag, ⌫'s word swipe, a letter's roll-over ([HeldKey],
+         * pure) — and the merged-touch guard ([PointerGuard], G2); null off the keys (bar, rail).
+         */
+        var held: HeldKey? = null
+        var guard: PointerGuard? = null
+        /** r13h (JG2): a FAST sample's effects are waiting for the next calm sample or the lift. */
+        var pending = false
+        val cursorMode: Boolean get() = held?.cursorMode == true
         /** r13d (TB1): the last position seen (a roll-over commits a held key from here). */
         var lastX = downX
         var lastY = 0f
     }
     private val ptrs = LinkedHashMap<Int, Ptr>()
+    /** r13h (JG3): pointers whose touch ended at a merged-touch jump, until they settle (a new touch starts there). */
+    private val landing = HashMap<Int, PointerGuard>()
+    /** r13h: the width of a one-unit key (the guard measures jumps in key widths). */
+    private var keyPx = 1f
     private val handler = Handler(Looper.getMainLooper())
 
     // ── paints ───────────────────────────────────────────────────────────
@@ -615,6 +621,7 @@ class KeyboardView(context: Context) : View(context) {
         val padX = 3 * dp
         val gap = settings.density.gapDp * dp
         val unit = (split.keysRight - split.keysLeft - 2 * padX) / com.resyst.vk.core.KeyboardLayouts.ROW_UNITS
+        keyPx = max(1f, unit)
         rowH = keysHeight() / rows.size
         if (split.railWidth > 0f) {
             val top = stripH + 2 * dp
@@ -783,19 +790,25 @@ class KeyboardView(context: Context) : View(context) {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val i = e.actionIndex
-                down(e.getPointerId(i), e.getX(i), e.getY(i))
+                down(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
             }
-            MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getX(i), e.getY(i))
+            MotionEvent.ACTION_MOVE -> {
+                // r13h (JG1): every sample counts (a batched MOVE carries the reports since the last frame)
+                for (h in 0 until e.historySize) {
+                    for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getHistoricalX(i, h), e.getHistoricalY(i, h), e.getHistoricalEventTime(h))
+                }
+                for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val i = e.actionIndex
-                up(e.getPointerId(i), e.getX(i), e.getY(i))
+                up(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
             }
             MotionEvent.ACTION_CANCEL -> cancelPointers()
         }
         return true
     }
 
-    private fun down(id: Int, x: Float, y: Float) {
+    private fun down(id: Int, x: Float, y: Float, t: Long) {
         if (clipboardOpen) { panelDown(id, x, y); return }
         if (emojiOpen) { emojiDown(id, x, y); return }
         if (quickOpen) { quickDown(id, x, y); return }
@@ -829,7 +842,9 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         val box = boxAt(x, y) ?: return
-        val p = Ptr(id, box, x).also { it.downY = y; it.lastY = y; it.downAt = SystemClock.uptimeMillis() }
+        val p = Ptr(id, box, x).also { it.lastY = y }
+        p.held = HeldKey(box.key.type, x, y, t, dp, settings.spaceFlick)
+        p.guard = PointerGuard(keyPx).also { it.down(x, y, t) }
         ptrs[id] = p
         listener?.onKeyDown(box.key)
         when (box.key.type) {
@@ -879,71 +894,91 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
-    private fun move(id: Int, x: Float, y: Float) {
+    private fun move(id: Int, x: Float, y: Float, t: Long) {
         if (id == quickPtr || id == editPtr) return
         if (id == emojiPtr) { emojiMove(x, y); return }
         if (id == panelPtr) { panelMove(y); return }
+        landing[id]?.let { g ->
+            // r13h (JG3): the pointer that jumped starts its new touch where it settles
+            if (g.feed(x, y, t) == PointerGuard.Verdict.SETTLED) { landing.remove(id); down(id, x, y, t) }
+            return
+        }
         val p = ptrs[id] ?: return
-        val b = p.box ?: return
+        keyMove(p, x, y, t, lift = false)
+    }
+
+    /**
+     * One sample of a held key's finger. r13h (G2): the guard first — a JUMP ends this touch at its last calm sample
+     * (its tap) and the pointer lands as a new touch; a FAST sample's effects wait for a calm one, or for the lift
+     * ([lift]: the lift applies only what a FAST run left waiting). Returns true when a jump ended the touch.
+     */
+    private fun keyMove(p: Ptr, x: Float, y: Float, t: Long, lift: Boolean): Boolean {
+        val b = p.box ?: return false
+        val g = p.guard
+        if (g != null) {
+            when (g.feed(x, y, t)) {
+                PointerGuard.Verdict.JUMP -> {
+                    endAtJump(p, g)
+                    return true
+                }
+                PointerGuard.Verdict.FAST, PointerGuard.Verdict.LANDING -> if (!lift) { p.pending = true; return false }
+                else -> Unit
+            }
+        }
+        if (lift && !p.pending) return false
+        p.pending = false
         p.lastX = x; p.lastY = y
         val popup = p.popup
         if (popup != null) {
             val s = popup.indexAt(x)
             if (s != p.sel) { p.sel = s; invalidate() }
-            return
+            return false
         }
-        if (b.key.type == KeyType.BACKSPACE && !p.swiped) {
+        val held = p.held ?: return false
+        for (a in held.move(x, y, t, p.longFired)) when (a) {
             // r10 (UX-6): a leftward swipe on ⌫ deletes the previous word (QE6), once per touch
-            if (DeleteSwipe.isSwipe(x - p.downX, y - p.downY, dp)) {
-                handler.removeCallbacksAndMessages(p)
-                p.swiped = true
-                listener?.onDeleteWord()
-                invalidate()
-            }
-            return
-        }
-        if (b.key.type == KeyType.SPACE) {
-            if (!p.cursorMode && !p.longFired && !p.flicked) {
-                // r10 (FL1/FL2): a quick vertical flick switches the language, a horizontal drag moves the cursor;
-                // r13f (SG1/SG2): only deliberate ones (a long swipe; a long drag, or hold then drag)
-                when (SpaceGesture.classify((x - p.downX) / dp, (y - p.downY) / dp, SystemClock.uptimeMillis() - p.downAt)) {
-                    SpaceGesture.Kind.FLICK -> {
-                        p.flicked = true
-                        handler.removeCallbacksAndMessages(p) // FL4: no picker after a flick
-                        listener?.onSpaceFlick()
-                        invalidate()
-                    }
-                    SpaceGesture.Kind.CURSOR -> {
-                        p.cursorMode = true
-                        p.cursorX = p.downX // r13f (SG2): the drag counts from where the finger landed
-                        handler.removeCallbacksAndMessages(p)
-                    }
-                    SpaceGesture.Kind.NONE -> Unit
+            HeldKey.Act.DeleteWord -> { handler.removeCallbacksAndMessages(p); listener?.onDeleteWord(); invalidate() }
+            // r10 (FL1/FL2), r13f (SG1/SG2), r13h (LF1/LF3): a deliberate vertical swipe; no picker after it (FL4)
+            HeldKey.Act.Flick -> { handler.removeCallbacksAndMessages(p); listener?.onSpaceFlick(); invalidate() }
+            HeldKey.Act.Swipe -> { handler.removeCallbacksAndMessages(p); invalidate() }
+            // r13f (SG2): the drag counts from where the finger landed
+            HeldKey.Act.CursorStart -> handler.removeCallbacksAndMessages(p)
+            is HeldKey.Act.Cursor -> listener?.onCursorDrag(a.steps)
+            is HeldKey.Act.Over -> {
+                val nb = boxAt(a.x, a.y)
+                if (nb != null && nb !== b && nb.key.type == KeyType.CHAR) {
+                    handler.removeCallbacksAndMessages(p)
+                    p.box = nb
+                    if (nb.key.variants.isNotEmpty()) scheduleLongPress(p)
+                    invalidate()
                 }
             }
-            if (p.cursorMode) {
-                val stepPx = 9 * dp
-                val steps = ((x - p.cursorX) / stepPx).toInt()
-                if (steps != 0) { p.cursorX += steps * stepPx; listener?.onCursorDrag(steps) }
-            }
-            return
         }
-        if (b.key.type == KeyType.CHAR) {
-            val nb = boxAt(x, y)
-            if (nb != null && nb !== b && nb.key.type == KeyType.CHAR) {
-                handler.removeCallbacksAndMessages(p)
-                p.box = nb
-                if (nb.key.variants.isNotEmpty()) scheduleLongPress(p)
-                invalidate()
-            }
-        }
+        return false
     }
 
-    private fun up(id: Int, x: Float, y: Float) {
+    /** r13h (JG1): the touch ends at its last calm sample, as if lifted there; the pointer is landing (JG3). */
+    private fun endAtJump(p: Ptr, g: PointerGuard) {
+        release(p.id, g.calmX, g.calmY)
+        landing[p.id] = g
+    }
+
+    private fun up(id: Int, x: Float, y: Float, t: Long) {
         if (id == quickPtr) { quickUp(x, y); return }
         if (id == editPtr) { editUp(x, y); return }
         if (id == emojiPtr) { emojiUp(x, y); return }
         if (id == panelPtr) { panelUp(x, y); return }
+        // r13h (JG1/JG3): a lift while landing, or a jump on the lift itself, is a tap where it lifted
+        if (landing.remove(id) != null) { down(id, x, y, t); release(id, x, y); return }
+        val p = ptrs[id]
+        if (p != null && keyMove(p, x, y, t, lift = true)) {
+            landing.remove(id)
+            down(id, x, y, t)
+        }
+        release(id, x, y)
+    }
+
+    private fun release(id: Int, x: Float, y: Float) {
         val p = ptrs.remove(id) ?: return
         handler.removeCallbacksAndMessages(p)
         val strip = p.strip
@@ -959,9 +994,10 @@ class KeyboardView(context: Context) : View(context) {
         }
         val b = p.box ?: return
         val popup = p.popup
+        val held = p.held
         when {
             popup != null -> listener?.onVariant(p.popupItems[p.sel])
-            p.cursorMode || p.longFired || p.flicked -> Unit
+            p.longFired || held?.cursorMode == true || held?.flicked == true -> Unit
             b.key.type == KeyType.BACKSPACE || b.key.type == KeyType.SHIFT -> Unit
             b.key.type == KeyType.EMOJI -> listener?.onEmojiKey()
             else -> {
@@ -1243,6 +1279,7 @@ class KeyboardView(context: Context) : View(context) {
         handler.removeCallbacksAndMessages(emojiToken)
         emojiPtr = -1
         emojiHit = null
+        landing.clear()
         for (p in ptrs.values) {
             handler.removeCallbacksAndMessages(p)
             val k = p.box?.key
