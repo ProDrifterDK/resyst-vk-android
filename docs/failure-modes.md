@@ -1690,9 +1690,10 @@ Written before the code; each item names what a JVM test, the replay or the devi
   any sample of the last 25 ms (the distance scaled by 12 ms / its age). Besides the merge, two touches of s1-s4 reach
   it: s4's 108 ms deliberate flick and an s3 lift-off slide that stays on its key; their effect comes at the lift.
 - JG3 The new touch inherits the tail of the smoothing (60-100 px more): a space landing would become a drag. Rule: after
-  a JUMP the pointer is LANDING until a 12 ms window moves less than 0.4 key widths, at least 12 ms after the jump (a
-  window that has not yet filled is no proof of rest); the new touch's down point and time are taken there, without
-  the jump's history (a lift while landing is a tap at the lift point).
+  a JUMP the pointer is LANDING until it is no longer FAST (JG2's speed over the last 25 ms: neither a window that
+  has not filled yet nor a gap between reports is proof of rest; found on the device, where `input swipe` stalls let a
+  landing settle mid-way and the letter came twice), at least 12 ms after the jump; the new touch's down point and
+  time are taken there, without the jump's history (a lift while landing is a tap at the lift point).
 - JG4 Real gestures broken by the guard: no typing touch of s1-s4 may be a JUMP (relative paths of every moving
   keyboard contact, committed without absolute coordinates; s2's three page scrolls, made before the keyboard was up,
   are jumps and are listed as such); every s1-s4 space touch classifies as with 0.12.0 (SG3);

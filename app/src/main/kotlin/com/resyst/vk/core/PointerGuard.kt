@@ -19,8 +19,9 @@ import kotlin.math.hypot
  *   that speed (the distance scaled by [WINDOW_MS] / its age: a first report that comes late, a digitizer slower than
  *   12 ms a report): a jump may be on its way, so this sample's effects wait (the smoothed jump crosses the
  *   cursor-drag threshold before it reaches a key width, JG2).
- * - [Verdict.LANDING] / [Verdict.SETTLED]: after a jump, until a [WINDOW_MS] window moves less than [FAST_KEYS], at
- *   least [WINDOW_MS] after the jump (the tail of the smoothing); SETTLED once, where the new touch starts (JG3).
+ * - [Verdict.LANDING] / [Verdict.SETTLED]: after a jump, until the pointer is no longer FAST (the same speed over the
+ *   last [LONG_WINDOW_MS]: a gap between reports is no proof of rest), at least [WINDOW_MS] after the jump (the tail of
+ *   the smoothing); SETTLED once, where the new touch starts (JG3).
  * - [Verdict.CALM]: anything else.
  * Pure and allocation-free per sample; KeyboardView owns one per key pointer, the JVM replay drives the same object.
  */
@@ -69,7 +70,7 @@ class PointerGuard(private val keyPx: Float) {
         }
         push(x, y, t)
         val v = when {
-            landing -> if (t - jumpT >= WINDOW_MS && win < FAST_KEYS * keyPx) { landing = false; Verdict.SETTLED } else Verdict.LANDING
+            landing -> if (t - jumpT >= WINDOW_MS && speed < FAST_KEYS * keyPx) { landing = false; Verdict.SETTLED } else Verdict.LANDING
             maxOf(prev, win) >= JUMP_KEYS * keyPx || longWin >= LONG_JUMP_KEYS * keyPx -> { landing = true; jumpT = t; Verdict.JUMP }
             speed >= FAST_KEYS * keyPx -> Verdict.FAST
             else -> Verdict.CALM

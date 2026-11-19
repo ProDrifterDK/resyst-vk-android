@@ -104,7 +104,7 @@ def guard(pts, kw):
         prev = math.hypot(x - pts[i - 1][1], y - pts[i - 1][2])
         far_k.append(max(win, prev, lwin * JUMP_KEYS / LONG_JUMP_KEYS) / kw)
         if landing:
-            if t - jump_t >= WINDOW_S - 1e-9 and win < FAST_KEYS * kw:
+            if t - jump_t >= WINDOW_S - 1e-9 and speed < FAST_KEYS * kw:
                 landing = False
                 start = i  # the new touch starts here, without the jump's history
                 out.append("SETTLED")
