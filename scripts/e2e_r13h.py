@@ -78,15 +78,22 @@ def stored_flick():
 
 
 def key_xy(label):
-    k = r13.km()
-    n = bl.node(k, label) if len(label) == 1 else r13.find(k, label)
-    if n is None:
-        raise RuntimeError(f'no key {label!r}')
-    return e2e.center(n)
+    for _ in range(5):  # a dump taken while the keys are re-laid out can miss them
+        k = r13.km()
+        n = bl.node(k, label) if len(label) == 1 else r13.find(k, label)
+        if n is not None:
+            return e2e.center(n)
+        time.sleep(0.5)
+    raise RuntimeError(f'no key {label!r}')
 
 
 def space_xy():
-    return e2e.center(bl.space(r13.km()))
+    for _ in range(5):
+        n = bl.space(r13.km())
+        if n is not None:
+            return e2e.center(n)
+        time.sleep(0.5)
+    raise RuntimeError('no space key on screen')
 
 
 def swipe_dp(dx_dp, dy_dp, ms):
@@ -437,6 +444,10 @@ def main():
     r13.OUT = r13c.OUT = r13d.OUT = r13f.OUT = OUT
     only = set(a.only.split(','))
     previous = sh('settings get secure default_input_method').strip()
+    # r13f O reads the model's one 'mapped' line back from logcat: a busy phone rotates a 256 KiB buffer before that
+    m = re.search(r'main: ring buffer is (\d+) ([KM])iB', sh('logcat -g', check=False))
+    log_size = f'{m.group(1)}{m.group(2)}' if m else None
+    sh('logcat -G 2M', check=False)
     model = sh('getprop ro.product.model').strip()
     sdk = sh('getprop ro.build.version.sdk').strip()
     print(f'✦ device: {model} (API {sdk}) previous IME={previous}')
@@ -461,6 +472,8 @@ def main():
                     check(sec, 'section ran', False, repr(ex))
     finally:
         sh(f'ime set {previous}', check=False)
+        if log_size:
+            sh(f'logcat -G {log_size}', check=False)
         restored = sh('settings get secure default_input_method').strip()
         check('teardown', 'default input method restored', restored == previous, restored)
         res = {'device': model, 'sdk': sdk, 'rows': rows,
