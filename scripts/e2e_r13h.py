@@ -169,6 +169,8 @@ def set_lang(target):
         if bl.space_label() != '?':
             break
         time.sleep(0.4)
+    else:
+        return 0  # no keyboard on screen: the caller's own checks say so
     for i in range(2):
         if bl.space_label() == target:
             return i
@@ -395,10 +397,19 @@ def r13f_d_with_flick():
         set_flick(False)
 
 
+def r13f_o_in_a_fresh_process(apk):
+    """r13f O measures the model being mapped at the first offer asked for: sections A-C of this run already mapped
+    it in this IME process, so the process is restarted first (as r13f's run had it: right after the install)."""
+    sh(f'am force-stop {PKG}', check=False)
+    time.sleep(2.0)
+    e2e.ensure_ime()
+    r13f.section_o(apk)
+
+
 def section_f(apk):
     before = len(r13f.rows)
     for name, fn in (('A', r13f.section_a), ('B', r13f.section_b), ('C', r13f.section_c), ('D', r13f_d_with_flick), ('W', r13f.section_w),
-                     ('E', r13f.section_e), ('O', lambda: r13f.section_o(apk))):
+                     ('E', r13f.section_e), ('O', lambda: r13f_o_in_a_fresh_process(apk))):
         try:
             sh('input keyevent KEYCODE_WAKEUP', check=False)
             fn()
