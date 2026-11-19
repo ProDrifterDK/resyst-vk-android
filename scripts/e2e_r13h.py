@@ -162,6 +162,23 @@ def pick_language(name):
     return texts, target is not None
 
 
+def set_lang(target):
+    """The shared helpers (r13c.fresh, r13f W) put Spanish back with the space flick, which 0.12.1 ships off: here it
+    waits for the keyboard and switches through Android's picker (the long press) instead. Returns the switches used."""
+    for _ in range(10):
+        if bl.space_label() != '?':
+            break
+        time.sleep(0.4)
+    for i in range(2):
+        if bl.space_label() == target:
+            return i
+        pick_language('Español (Resyst)' if target == 'es' else 'English (Resyst)')
+    return 2
+
+
+bl.set_lang = set_lang
+
+
 # ── A: G1 ────────────────────────────────────────────────────────────────
 def section_a():
     r13d.fresh('text')

@@ -9,7 +9,7 @@ per SYN_REPORT where the contact's position changed, as Android's InputReader wo
 Per keyboard contact (its down point below the suggestion bar) it measures how far the pointer moves against the
 previous sample (any age) and within any 12 ms window, in key widths, and applies the shipped guard's thresholds
 (core/PointerGuard: JUMP >= 1.0 key width against the previous sample or within 12 ms, or >= 1.3 key widths within
-25 ms; FAST >= 0.4 key width within 12 ms). Every JUMP is listed with where it
+25 ms; FAST >= 0.4 key width within 12 ms, or that speed against an older sample of the last 25 ms). Every JUMP is listed with where it
 started, where it landed, its displacement and duration.
 
 Outputs:
@@ -85,32 +85,36 @@ def contacts(sess):
 def guard(pts, kw):
     """The shipped guard over one contact's samples: per sample CALM / FAST / JUMP (LANDING after a jump until a 12 ms
     window moves < FAST_KEYS, then SETTLED). Returns the verdicts and, per sample, the largest move in key widths."""
-    out, far_k, landing = [], [], False
+    out, far_k, landing, start, jump_t = [], [], False, 0, 0.0
     for i, (t, x, y) in enumerate(pts):
         if i == 0:
             out.append("DOWN")
             far_k.append(0.0)
             continue
-        win = lwin = 0.0
-        for j in range(i - 1, -1, -1):
-            if t - pts[j][0] > LONG_WINDOW_S + 1e-9:
+        win = lwin = speed = 0.0
+        for j in range(i - 1, start - 1, -1):
+            age = t - pts[j][0]
+            if age > LONG_WINDOW_S + 1e-9:
                 break
             d = math.hypot(x - pts[j][1], y - pts[j][2])
             lwin = max(lwin, d)
-            if t - pts[j][0] <= WINDOW_S + 1e-9:
+            if age <= WINDOW_S + 1e-9:
                 win = max(win, d)
+            speed = max(speed, d if age <= WINDOW_S + 1e-9 else d * WINDOW_S / age)
         prev = math.hypot(x - pts[i - 1][1], y - pts[i - 1][2])
         far_k.append(max(win, prev, lwin * JUMP_KEYS / LONG_JUMP_KEYS) / kw)
         if landing:
-            if win < FAST_KEYS * kw:
+            if t - jump_t >= WINDOW_S - 1e-9 and win < FAST_KEYS * kw:
                 landing = False
+                start = i  # the new touch starts here, without the jump's history
                 out.append("SETTLED")
             else:
                 out.append("LANDING")
         elif max(win, prev) >= JUMP_KEYS * kw or lwin >= LONG_JUMP_KEYS * kw:
             landing = True
+            jump_t = t
             out.append("JUMP")
-        elif win >= FAST_KEYS * kw:
+        elif speed >= FAST_KEYS * kw:
             out.append("FAST")
         else:
             out.append("CALM")

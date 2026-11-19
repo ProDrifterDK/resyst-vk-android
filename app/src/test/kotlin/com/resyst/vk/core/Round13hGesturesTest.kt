@@ -231,6 +231,35 @@ class Round13hGesturesTest {
         assertEquals(emptyList<HeldKey.Act>(), h.move(330 * d, 0f, 58, longFired = false))
     }
 
+    /**
+     * JG2 (found on the device): `input swipe` on a busy phone (or any digitizer slower than 12 ms a report) can deliver
+     * the first move of a jump 15-25 ms after the down; a 12 ms window then holds no earlier sample, and without the
+     * previous-sample rule the ⌫ swipe fired (a word delete) before the jump was seen.
+     */
+    @Test fun jg2ALateFirstReportStillDefersTheJump() {
+        /** DOWN at [a]; the first move [firstMs] later, 30 % of the way; then every 2 ms to [b] by [endMs]; UP 40 ms later. */
+        fun late(a: FloatArray, b: FloatArray, holdMs: Int, firstMs: Int, endMs: Int): List<FloatArray> {
+            val out = arrayListOf(floatArrayOf(a[0], a[1], 0f))
+            fun at(f: Float, t: Int) = floatArrayOf(a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), t.toFloat())
+            out += at(0.3f, holdMs + firstMs)
+            var t = holdMs + firstMs + 2
+            while (t <= holdMs + endMs) { out += at(0.3f + 0.7f * (t - holdMs - firstMs) / (endMs - firstMs), t); t += 2 }
+            out += floatArrayOf(b[0], b[1], (holdMs + endMs + 40).toFloat())
+            return out
+        }
+        val bs = TouchReplay.center("⌫")
+        val n = TouchReplay.center("n")
+        assertEquals(listOf("⌫", "n"), TouchReplay(Build.R13H, flick = false).run(late(bs, n, 0, 18, 40)))
+        assertEquals("0.12.0: a word delete", listOf("⌫", "DELWORD"), TouchReplay(Build.R12).run(late(bs, n, 0, 18, 40)))
+        val sp = floatArrayOf(560f, 2120f)
+        assertEquals(listOf(" ", "a"), TouchReplay(Build.R13H, flick = false).run(late(sp, TouchReplay.center("a"), 80, 18, 40)))
+        // the real ⌫ swipe reported at 60 Hz (40 dp in 120 ms) still deletes the word
+        val swipe = arrayListOf(floatArrayOf(bs[0], bs[1], 0f))
+        for (t in 16..120 step 16) swipe += floatArrayOf(bs[0] - 40 * TouchReplay.DP * t / 120f, bs[1], t.toFloat())
+        swipe += floatArrayOf(swipe.last()[0], bs[1], 140f)
+        assertEquals(listOf("⌫", "DELWORD"), TouchReplay(Build.R13H, flick = false).run(swipe))
+    }
+
     // ── fixtures ───────────────────────────────────────────────────────────────────────────────────────────────
     class Trace(val session: String, val dur: Int, val path: List<FloatArray>, val msg: String?, val intent: String?) {
         /** The dp path from its space-bar down point as screen px (a down point in the middle of the space bar). */
@@ -297,6 +326,9 @@ class Round13hGesturesTest {
                     "moving keyboard contact of s1-s4. Keys committed, FLICK, DELWORD, CURSOR±n (caret steps).",
                 "s4_merge" to linkedMapOf("r12" to TouchReplay(Build.R12).run(j.path).joinToString(" "),
                     "r13h" to TouchReplay(Build.R13H).run(j.path).joinToString(" ")),
+                "every_jump_found" to jumps.map { x -> linkedMapOf("session" to x.session,
+                    "r12" to TouchReplay(Build.R12).run(x.path).joinToString("|"), "r13h" to TouchReplay(Build.R13H, flick = false).run(x.path).joinToString("|"),
+                    "r13h_flick_on" to TouchReplay(Build.R13H, flick = true).run(x.path).joinToString("|")) },
                 "synthetic" to synthetic, "guard_scan" to guardScan,
                 "thresholds" to linkedMapOf("jump_keys" to PointerGuard.JUMP_KEYS, "window_ms" to PointerGuard.WINDOW_MS,
                     "long_jump_keys" to PointerGuard.LONG_JUMP_KEYS, "long_window_ms" to PointerGuard.LONG_WINDOW_MS,

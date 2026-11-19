@@ -1684,10 +1684,15 @@ Written before the code; each item names what a JVM test, the replay or the devi
 - JG2 The decision comes too late: the smoothed jump crosses 24 dp before it reaches a key width, so the drag (and its
   DPAD steps) or a roll-over would already have happened. Rule: a sample that moved ≥ 0.4 key widths within 12 ms is
   FAST: its effects (gesture classification, cursor steps, ⌫ swipe, letter roll-over, popup selection) wait; they are
-  applied at the next calm sample or at the lift, or dropped by a JUMP.
+  applied at the next calm sample or at the lift, or dropped by a JUMP. Found on the device (after the code): `input
+  swipe` (and any digitizer slower than 12 ms a report) can deliver the first move 15-25 ms after the down, so a
+  window of 12 ms holds no earlier sample and the ⌫ swipe fired before the jump was seen; FAST is that speed against
+  any sample of the last 25 ms (the distance scaled by 12 ms / its age). Besides the merge, two touches of s1-s4 reach
+  it: s4's 108 ms deliberate flick and an s3 lift-off slide that stays on its key; their effect comes at the lift.
 - JG3 The new touch inherits the tail of the smoothing (60-100 px more): a space landing would become a drag. Rule: after
-  a JUMP the pointer is LANDING until a 12 ms window moves less than 0.4 key widths; the new touch's down point and
-  time are taken there (a lift while landing is a tap at the lift point).
+  a JUMP the pointer is LANDING until a 12 ms window moves less than 0.4 key widths, at least 12 ms after the jump (a
+  window that has not yet filled is no proof of rest); the new touch's down point and time are taken there, without
+  the jump's history (a lift while landing is a tap at the lift point).
 - JG4 Real gestures broken by the guard: no typing touch of s1-s4 may be a JUMP (relative paths of every moving
   keyboard contact, committed without absolute coordinates; s2's three page scrolls, made before the keyboard was up,
   are jumps and are listed as such); every s1-s4 space touch classifies as with 0.12.0 (SG3);

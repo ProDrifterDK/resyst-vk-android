@@ -15,10 +15,12 @@ import kotlin.math.hypot
  *   on the way) or against any sample of the last [WINDOW_MS], or ≥ [LONG_JUMP_KEYS] within [LONG_WINDOW_MS] (a
  *   shorter jump the firmware smoothed over its ~25 ms). The touch ended at the last calm sample ([calmX], [calmY]);
  *   the guard is now landing.
- * - [Verdict.FAST]: ≥ [FAST_KEYS] key widths within [WINDOW_MS]: a jump may be on its way, so this sample's effects wait
- *   (the smoothed jump crosses the cursor-drag threshold before it reaches a key width, JG2).
- * - [Verdict.LANDING] / [Verdict.SETTLED]: after a jump, until a [WINDOW_MS] window moves less than [FAST_KEYS] (the
- *   tail of the smoothing); SETTLED once, where the new touch starts (JG3).
+ * - [Verdict.FAST]: ≥ [FAST_KEYS] key widths within [WINDOW_MS] — against an older sample of the last [LONG_WINDOW_MS],
+ *   that speed (the distance scaled by [WINDOW_MS] / its age: a first report that comes late, a digitizer slower than
+ *   12 ms a report): a jump may be on its way, so this sample's effects wait (the smoothed jump crosses the
+ *   cursor-drag threshold before it reaches a key width, JG2).
+ * - [Verdict.LANDING] / [Verdict.SETTLED]: after a jump, until a [WINDOW_MS] window moves less than [FAST_KEYS], at
+ *   least [WINDOW_MS] after the jump (the tail of the smoothing); SETTLED once, where the new touch starts (JG3).
  * - [Verdict.CALM]: anything else.
  * Pure and allocation-free per sample; KeyboardView owns one per key pointer, the JVM replay drives the same object.
  */
@@ -41,6 +43,7 @@ class PointerGuard(private val keyPx: Float) {
 
     var landing = false
         private set
+    private var jumpT = 0L
 
     fun down(x: Float, y: Float, t: Long) {
         n = 0; head = 0; landing = false
@@ -54,6 +57,7 @@ class PointerGuard(private val keyPx: Float) {
         val prev = hypot(x - xs[last], y - ys[last])
         var win = 0f
         var longWin = 0f
+        var speed = 0f // the largest move per WINDOW_MS against the samples of the last LONG_WINDOW_MS
         for (k in 0 until n) {
             val i = (head - 1 - k + SIZE * 2) % SIZE
             val age = t - ts[i]
@@ -61,14 +65,16 @@ class PointerGuard(private val keyPx: Float) {
             val d = hypot(x - xs[i], y - ys[i])
             longWin = maxOf(longWin, d)
             if (age <= WINDOW_MS) win = maxOf(win, d)
+            speed = maxOf(speed, if (age <= WINDOW_MS) d else d * WINDOW_MS / age)
         }
         push(x, y, t)
         val v = when {
-            landing -> if (win < FAST_KEYS * keyPx) { landing = false; Verdict.SETTLED } else Verdict.LANDING
-            maxOf(prev, win) >= JUMP_KEYS * keyPx || longWin >= LONG_JUMP_KEYS * keyPx -> { landing = true; Verdict.JUMP }
-            win >= FAST_KEYS * keyPx -> Verdict.FAST
+            landing -> if (t - jumpT >= WINDOW_MS && win < FAST_KEYS * keyPx) { landing = false; Verdict.SETTLED } else Verdict.LANDING
+            maxOf(prev, win) >= JUMP_KEYS * keyPx || longWin >= LONG_JUMP_KEYS * keyPx -> { landing = true; jumpT = t; Verdict.JUMP }
+            speed >= FAST_KEYS * keyPx -> Verdict.FAST
             else -> Verdict.CALM
         }
+        if (v == Verdict.SETTLED) { n = 0; head = 0; push(x, y, t) } // the new touch starts here, without the jump's history
         if (v == Verdict.CALM || v == Verdict.SETTLED) { calmX = x; calmY = y; calmT = t }
         return v
     }
