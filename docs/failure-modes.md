@@ -1795,7 +1795,7 @@ Written before the code; each item names what a JVM test, the offline replay or 
   safer end of its 4.75-5.0 range). The private-eval harness prints the τ curve so the owner's own data can check it.
 - PM9 Wrong-alternative offers rise (~50 % in r13g). Accepted as measured, and kept visible: the harness reports
   wrong-alternative offers and precision next to right offers, and the strict budget (false + wrong ≤ 0.12.1's).
-  The chip stays an offer (one tap to apply, ↶ to undo, ST5's \"kept twice, not offered again\" per field).
+  The chip stays an offer (one tap to apply, ↶ to undo, ST5's "kept twice, not offered again" per field).
 - PM10 Decision time, threads: the decision runs on the offers' thread while the main thread learns. Rules: the table
   is guarded by its own lock, held for a few lookups (decision) or one sentence (learn); the decision allocates only
   short-lived garbage; budget: decision time unchanged within noise on the Pixel 6 (non-debuggable build, HP5's
@@ -1811,9 +1811,9 @@ Written before the code; each item names what a JVM test, the offline replay or 
 ### KN — "Lo que sé de ti" (Settings)
 - KN1 The user cannot see or stop it. Rule: a section "Pares de palabras que usas a menudo" (EN "Word pairs you use
   often") with its size (pairs, words, KB), whether it is active yet (cold start), the top pairs with a ✕ each
-  (\"Olvidar\"), \"Borrar todos los pares\" (confirmed), and the switch (default on; off = nothing learned and nothing
+  ("Olvidar"), "Borrar todos los pares" (confirmed), and the switch (default on; off = nothing learned and nothing
   used, the table kept until cleared).
-- KN2 It reads as \"frases\" or as something sent anywhere: the copy says pairs of words, on this phone only.
+- KN2 It reads as "frases" or as something sent anywhere: the copy says pairs of words, on this phone only.
 
 ### Version
 - VR6 0.13.0 / versionCode 16 are the build defaults; docs/novedades-0.13.0.md is the site text (plain language).
