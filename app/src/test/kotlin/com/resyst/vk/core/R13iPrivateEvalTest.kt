@@ -35,13 +35,13 @@ class R13iPrivateEvalTest {
     private fun assertAggregatesOnly(rep: Map<String, Any?>, input: List<R13iPrivateEval.Msg>) {
         val strings = ArrayList<String>()
         leaves(rep, strings)
-        assertTrue("strings in the report: $strings", strings.all { it.startsWith("STAND-IN") || it.startsWith("private") || it.startsWith("0.13.0") || it.startsWith("fewer than") })
+        assertTrue("${strings.size} strings in the report, some not a fixed label (not printed: private)", strings.all { it.startsWith("STAND-IN") || it.startsWith("private") || it.startsWith("0.13.0") || it.startsWith("fewer than") })
         val ks = HashSet<String>()
         keys(rep, ks)
         val words = input.flatMap { R13iPrivateEval.WORDRE.findAll(it.text).map { m -> m.value.lowercase() }.toList() }.filter { it.length >= 4 }.toSet()
         val allowed = setOf("desktop", "phone", "label", "build", "made", "right", "words", "seeds", "pairs", "bytes", "active", "memory", "error", "drops", "clean")
         val leaked = ks.filter { it.lowercase() in words && it !in allowed }
-        assertTrue("report keys that are input words: $leaked", leaked.isEmpty())
+        assertTrue("${leaked.size} report keys are input words (not printed: private)", leaked.isEmpty())
     }
 
     private fun write(rep: Map<String, Any?>, f: File) {
@@ -65,6 +65,10 @@ class R13iPrivateEvalTest {
         val rep = R13iPrivateEval.run(msgs, standIn = true) { System.err.println("r13i stand-in: $it") }
         assertAggregatesOnly(rep, msgs)
         write(rep, File("build/r13i/standin.json"))
+        // the same stand-in as the script's input format (public text), to run scripts/r13i_private_eval.sh end to end
+        File("build/r13i/standin-messages.jsonl").writeText(msgs.joinToString("") {
+            R13iPrivateEval.json(linkedMapOf("ts" to it.ts, "source" to it.source, "text" to it.text)).replace("\n", "").replace("{  ", "{") + "\n"
+        })
     }
 
     /**
