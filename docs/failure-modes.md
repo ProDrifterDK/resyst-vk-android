@@ -1727,3 +1727,93 @@ Written before the code; each item names what a JVM test, the replay or the devi
 - VR5 0.12.1 / versionCode 15 are the build defaults. "Novedades" is the strip chip that opens the website for the
   new versionName (r13c WN1-WN8); the website text (docs/novedades-0.12.1.md, for the site) says the flick is off and
   where to turn it on.
+
+## Round 13i — personal word-pair memory inside the context offers (0.13.0)
+
+r13g measured, on the owner's own message history (2,487 messages, chronological splits, private and deleted since),
+what a personal phrase memory adds to 0.12.0's context offers. Multi-word phrase chips and automatic edits did not help.
+One thing did: a small table of the owner's own word pairs and triples (a personal bigram/trigram model), mixed into
+the generic model's probabilities at λ ≈ 0.2 for the OFFER decision only. It gave +20 % right offers (+3.8 pp recall,
+McNemar p < 1e-6, on two splits) at the same false-offer budget on clean words, with τ ≈ 4.75-5.0. Its cost: about
+50 % more wrong-alternative offers on slipped words (precision −0.3 to −0.6 pp). 0.13.0 ships that memory: learned
+on the device from what the user sends or keeps, shown and deletable in "Lo que sé de ti", one switch.
+
+Written before the code; each item names what a JVM test, the offline replay or the device run must catch.
+
+### PM — the pair memory (`PairMemory`, `PairLearner`, `ContextCheck`, `ContextOffers`, IME glue)
+- PM1 Self-reinforcement: the memory learns the keyboard's own output and then pushes it harder (a space-correction or
+  a context offer feeds the table, the table makes the next offer stronger, and so on). Rules: only words the user
+  typed and kept are learned. The words of the space corrections the engine applied in this field and the user never
+  confirmed (`KeyboardEngine`'s per-field record of applied fixes, LR6) are masked: they are not learned, and no pair
+  or triple is made across them. A context offer edits only on a tap (CO2), so a tapped alternative is the user's
+  choice and may be learned. The memory never touches the corrector or the bar's completions: it only feeds the offer
+  decision. A JVM test types a sentence whose word space corrects and shows that no entry with the fixed word exists
+  afterwards, while the sentence's other pairs are learned.
+- PM2 Learning secrets: passwords, PINs, incognito composers, codes typed once. Rules: the write gate is the learned
+  words' gate (`FieldPolicy.personalWords`: never secret, never incognito, never an opted-out "Sin memoria" field,
+  "Sugerencias" and "Sugerencias personales" on), AND the memory's own switch, AND the offers' switch. Opted-out prose
+  fields still READ the memory for their offers (like 0.11.0's read-yes / write-no) but write nothing. A word enters
+  the table only if a dictionary knows it (Spanish valid / listed / regional, or English valid) or the user already
+  owns it in the learned words (typed ≥ 2 times, or kept); any other word is stored as `<unk>`, never as text. Numbers
+  are `<n>` (the tokenizer's class). JVM tests: a secret, an incognito and an opted-out field each run the full typing
+  path and the store's bytes are identical before and after; a one-off non-dictionary word is not in the file.
+- PM3 Learning text that was never sent or kept: a sentence deleted, a draft abandoned, a pasted text, a correction
+  the user reverted. Rules: a sentence is learned at one of three moments, read from the field as it stands then:
+  (a) it moved on: it is closed (mark or new line) and the user finished a word of the next sentence; (b) VK's own
+  Enter sent the field (an editor action or the key event of a single-line field); (c) the field was emptied from
+  outside (the app sent and cleared it), using the text VK last saw after its own last edit. Never on a field left
+  with a draft, never on a deletion VK made (⌫ over a selection, the edit panel's cut / delete-word). A reverted
+  correction is not in the text any more, so it is not learned; the typed word the user restored is a word like any
+  other (learned as `<unk>` unless a dictionary knows it or it is his). A sentence already learned in this field is not
+  learned again until the field is empty. Only Spanish sentences are learned (r13b's rule, CO3) with ≥ 2 words. JVM
+  tests for each moment and each exclusion; the device run teaches by typing and sending.
+- PM4 Growth (the IME process lives for days; the file lives for years). Rules: at most 20,000 pair/triple entries and
+  8,000 words; past a cap the least-used entries go (lowest count, oldest among equals), never one written by the
+  learn in progress; a word with no entry left is dropped. Counts halve when one passes 4,096 (like PersonalModel's
+  saturation), and every count halves every 30 days (a 30-day half-life, by the calendar day of the learn; a clock set
+  back never decays, a clock set forward decays at most 12 half-lives); an entry under 0.25 is dropped, so a pair used
+  once is gone after ~2 months without use. Primitive arrays, no boxed maps: Java heap ≤ 2 MB for a full table (JVM
+  test; device: the debug build's GC'd heap log), file ≤ 350 KB (compact binary, `files/personal/pairs.bin`).
+- PM5 Stale data after "borrar": the in-memory table survives a wipe, a load in flight brings it back, a save in
+  flight rewrites it, or the file stays. Rules: the memory lives in `PersonalStore` with the other personal data:
+  "Borrar lo aprendido" and the section's "Borrar todos los pares" both clear the object in memory and delete the file
+  (and its backup), bump the store's generation so a load or a save already queued is discarded, and nothing is
+  written back until something new is learned. "Olvidar" on one pair removes that pair and every triple that contains
+  it. JVM tests: after clear, the table is empty, the file is gone and an empty table serialises to nothing; the device
+  run checks the file is gone and that the offer it made is gone too.
+- PM6 Cold start makes offers worse: with a few sentences learned, the personal probabilities are noise and the lower
+  τ alone raises false offers. Rule: the memory has no effect (and τ stays 6) until it holds enough evidence: at least
+  N_ACTIVE learned tokens (2,000 ≈ 100 short messages; set from the stand-in size curve and r13g's history curve, where
+  the gain appears after ~200-300 kept messages and the 10 % history already gains). A decay that brings it under the
+  bar switches it off again.
+- PM7 An empty (or not yet active) memory changes 0.12.1: every acceptance number (s4 15 made / 14 right, the 315
+  set, prose A / A', the chat set) and every decision must be byte-identical. Rule: without an active memory the
+  decision runs the 0.12.1 code path, term for term, at τ 6. A JVM test runs every acceptance group with no memory,
+  an empty memory and an inactive one: identical alternatives and Δs.
+- PM8 More false offers on clean words with an active memory. Rule: τ_memory (5.0) is chosen so that the false-offer
+  rate on clean words stays ≤ 0.12.1's at τ 6 (r13g: 76 vs 81 on split80, 103 vs 106 on split65, at 4.75; 5.0 is the
+  safer end of its 4.75-5.0 range). The private-eval harness prints the τ curve so the owner's own data can check it.
+- PM9 Wrong-alternative offers rise (~50 % in r13g). Accepted as measured, and kept visible: the harness reports
+  wrong-alternative offers and precision next to right offers, and the strict budget (false + wrong ≤ 0.12.1's).
+  The chip stays an offer (one tap to apply, ↶ to undo, ST5's \"kept twice, not offered again\" per field).
+- PM10 Decision time, threads: the decision runs on the offers' thread while the main thread learns. Rules: the table
+  is guarded by its own lock, held for a few lookups (decision) or one sentence (learn); the decision allocates only
+  short-lived garbage; budget: decision time unchanged within noise on the Pixel 6 (non-debuggable build, HP5's
+  method).
+- PM11 A corrupt or foreign file, a half-written file: the reader checks the magic, the version, every count, every id
+  and the exact length; anything wrong is an empty memory (and the file is rewritten at the next learn). Writes are
+  atomic (temp file + rename).
+- PM12 The private-eval harness leaks the owner's text: it prints aggregates only (counts, rates, Wilson CIs, McNemar),
+  never a word, writes nothing next to its input, and makes no network call. The memory it measures is learned
+  through the PRODUCT path (`PairLearner` driven like the IME drives it, key by key through the engine), not a
+  separate prototype.
+
+### KN — "Lo que sé de ti" (Settings)
+- KN1 The user cannot see or stop it. Rule: a section "Pares de palabras que usas a menudo" (EN "Word pairs you use
+  often") with its size (pairs, words, KB), whether it is active yet (cold start), the top pairs with a ✕ each
+  (\"Olvidar\"), \"Borrar todos los pares\" (confirmed), and the switch (default on; off = nothing learned and nothing
+  used, the table kept until cleared).
+- KN2 It reads as \"frases\" or as something sent anywhere: the copy says pairs of words, on this phone only.
+
+### Version
+- VR6 0.13.0 / versionCode 16 are the build defaults; docs/novedades-0.13.0.md is the site text (plain language).
