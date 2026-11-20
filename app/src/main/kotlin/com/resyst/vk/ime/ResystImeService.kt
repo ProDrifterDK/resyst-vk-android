@@ -119,6 +119,54 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** r11 (BL8): the vocabularies offered / protected: the writing language first, both with bilingual on. */
     private fun vocabLangs(): List<Lang> = writing.vocab()
     private fun personalValues() = PersonalStore.values?.takeIf { policy.personalValues(s) }
+
+    // ── r13i: the pair memory (PM1-PM3, PM10) ──────────────────────────
+    /** Learns the user's word pairs; the write gate ([pairsWrite]) is re-read on every call. */
+    private val pairLearner = com.resyst.vk.core.PairLearner { pairsWrite() }
+    /** WRITE: never secret / incognito / opted-out fields, the switches on, not the GIF box. */
+    private fun pairsWrite() = PersonalStore.pairs?.takeIf { policy.pairWrite(s) && !gifSearching }
+    /** READ (the offer decision): also in opted-out prose fields. */
+    private fun pairsRead() = PersonalStore.pairs?.takeIf { policy.pairRead(s) }
+    private var pairWordsCache: Pair<ContextLexicon, com.resyst.vk.core.PairLearner.Words>? = null
+
+    /** The lexicon hooks over the loaded Spanish / English lexicons (null while loading: nothing is learned). */
+    private fun pairWords(): com.resyst.vk.core.PairLearner.Words? {
+        val lex = lexicon ?: return null
+        val list = lex.get(Lang.ES) ?: return null
+        val valid = lex.valid(Lang.ES) ?: return null
+        val english = lex.valid(Lang.EN)
+        pairWordsCache?.let { (l, w) -> if (l.sameAs(list, valid, english)) return w }
+        val l = ContextLexicon(list, valid, english)
+        val w = object : com.resyst.vk.core.PairLearner.Words {
+            override fun isEs(w: String) = l.isWord(w)
+            override fun isEn(w: String) = l.isEn(w)
+            override fun owned(w: String) = PersonalStore.words?.owns(listOf(Lang.ES, Lang.EN), w, 2) == true
+        }
+        pairWordsCache = l to w
+        return w
+    }
+
+    /**
+     * After a VK edit: tracked on the short read; [sendText] (VK's Enter sent the field) = the offers' read taken
+     * before the send went out; a word end learns a sentence that moved on, from a read posted after the key.
+     */
+    private fun pairsAfterEdit(before: CharSequence, outs: List<Out>, ends: Boolean, sendText: String?, read: Int = WINDOW) {
+        if (pairsWrite() == null) { pairLearner.forgetSeen(); return }
+        pairLearner.track(before.toString(), outs, before.length >= read)
+        if (sendText != null) {
+            if (pairLearner.sent(sendText, sendText.length < ContextOffers.WINDOW, pairWords(), engine.fieldFixes, System.currentTimeMillis())) PersonalStore.changed()
+        } else if (ends) {
+            val field = offerField
+            mainHandler.post { pairsWordEnd(field) }
+        }
+    }
+
+    private fun pairsWordEnd(field: Int) {
+        if (field != offerField || pairsWrite() == null) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: return
+        if (pairLearner.edited(before, before.length < ContextOffers.WINDOW, true, pairWords(), engine.fieldFixes, System.currentTimeMillis())) PersonalStore.changed()
+    }
     /** Remembers this field's final value once (action key, then field exit). */
     private var valueSession = ValueMemory.Session(null, FieldKind.TEXT)
     /** The bar currently offers whole field values (a pick replaces the typed chunk). */
@@ -361,6 +409,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val fieldKey = "${info.packageName}/${info.fieldId}/${info.inputType}"
         // r13f (offers, ST2/ST5): any start drops the chip; another field also forgets the kept pairs
         if (fieldKey == lastFieldKey) offers.dropOffer() else offers.reset()
+        if (fieldKey != lastFieldKey) pairLearner.reset() // r13i (PM3): another field: nothing carried over
         offerField++
         selEnd = info.initialSelEnd
         view?.setOffer(null, null)
@@ -412,6 +461,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         selEnd = newSelEnd // r13f (offers, ST2): a selection drops the offer
         // r12 (PS4): a cursor the user moved (tap, selection) or text the app rewrote ends a pick's provisional space
         if (engine.hasProvisional) engine.selectionChanged(currentInputConnection?.getTextBeforeCursor(WINDOW, 0) ?: "", newSelStart, newSelEnd)
+        // r13i (PM3 c): the field emptied, not by VK (the app sent the message with its own button and cleared it)
+        if (newSelStart == 0 && newSelEnd == 0 && pairsWrite() != null && currentInputConnection?.getTextAfterCursor(1, 0).isNullOrEmpty()) {
+            if (pairLearner.emptiedFromOutside(pairWords(), engine.fieldFixes, System.currentTimeMillis())) PersonalStore.changed()
+        }
         refreshContext()
     }
 
@@ -523,8 +576,12 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (edits.size > 1) ic.beginBatchEdit()
         run(edits, ic)
         if (edits.size > 1) ic.endBatchEdit()
+        // r13i (PM3 b): what VK's Enter sends, read before the send goes out (the app may empty the field at once)
+        val pairSend = if (sends.isNotEmpty() && pairsWrite() != null) ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() else null
+        val selected = key.type == KeyType.BACKSPACE && selStart >= 0 && selEnd >= 0 && selStart != selEnd
         run(sends, ic)
         afterKey(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY, late = ends)
+        if (selected) pairLearner.forgetSeen() else pairsAfterEdit(before, outs, ends, pairSend)
         trail(key.type, outs, near)
         if (ends) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
@@ -611,6 +668,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         if (outs.size > 1) ic.endBatchEdit()
         afterKey(before, outs, Learner.Edit.KEY, late = ends)
+        pairsAfterEdit(before, outs, ends, null)
         trail(KeyType.CHAR, outs, "") // r13d (TB2): an accented letter has no touch record of its own
         view?.setShift(engine.shift)
         if (ends) scheduleOffer() // r13f (offers): a closing variant ends the next word too
@@ -647,6 +705,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         ic.endBatchEdit()
         learn(before, outs, Learner.Edit.PICK)
+        pairsAfterEdit(before, outs, ends = true, sendText = null) // r13i: a picked word (with its space) ends a word
         feedback(null)
         scheduleOffer() // r13f (offers): a picked word (with its space) is a typed next word
     }
@@ -916,6 +975,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         when (val o = offer) {
             is ClipOffer.Text -> {
                 ic.commitText(o.text, 1)
+                pairLearner.pasted() // r13i (PM3): pasted text is not the user's
                 consumedStamp = o.stamp
                 feedback(null)
             }
@@ -996,6 +1056,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 val e = h?.get(id) ?: return
                 v.hideClipboard()
                 currentInputConnection?.commitText(e.text, 1)
+                pairLearner.pasted() // r13i (PM3)
                 learner.reset()
                 engine.endProvisional() // r12 (PS4)
                 feedback(null)
@@ -1485,16 +1546,17 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val valid = lex.valid(Lang.ES) ?: return
         val english = lex.valid(Lang.EN)
         val keep = ctxKeep?.takeIf { it.first === list }?.second ?: ContextKeep.of(list.regionalWords).also { ctxKeep = list to it }
+        val memory = pairsRead() // r13i (PM2, PM7): read gate on the main thread; used only once active
         ctxIo.execute {
             val model = ctxModel.get() ?: return@execute
             val check = checkFor(model, list, valid, english)
             if (job != null) {
                 val t0 = SystemClock.elapsedRealtimeNanos()
                 val c0 = if (timing) android.os.Debug.threadCpuTimeNanos() else 0L
-                val offer = runCatching { offers.decide(job, check, keep) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
+                val offer = runCatching { offers.decide(job, check, keep, memory = memory) }.onFailure { Log.w(TAG, "context: decision failed", it) }.getOrNull()
                 // HP5 (debuggable builds): the decision's wall and thread-CPU time, never its text
                 if (timing) Log.i(TAG, "offertime: decide us=${(SystemClock.elapsedRealtimeNanos() - t0) / 1000} offer=${offer != null} " +
-                    "candidatesUs=${check.lastCandidatesNs / 1000} cpuUs=${(android.os.Debug.threadCpuTimeNanos() - c0) / 1000}")
+                    "candidatesUs=${check.lastCandidatesNs / 1000} cpuUs=${(android.os.Debug.threadCpuTimeNanos() - c0) / 1000} memory=${memory?.active == true}")
                 if (offer != null) mainHandler.post { showOffer(offer, field) }
             }
             if (next != null) {
@@ -1560,6 +1622,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         ic.endBatchEdit()
         learner.reset()
+        pairsAfterEdit(before, outs, ends = false, sendText = null, read = ContextOffers.WINDOW) // r13i: a tapped offer is the user's choice
         touchTrail.reset()
         feedback(null)
         // r13h (MO4): a same-length swap (caza → casa) moves no selection, so the editor sends no update: the bar is
@@ -1580,6 +1643,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         run(outs, ic)
         ic.endBatchEdit()
         learner.reset()
+        pairsAfterEdit(before, outs, ends = false, sendText = null, read = ContextOffers.WINDOW)
         touchTrail.reset()
         feedback(null)
         refreshContext() // the same-length swap back: no selection update either
@@ -1614,6 +1678,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ic.beginBatchEdit()
         run(outs, ic)
         ic.endBatchEdit()
+        pairsAfterEdit(before, outs, ends = false, sendText = null)
         val kept = engine.takeReverted()
         val forGood = rejected(late = false) // r13 (LR5), r13c (TS1/TS2)
         if (kept != null) keep(before, outs, kept, forGood) else learner.reset() // r11 (K2): the ↶ chip keeps the word too
@@ -1655,8 +1720,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EditOp.SELECT -> selecting = !selecting
             EditOp.ALL -> { ic.performContextMenuAction(android.R.id.selectAll); selecting = true }
             EditOp.COPY -> if (!policy.secret) { ic.performContextMenuAction(android.R.id.copy); selecting = false }
-            EditOp.CUT -> if (!policy.secret) { ic.performContextMenuAction(android.R.id.cut); selecting = false }
-            EditOp.PASTE -> { ic.performContextMenuAction(android.R.id.paste); selecting = false }
+            EditOp.CUT -> if (!policy.secret) { ic.performContextMenuAction(android.R.id.cut); selecting = false; pairLearner.forgetSeen() }
+            EditOp.PASTE -> { ic.performContextMenuAction(android.R.id.paste); selecting = false; pairLearner.pasted() }
             EditOp.DELETE_WORD -> {
                 val sel = ic.getSelectedText(0)
                 if (!sel.isNullOrEmpty()) { engine.deleting("", "", sel); ic.commitText("", 1) } // r13 (LR7)
@@ -1667,6 +1732,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                     if (n > 0) ic.deleteSurroundingText(n, 0) else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
                 }
                 learner.reset()
+                pairLearner.forgetSeen() // r13i (PM3): a deletion VK cannot follow
                 engine.endProvisional() // r12 (PS4)
                 selecting = false
             }

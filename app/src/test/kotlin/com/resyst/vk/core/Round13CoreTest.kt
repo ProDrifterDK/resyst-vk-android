@@ -202,11 +202,11 @@ class Round13CoreTest {
         assertTrue("yeísmo", rows.score("llamar") && rows.cost <= TypoModel.PHON + 0.001f)
     }
 
-    // ── VR1 → r13c VR2 → r13d VR3 → r13f VR4 → r13h VR5 ──────────────────
-    @Test fun versionIs0121() { // r13h VR5
+    // ── VR1 → r13c VR2 → r13d VR3 → r13f VR4 → r13h VR5 → r13i VR6 ──────────
+    @Test fun versionIs0130() { // r13i VR6
         val g = File("build.gradle.kts").readText()
-        assertTrue(g.contains("?.toInt() ?: 15"))
-        assertTrue(g.contains("?: \"0.12.1\""))
+        assertTrue(g.contains("?.toInt() ?: 16"))
+        assertTrue(g.contains("?: \"0.13.0\""))
         assertNotNull(Regex("versionCode = \\(findProperty").find(g))
     }
 }

@@ -5,6 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.AtomicFile
 import android.util.Log
+import com.resyst.vk.core.PairFile
+import com.resyst.vk.core.PairMemory
 import com.resyst.vk.core.PersonalModel
 import com.resyst.vk.core.Rejections
 import com.resyst.vk.core.ValueMemory
@@ -44,6 +46,13 @@ object PersonalStore {
         private set
     /** rejections.json exists (read at load, or written since): an emptied store must overwrite it. */
     private var rejectionsFile = false
+    /**
+     * r13i (PM4, PM5): the user's word pairs for the context offers (files/personal/pairs.bin, [PairFile]). Written
+     * only when it changed since the last save ([PairMemory.version]); an empty memory is no file.
+     */
+    var pairs: PairMemory? = null
+        private set
+    private var pairsSaved = 0L
 
     fun init(context: Context) {
         if (dir != null) return
@@ -55,11 +64,20 @@ object PersonalStore {
             val v = read(File(d, VALUES))?.let(ValueMemory::fromJson) ?: ValueMemory()
             val rText = read(File(d, REJECTIONS))
             val r = rText?.let(Rejections::fromJson) ?: Rejections()
+            val t0 = android.os.SystemClock.uptimeMillis()
+            val p = runCatching { PairFile.read(d) }.onFailure { Log.w(TAG, "personal: read pairs failed", it) }.getOrNull() ?: PairMemory()
+            val pairsMs = android.os.SystemClock.uptimeMillis() - t0
             main.post {
                 if (gen != generation) return@post
                 if (words == null) words = w
                 if (values == null) values = v
                 if (rejections == null) { rejections = r; rejectionsFile = rText != null }
+                if (pairs == null) {
+                    pairs = p
+                    pairsSaved = p.version
+                    // r13i (PM4): sizes and load time only, never a word
+                    Log.i(TAG, "pairs: loaded entries=${p.entries} words=${p.wordCount} tokens=${p.tokens.toLong()} active=${p.active} ms=$pairsMs")
+                }
             }
         }
     }
@@ -85,10 +103,16 @@ object PersonalStore {
         // r13: an empty rejection store writes no file (a user who never rejected anything has none)
         val r = rejections?.let { if (it.isEmpty() && !rejectionsFile) null else it.toJson() }
         if (r != null) rejectionsFile = true
+        // r13i: the pair memory only when it changed; an emptied one deletes its file
+        val pm = pairs?.takeIf { it.version != pairsSaved }
+        val pb = pm?.let { if (it.isEmpty()) null else it.toBytes() }
+        if (pm != null) pairsSaved = pm.version
+        val gen = generation
         io.execute {
             if (w != null) write(File(d, WORDS), w)
             if (v != null) write(File(d, VALUES), v)
             if (r != null) write(File(d, REJECTIONS), r)
+            if (pm != null && gen == generation) runCatching { PairFile.write(d, pb) }.onFailure { Log.w(TAG, "personal: write pairs failed", it) }
         }
     }
 
@@ -110,9 +134,26 @@ object PersonalStore {
         values = ValueMemory()
         rejections = Rejections()
         rejectionsFile = false
+        pairs?.clear() ?: run { pairs = PairMemory() }
+        pairsSaved = pairs!!.version
         val d = dir ?: File(context.applicationContext.filesDir, DIR).also { dir = it }
         io.execute {
             d.listFiles()?.forEach { it.delete() }
+            main.post { for (l in wiped.toList()) l() }
+        }
+    }
+
+    /**
+     * r13i (PM5, KN1): "Borrar todos los pares": the pair memory is emptied in memory (the same object the keyboard
+     * holds) and its file deleted, after any save already queued; nothing is written back until something is learned.
+     */
+    fun clearPairs(context: Context) {
+        val p = pairs ?: PairMemory().also { pairs = it }
+        p.clear()
+        pairsSaved = p.version
+        val d = dir ?: File(context.applicationContext.filesDir, DIR).also { dir = it }
+        io.execute {
+            PairFile.delete(d)
             main.post { for (l in wiped.toList()) l() }
         }
     }

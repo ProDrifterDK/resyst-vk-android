@@ -57,6 +57,8 @@ data class KbSettings(
     val autoOpeners: Boolean = true,
     /** r13f (offers, PV4): a typed word probably wrong for its context gets its alternative as a bar chip (needs [suggest]). */
     val contextOffers: Boolean = true,
+    /** r13i (KN1): the pair memory learns the user's word pairs and feeds the context offers (needs [personal] + [contextOffers]). */
+    val pairMemory: Boolean = true,
     /** r10 (bet 4): suggest + correct in the language of the last words (ES ⇄ EN), see [BiLang]. */
     val bilingual: Boolean = true,
     /**
@@ -271,6 +273,7 @@ object ProfileCodec {
         "oneHanded" to s.oneHanded.name,
         "autoOpeners" to s.autoOpeners.toString(),
         "contextOffers" to s.contextOffers.toString(),
+        "pairMemory" to s.pairMemory.toString(),
         "bilingual" to s.bilingual.toString(),
         "spaceFlick" to s.spaceFlick.toString(),
         "region" to s.region.name,
@@ -413,6 +416,7 @@ object ProfileCodec {
             oneHanded = enumOr(str("oneHanded"), d.oneHanded),
             autoOpeners = bool("autoOpeners", d.autoOpeners),
             contextOffers = bool("contextOffers", d.contextOffers),
+            pairMemory = bool("pairMemory", d.pairMemory),
             bilingual = bool("bilingual", d.bilingual),
             spaceFlick = bool("spaceFlick", d.spaceFlick),
             region = enumOr(str("region"), d.region),

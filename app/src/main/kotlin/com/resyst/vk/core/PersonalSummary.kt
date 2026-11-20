@@ -14,8 +14,8 @@ object PersonalSummary {
      * against and the tones file has content: some may be kept, so the row is not empty and the
      * count reads "…" (never 0).
      */
-    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int?, val rejections: Int = 0) {
-        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones != null && tones <= 0 && rejections <= 0
+    data class Counts(val words: Int, val emails: Int, val emojiRecents: Int, val tones: Int?, val rejections: Int = 0, val pairs: Int = 0) {
+        val empty: Boolean get() = words <= 0 && emails <= 0 && emojiRecents <= 0 && tones != null && tones <= 0 && rejections <= 0 && pairs <= 0
     }
 
     /** The tones count while loading (SA2). */
@@ -30,6 +30,7 @@ object PersonalSummary {
             part(c.emojiRecents, "emoji reciente", "emojis recientes"),
             if (c.tones == null) "$LOADING tonos" else part(c.tones, "tono", "tonos"),
             part(c.rejections, "corrección rechazada", "correcciones rechazadas"),
+            part(c.pairs, "par de palabras", "pares de palabras"), // r13i (PM5): files/personal/pairs.bin
         )
         return (parts + LOCAL).joinToString(" · ")
     }

@@ -12,4 +12,21 @@
     <string name="context_offers_undone">Undone: %1$s</string>
     <string name="space_flick_title">Switch language by swiping the space bar</string>
     <string name="space_flick_summary">Swipe the space bar up or down to switch between Spanish and English · off by default because it collides with Android\'s home gesture · without it: hold the space bar or use «Idioma»</string>
+    <!-- r13i (KN1, KN2): the pair memory in «Lo que sé de ti». -->
+    <string name="know_pairs_title">Word pairs you use often</string>
+    <string name="know_pairs_empty">None yet. It learns them from the sentences you send or keep in normal fields: never in passwords, incognito mode or where the app asked for no suggestions. They only help the context suggestions get it right.</string>
+    <string name="know_pairs_summary">%1$d pairs · %2$d words · %3$d KB · only on this phone</string>
+    <string name="know_pairs_learning">still learning: the context suggestions will use them once there are enough (%1$d %%)</string>
+    <string name="know_pairs_active">in use by the context suggestions</string>
+    <string name="know_pairs_off">off: learns no new pairs and does not use these</string>
+    <string name="know_pairs_more">Show more (%1$d) ›</string>
+    <string name="know_pairs_forget_desc">Forget the pair %1$s</string>
+    <string name="know_pairs_clear">Delete all pairs</string>
+    <string name="know_pairs_clear_summary">%1$d pairs · the file is deleted too</string>
+    <string name="know_pairs_clear_title">Delete all pairs?</string>
+    <string name="know_pairs_clear_message">Every word pair the keyboard learned from you is forgotten. Your learned words and everything else stay. This cannot be undone.</string>
+    <string name="know_pairs_clear_ok">Delete</string>
+    <string name="know_pairs_cancel">Cancel</string>
+    <string name="pair_memory_title">Learn word pairs</string>
+    <string name="pair_memory_summary">Remembers which words you write together so the context suggestions get it right more often · needs «Sugerencias personales» and «Sugerencias por contexto» · nothing leaves the phone</string>
 </resources>

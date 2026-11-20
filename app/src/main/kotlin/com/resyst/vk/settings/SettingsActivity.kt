@@ -461,6 +461,8 @@ class SettingsActivity : Activity() {
             Ctl.FORGET_LEARNED -> forgetRow()
 
             Ctl.KNOW_WORDS -> knowWords()
+            Ctl.KNOW_PAIRS -> knowPairs()
+            Ctl.PAIR_MEMORY -> toggle(getString(R.string.pair_memory_title), getString(R.string.pair_memory_summary), s.pairMemory) { v -> commit { it.copy(pairMemory = v) } }
             Ctl.KNOW_REJECTIONS -> knowRejections()
             Ctl.KNOW_EMAILS -> knowEmails()
             Ctl.KNOW_EMOJI -> knowEmoji()
@@ -734,6 +736,7 @@ class SettingsActivity : Activity() {
             emojiRecents = emojiRecents().items().size,
             tones = emojiTones()?.size(), // r12 (SA2): null = still loading the catalog, "…"
             rejections = PersonalStore.rejections?.size ?: 0, // r13 (LR5): files/personal/rejections.json
+            pairs = PersonalStore.pairs?.let { if (it.isEmpty()) 0 else it.pairCount().coerceAtLeast(1) } ?: 0, // r13i: pairs.bin
         )
         dangerRow(Ctl.FORGET_LEARNED.label, PersonalSummary.text(counts), enabled = !counts.empty, onClick = { confirmForget() })
     }
@@ -741,7 +744,7 @@ class SettingsActivity : Activity() {
     private fun confirmForget() {
         AlertDialog.Builder(this)
             .setTitle("¿Borrar lo aprendido?")
-            .setMessage("Se olvidan las palabras, las correcciones que deshiciste, los correos, los emojis recientes y los tonos de piel que el teclado guardó de ti, en todos los temas. No se puede deshacer.")
+            .setMessage("Se olvidan las palabras, los pares de palabras, las correcciones que deshiciste, los correos, los emojis recientes y los tonos de piel que el teclado guardó de ti, en todos los temas. No se puede deshacer.")
             .setPositiveButton("Borrar") { _, _ ->
                 PersonalStore.clear(this) // the row re-counts when the files are gone (personalListener)
                 rerender()
@@ -767,8 +770,8 @@ class SettingsActivity : Activity() {
         root.addView(card, lp(bottom = 10f))
     }
 
-    /** A listed item with its own delete target (48 dp), named for TalkBack. */
-    private fun knowRow(text: String, meta: String?, desc: String, tagId: String, onDelete: () -> Unit) {
+    /** A listed item with its own delete target (48 dp), named for TalkBack ([deleteDesc] = the target's whole name). */
+    private fun knowRow(text: String, meta: String?, desc: String, tagId: String, deleteDesc: String? = null, onDelete: () -> Unit) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -782,7 +785,7 @@ class SettingsActivity : Activity() {
         row.addView(label("✕", 18f, t.bad, 500).apply {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             isClickable = true
-            contentDescription = "Borrar $desc"
+            contentDescription = deleteDesc ?: "Borrar $desc"
             tag = "forget.$tagId"
             setOnClickListener { onDelete() }
         }, LinearLayout.LayoutParams(px(48f), px(48f)))
@@ -814,6 +817,47 @@ class SettingsActivity : Activity() {
             }
             if (n > wordsShown) link("Mostrar más (${n - wordsShown}) ›") { wordsShown += KNOW_WORDS_STEP * 4; rerender() }
         }
+    }
+
+    /** r13i (KN1): how many pairs the section lists before "Mostrar más". */
+    private var pairsShown = KNOW_PAIRS_STEP
+
+    /**
+     * r13i (KN1): the pair memory — its size, whether the offers use it yet (cold start, PM6) or the switch is off, the
+     * most used pairs with ✕ (forget one: the pair and its triples), and "Borrar todos los pares" (memory + file).
+     */
+    private fun knowPairs() {
+        val title = getString(R.string.know_pairs_title)
+        val p = PersonalStore.pairs
+        if (p == null) { knowHead(title, "Cargando…"); return }
+        val n = p.pairCount()
+        val state = when {
+            !b.pairMemory -> getString(R.string.know_pairs_off)
+            p.active -> getString(R.string.know_pairs_active)
+            else -> getString(R.string.know_pairs_learning, (100 * p.tokens / com.resyst.vk.core.PairMemory.ACTIVE_TOKENS).toInt().coerceIn(0, 99))
+        }
+        knowHead(title, if (p.isEmpty()) getString(R.string.know_pairs_empty) + if (!b.pairMemory) " · " + getString(R.string.know_pairs_off) else ""
+            else getString(R.string.know_pairs_summary, n, p.wordCount, (p.toBytes().size + 1023) / 1024) + " · " + state)
+        for (e in p.topPairs(pairsShown)) {
+            val pair = "${e.first} ${e.second}"
+            knowRow(pair, "×${e.count.roundToInt().coerceAtLeast(1)}", pair, "pair.${e.first}.${e.second}", deleteDesc = getString(R.string.know_pairs_forget_desc, pair)) {
+                if (p.forget(e.first, e.second)) { PersonalStore.changed(); rerender() }
+            }
+        }
+        if (n > pairsShown) link(getString(R.string.know_pairs_more, n - pairsShown)) { pairsShown += KNOW_PAIRS_STEP * 4; rerender() }
+        if (!p.isEmpty()) dangerRow(getString(R.string.know_pairs_clear), getString(R.string.know_pairs_clear_summary, n), enabled = true, onClick = { confirmClearPairs() }, summaryTag = "know-pairs-clear")
+    }
+
+    private fun confirmClearPairs() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.know_pairs_clear_title))
+            .setMessage(getString(R.string.know_pairs_clear_message))
+            .setPositiveButton(getString(R.string.know_pairs_clear_ok)) { _, _ ->
+                PersonalStore.clearPairs(this) // memory and file (PM5); the page re-renders when the file is gone
+                rerender()
+            }
+            .setNegativeButton(getString(R.string.know_pairs_cancel), null)
+            .show()
     }
 
     /**
@@ -1415,6 +1459,7 @@ class SettingsActivity : Activity() {
         /** r10 (F-4): the "Lo que sé de ti" page. */
         const val PAGE_KNOW = "datos"
         private const val KNOW_WORDS_STEP = 25
+        private const val KNOW_PAIRS_STEP = 15
         /** Pages whose controls a mode can override (they get the "modo encendido" banner). */
         private val MODE_AFFECTED = setOf("apariencia", "teclas", "escritura")
     }

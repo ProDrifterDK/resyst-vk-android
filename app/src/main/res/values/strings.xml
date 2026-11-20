@@ -18,4 +18,21 @@
     <!-- r13h (G1): the space-bar language flick, off by default. -->
     <string name="space_flick_title">Cambiar idioma deslizando la barra espaciadora</string>
     <string name="space_flick_summary">Desliza el espacio hacia arriba o abajo para pasar de español a inglés · apagado de fábrica porque choca con el gesto de inicio de Android · sin esto: mantén pulsado el espacio o usa «Idioma»</string>
+    <!-- r13i (KN1, KN2): the pair memory in «Lo que sé de ti». -->
+    <string name="know_pairs_title">Pares de palabras que usas a menudo</string>
+    <string name="know_pairs_empty">Ninguno todavía. Los aprende de las frases que envías o dejas escritas en campos normales: nunca en contraseñas, en modo incógnito ni donde la app pidió no recibir sugerencias. Solo sirven para que las sugerencias por contexto acierten más.</string>
+    <string name="know_pairs_summary">%1$d pares · %2$d palabras · %3$d KB · solo en este teléfono</string>
+    <string name="know_pairs_learning">todavía aprendiendo: las sugerencias por contexto los usarán cuando haya suficientes (%1$d %%)</string>
+    <string name="know_pairs_active">en uso en las sugerencias por contexto</string>
+    <string name="know_pairs_off">apagado: no aprende pares nuevos ni usa estos</string>
+    <string name="know_pairs_more">Mostrar más (%1$d) ›</string>
+    <string name="know_pairs_forget_desc">Olvidar el par %1$s</string>
+    <string name="know_pairs_clear">Borrar todos los pares</string>
+    <string name="know_pairs_clear_summary">%1$d pares · se borra también el archivo</string>
+    <string name="know_pairs_clear_title">¿Borrar todos los pares?</string>
+    <string name="know_pairs_clear_message">Se olvidan todos los pares de palabras que el teclado aprendió de ti. Tus palabras aprendidas y lo demás se quedan. No se puede deshacer.</string>
+    <string name="know_pairs_clear_ok">Borrar</string>
+    <string name="know_pairs_cancel">Cancelar</string>
+    <string name="pair_memory_title">Aprender pares de palabras</string>
+    <string name="pair_memory_summary">Recuerda qué palabras escribes juntas para que las sugerencias por contexto acierten más · necesita «Sugerencias personales» y «Sugerencias por contexto» · nada sale del teléfono</string>
 </resources>
