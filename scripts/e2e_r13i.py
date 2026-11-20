@@ -180,8 +180,14 @@ def section_s(seed):
     run_as('mkdir -p files/personal')
     with open(seed, 'rb') as f:
         p = subprocess.run(e2e.ADB + ['exec-in', 'run-as', PKG, 'sh', '-c', f'cat > {PAIRS}'], stdin=f, capture_output=True)
-    sha = pairs_sha()
     want = hashlib.sha256(open(seed, 'rb').read()).hexdigest()
+    # a read right after exec-in can see the copy half written: wait for it to finish (bounded)
+    sha = pairs_sha()
+    for _ in range(5):
+        if sha == want:
+            break
+        time.sleep(1.0)
+        sha = pairs_sha()
     check('S', 'the seed is files/personal/pairs.bin of the debug package', p.returncode == 0 and sha == want, f'rc {p.returncode} sha {sha} want {want}')
     sh('logcat -c', check=False)
     restart_ime()
