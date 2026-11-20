@@ -1,5 +1,6 @@
 package com.resyst.vk.core
 
+import kotlin.math.exp
 import kotlin.math.ln
 
 /**
@@ -36,6 +37,10 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         val keepLists: Boolean = true,
         /** Channel scale α. */
         val alpha: Double = 1.0,
+        /** r13i (PM8): τ_offer while an active [PairMemory] takes part in the decision. */
+        val tauMemory: Double = TAU_MEMORY,
+        /** r13i: the memory's weight λ in the mixed probabilities. */
+        val lambda: Double = PairMemory.LAMBDA,
     )
 
     private val cands = ContextCandidates(lex)
@@ -120,11 +125,44 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         return s
     }
 
+    /**
+     * r13i: [lmDiffs] with each token's probability mixed with the pair memory's, r13g's B1 (memory.py window_mix):
+     * ln((1 − λ)·P_generic + λ·P_personal), the generic term exactly as [score] makes it (the candidate's ln unkTypes
+     * included), the personal one over the same two tokens before.
+     */
+    fun lmDiffsMixed(left: List<String>, typed: String, alts: List<String>, right: List<String>, mem: PairMemory, lambda: Double): DoubleArray {
+        val l = IntArray(left.size) { model.id(left[it]) }
+        val r = IntArray(right.size) { model.id(right[it]) }
+        val base = scoreMixed(left, l, typed, right, r, mem, lambda)
+        return DoubleArray(alts.size) { scoreMixed(left, l, alts[it], right, r, mem, lambda) - base }
+    }
+
+    private fun scoreMixed(left: List<String>, l: IntArray, mid: String, right: List<String>, r: IntArray, mem: PairMemory, lambda: Double): Double {
+        val m = model.id(mid)
+        val from = left.size
+        val n = from + 1 + right.size
+        fun id(j: Int) = if (j < from) l[j] else if (j == from) m else r[j - from - 1]
+        fun tok(j: Int) = if (j < from) left[j] else if (j == from) mid else right[j - from - 1]
+        var s = 0.0
+        for (j in from until n) {
+            val t = tok(j)
+            if (t == ContextTokens.BOS) continue
+            val b = if (j >= 1) id(j - 1) else -1
+            val a = if (j >= 2 && id(j - 1) != ContextNgram.BOS_ID) id(j - 2) else -1
+            var lp = model.logP(id(j), a, b)
+            if (j == from && m == ContextNgram.UNK) lp -= lnUnk
+            val tb = if (j >= 1) tok(j - 1) else null
+            val ta = if (j >= 2 && tb != ContextTokens.BOS) tok(j - 2) else null
+            s += ln((1 - lambda) * exp(lp) + lambda * mem.prob(t, ta, tb))
+        }
+        return s
+    }
+
     /** The r13e oracle's whole-sentence view (tests only): the guard's words and the sentence's words. */
     class OracleView(val guard: Collection<String>, val sentence: List<String>)
 
-    /** One scored alternative and its Δ. */
-    data class Choice(val alt: ContextCandidates.Alt, val delta: Double)
+    /** One scored alternative and its Δ; [personal] = an active [PairMemory] took part (τ_memory applies, r13i). */
+    data class Choice(val alt: ContextCandidates.Alt, val delta: Double, val personal: Boolean = false)
 
     /**
      * The decision for the word at [wordStart, wordEnd) of [text], the LIVE text as the IME sees it (nothing after
@@ -134,8 +172,12 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
      * sentence — the WHOLE sentence, words typed after the decision included — for the contrast guard and the
      * Spanish-sentence rule; the offline tests use it to show that this is the one difference (CO5). The IME never
      * passes it: live, only what is typed exists.
+     *
+     * r13i (PM7): [memory] = the user's pair memory; only while it is [PairMemory.active] are the window's
+     * probabilities mixed with it (λ, [Params.lambda]) and the choice marked [Choice.personal]. Otherwise every term is
+     * 0.12.1's, unchanged.
      */
-    fun decide(text: String, wordStart: Int, wordEnd: Int, p: Params, keep: ContextKeep.Keep?, oracle: OracleView? = null): Choice? {
+    fun decide(text: String, wordStart: Int, wordEnd: Int, p: Params, keep: ContextKeep.Keep?, oracle: OracleView? = null, memory: PairMemory? = null): Choice? {
         val typed = text.substring(wordStart, wordEnd)
         if (!eligibleShape(typed)) return null
         val lw = typed.lowercase()
@@ -167,10 +209,11 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
         val s = sents[ts]
         val left = ContextTokens.leftOf(s, ti)
         val right = ContextTokens.rightOf(s, ti, p.rightWords)
-        val d = lmDiffs(left, lw, alts.map { it.word }, right)
+        val mem = memory?.takeIf { it.active }
+        val d = if (mem == null) lmDiffs(left, lw, alts.map { it.word }, right) else lmDiffsMixed(left, lw, alts.map { it.word }, right, mem, p.lambda)
         var best: Choice? = null
         for ((i, a) in alts.withIndex()) {
-            val c = Choice(a, d[i] + p.alpha * a.channel)
+            val c = Choice(a, d[i] + p.alpha * a.channel, personal = mem != null)
             if (best == null || c.delta > best.delta) best = c // ties: the earlier one in selection order
         }
         return best
@@ -178,6 +221,8 @@ class ContextCheck(val model: ContextNgram, val lex: Lex) {
 
     companion object {
         const val TAU_OFFER = 6.0
+        /** r13i (PM8): τ_offer with an active pair memory (r13g: 4.75-5.0 kept the false offers on clean words ≤ τ 6's). */
+        const val TAU_MEMORY = 5.0
         /** Confusion sets kept per checker (HP3). */
         const val CAND_CACHE = 256
 

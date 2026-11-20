@@ -51,6 +51,15 @@ data class FieldPolicy(
     fun offerWords(s: KbSettings): Boolean = suggestions && !incognito && s.suggest && s.personal
 
     /**
+     * r13i (PM2) WRITE gate of the pair memory: the learned words' gate ([personalWords]: never secret, incognito or
+     * opted out), the memory's own switch and the context offers (it only serves them), in a text field.
+     */
+    fun pairWrite(s: KbSettings): Boolean = personalWords(s) && !secret && kind == FieldKind.TEXT && s.pairMemory && s.contextOffers
+
+    /** r13i READ gate: the offers of an opted-out prose field still read it (0.11.0's read-yes / write-no). */
+    fun pairRead(s: KbSettings): Boolean = offerWords(s) && !secret && kind == FieldKind.TEXT && s.pairMemory && s.contextOffers
+
+    /**
      * Email value memory. NO_SUGGESTIONS doesn't close it: email fields set that flag to stop
      * autocorrect from mangling addresses, and offering the user's own address is the point.
      */

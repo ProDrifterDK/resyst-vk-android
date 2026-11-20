@@ -79,10 +79,13 @@ class ContextOffers {
         return if (w.end < before.length) w.text else null
     }
 
-    /** The decision for [job] (any thread; touches no state): the offer if Δ ≥ τ_offer, else null. */
-    fun decide(job: Job, check: ContextCheck, keep: ContextKeep.Keep?, p: ContextCheck.Params = ContextCheck.Params()): Offer? {
-        val c = check.decide(job.text, job.start, job.end, p, keep) ?: return null
-        if (c.delta < p.tauOffer) return null
+    /**
+     * The decision for [job] (any thread; touches no state): the offer if Δ ≥ τ_offer, else null. r13i: with an active
+     * [memory] the probabilities are mixed and τ_memory applies ([ContextCheck.Choice.personal]).
+     */
+    fun decide(job: Job, check: ContextCheck, keep: ContextKeep.Keep?, p: ContextCheck.Params = ContextCheck.Params(), memory: PairMemory? = null): Offer? {
+        val c = check.decide(job.text, job.start, job.end, p, keep, memory = memory) ?: return null
+        if (c.delta < (if (c.personal) p.tauMemory else p.tauOffer)) return null
         return Offer(job.typed, c.alt.word, Suggest.matchCase(c.alt.word, job.typed), c.delta, job.prefix)
     }
 

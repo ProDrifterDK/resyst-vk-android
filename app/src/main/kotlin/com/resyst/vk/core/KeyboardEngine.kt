@@ -394,6 +394,12 @@ class KeyboardEngine {
     /** r13: corrections remembered for this field (tests, diagnostics). */
     val fieldCorrections: Int get() = applied.size
 
+    /**
+     * r13i (PM1): the words space wrote in this field and the user never undid (the pair memory masks them: the
+     * keyboard's own unconfirmed edits are never learned). Memory only, at most [FIELD_MEMORY].
+     */
+    val fieldFixes: List<String> get() = applied.map { it.fixed }
+
     /** r13c (TS1): words kept as typed in this field after a rejection (tests, diagnostics). */
     val fieldProtected: Int get() = protectedHere.size
 
