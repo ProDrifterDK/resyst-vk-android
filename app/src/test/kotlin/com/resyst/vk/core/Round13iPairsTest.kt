@@ -136,14 +136,17 @@ class Round13iPairsTest {
     @Test fun pm3ARevertedCorrectionIsNotLearned() {
         val mem = PairMemory()
         val c = single(mem)
-        c.type("tambien ")
-        assertTrue(c.text.startsWith("También"))
+        c.type("mañana tambien ")
+        assertEquals("Mañana también ", c.text)
         c.type("⌫")
-        assertEquals("the typed word is back", "Tambien", c.text)
+        assertEquals("the typed word is back", "Mañana tambien", c.text)
         c.send(" vamos a la playa")
         assertTrue(mem.pairCount("vamos", "a") > 0)
-        assertFalse(mem.knows("también"))
-        if (!OffersOracle.lex.isWord("tambien")) assertFalse("a one-off non-word stays <unk>", mem.knows("tambien"))
+        assertFalse("the reverted fix is never learned: ${mem.dump().keys}", mem.knows("también"))
+        if (!OffersOracle.lex.isWord("tambien")) {
+            assertFalse("a one-off non-word stays <unk>", mem.knows("tambien"))
+            assertEquals("the word the user kept is learned as <unk>", 1.0, mem.pairCount("mañana", "<unk>"), 0.0)
+        }
     }
 
     // ── PM3: when a sentence is learned, and when it is not ──────────────────────────────────────────────────

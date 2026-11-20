@@ -75,11 +75,13 @@ def run_as(cmd):
 
 
 def pairs_sha():
-    """sha256 of pairs.bin read through run-as (None = no file)."""
-    p = subprocess.run(e2e.ADB + ['exec-out', 'run-as', PKG, 'cat', PAIRS], capture_output=True)
-    if p.returncode != 0 or b'No such file' in p.stdout[:200] or not p.stdout:
-        return None
-    return hashlib.sha256(p.stdout).hexdigest()
+    """sha256 of pairs.bin read through run-as (None = no file; a read right after a write can come back empty: retried)."""
+    for _ in range(3):
+        p = subprocess.run(e2e.ADB + ['exec-out', 'run-as', PKG, 'cat', PAIRS], capture_output=True)
+        if p.returncode == 0 and p.stdout and b'No such file' not in p.stdout[:200]:
+            return hashlib.sha256(p.stdout).hexdigest()
+        time.sleep(0.7)
+    return None
 
 
 def pairs_exists():
@@ -112,9 +114,13 @@ def send(kind, text):
     """[text] typed in a fresh [kind] field and sent with VK's Enter (the host's action: Listo)."""
     r13d.fresh(kind)
     k = r13c.type_seq(text)
-    enter = r13.find(r13.km(), 'Listo') or r13.find(r13.km(), 'Done')
-    if enter is not None:
-        e2e.tap(enter)
+    keys = r13.km()
+    enter = r13.find(keys, 'Listo')  # an ElementTree node without children is falsy: never `a or b` here
+    if enter is None:
+        enter = r13.find(keys, 'Done')
+    if enter is None:
+        raise RuntimeError('no Enter (Listo) key on screen')
+    e2e.tap(enter)
     time.sleep(0.8)
     return field()
 
