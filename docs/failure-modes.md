@@ -1813,6 +1813,29 @@ Written before the code; each item names what a JVM test, the offline replay or 
   through the PRODUCT path (`PairLearner` driven like the IME drives it, key by key through the engine), not a
   separate prototype.
 
+Found in review (after the code; written here before the fixes):
+- PM13 λ has no check: the whole suite passed with λ = 1 (the memory alone, r13g's C variant, measured worse) and
+  with λ = 0, because no test read a mixed-path number; and the always-on smoke run of the private-eval harness
+  stayed under the cold start, so the mixed path ran only in two tests that check flags and τ. Rule: the taught
+  offer's Δ (the device run's twin) is frozen as Round 13f freezes its numbers, equals the decision at λ 0.2 to the
+  bit, and differs from the decisions at λ 0 and λ 1; the smoke run learns past the cold start and its memory's
+  offers are frozen too. A λ = 1 and a λ = 0 mutant must turn the suite red.
+- PM3b The paste hold ended while the pasted text was still in the field: the hold was dropped whenever an edit
+  started with nothing BEFORE THE CURSOR (or left nothing before it), but the IME's reads are the text before the
+  cursor. Paste, move the cursor to the start of the field, press a key (or a space, or delete what was typed before
+  the paste), move back to the end and close the sentence: the pasted words were learned like typed ones. Rule: the
+  hold ends only when the WHOLE field is empty, the check moment (c) already makes (the selection at 0 and nothing
+  after the cursor; the replay's composer mirrors it after every edit that leaves its field empty), or in another
+  field. JVM test: paste, cursor to the start, a key, back to the end, a sentence closed, VK's send: nothing learned;
+  once the field is empty, it learns again.
+- PM11b The reader rejects a word over 64 UTF-8 bytes (or empty, or not lowercase) while the writer had no such limit:
+  one such word would have made the whole file unreadable (an empty memory at the next load). Unreachable through
+  `PairLearner` today (learned words are ≤ 24 characters), but the two must agree: such a token is learned as
+  `<unk>`, never written.
+- KN3 "Borrar todos los pares" ran the full-wipe listeners: the keyboard dropped its emoji recents and tone defaults
+  to re-read them (harmless, heavier than needed). Rule: a pairs-only wipe tells only who shows the pairs (the
+  settings page). The section's size in KB is computed once per change of the memory, not on every render.
+
 ### KN — "Lo que sé de ti" (Settings)
 - KN1 The user cannot see or stop it. Rule: a section "Pares de palabras que usas a menudo" (EN "Word pairs you use
   often") with its size (pairs, words, KB), whether it is active yet (cold start), the top pairs with a ✕ each
