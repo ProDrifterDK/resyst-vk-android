@@ -1835,6 +1835,16 @@ Found in review (after the code; written here before the fixes):
 - KN3 "Borrar todos los pares" ran the full-wipe listeners: the keyboard dropped its emoji recents and tone defaults
   to re-read them (harmless, heavier than needed). Rule: a pairs-only wipe tells only who shows the pairs (the
   settings page). The section's size in KB is computed once per change of the memory, not on every render.
+- PM12b The private-eval guard refused the owner's real history with no leak: it failed any report key equal to a
+  4+-letter word of the input (minus a short allowlist), and the report's keys are the code's own field names
+  (precision, splits, seconds, synthetic...), words a technical writer uses. A guard keyed on the input's words both
+  false-positives on such writers and depends on the very text it protects. Rule: the report's keys form a closed
+  schema, a frozen list committed with the tests (fixed names, the drop reasons, the split names, the formatted τ
+  values; nothing taken from the input); any key outside it fails closed, and the message gives how many, never
+  which. Every dynamically keyed map in the harness is keyed by a fixed name (a message's source is normalised to
+  phone/desktop when the message is built, not only when the file is read). JVM tests: a history whose messages
+  contain every schema key as a word passes; a report with one key taken from its input fails; a unique marker
+  word in the input appears neither in the written aggregate nor in anything the run prints.
 
 ### KN — "Lo que sé de ti" (Settings)
 - KN1 The user cannot see or stop it. Rule: a section "Pares de palabras que usas a menudo" (EN "Word pairs you use
