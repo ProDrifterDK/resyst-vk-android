@@ -1,6 +1,8 @@
 package com.resyst.vk.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -14,6 +16,9 @@ import java.io.File
  * - [standInEval]: `VK_R13I_STANDIN=1`: public text split as a stand-in history → build/r13i/standin.json.
  * - [smoke]: always: a small slice of the stand-in through the whole pipeline; its report holds numbers and fixed
  *   labels only.
+ * Every report passes [assertAggregatesOnly]: fixed labels as its only strings, and keys from the closed schema in
+ * src/test/resources/r13i/private-eval-keys.txt (PM12b; tested by [schemaWordsInTheInputPass],
+ * [aKeyFromTheInputFails], [aMarkerInTheInputIsNeverWrittenOrPrinted]).
  */
 class R13iPrivateEvalTest {
     private fun leaves(x: Any?, out: MutableList<String>) {
@@ -31,17 +36,18 @@ class R13iPrivateEvalTest {
         }
     }
 
-    /** PM12: the only strings in a report are its two labels; every key is a fixed name or a drop reason. */
-    private fun assertAggregatesOnly(rep: Map<String, Any?>, input: List<R13iPrivateEval.Msg>) {
+    /**
+     * PM12 / PM12b: the only strings in a report are its fixed labels, and every key (at any depth) is in the closed
+     * schema ([SCHEMA], a frozen file; nothing in it comes from the input). Fails closed with counts only.
+     */
+    private fun assertAggregatesOnly(rep: Map<String, Any?>) {
         val strings = ArrayList<String>()
         leaves(rep, strings)
         assertTrue("${strings.size} strings in the report, some not a fixed label (not printed: private)", strings.all { it.startsWith("STAND-IN") || it.startsWith("private") || it.startsWith("0.13.0") || it.startsWith("fewer than") })
         val ks = HashSet<String>()
         keys(rep, ks)
-        val words = input.flatMap { R13iPrivateEval.WORDRE.findAll(it.text).map { m -> m.value.lowercase() }.toList() }.filter { it.length >= 4 }.toSet()
-        val allowed = setOf("desktop", "phone", "label", "build", "made", "right", "words", "seeds", "pairs", "bytes", "active", "memory", "error", "drops", "clean")
-        val leaked = ks.filter { it.lowercase() in words && it !in allowed }
-        assertTrue("${leaked.size} report keys are input words (not printed: private)", leaked.isEmpty())
+        val outside = ks.count { it !in SCHEMA }
+        assertTrue("$outside report keys outside the closed schema (not printed: private)", outside == 0)
     }
 
     private fun write(rep: Map<String, Any?>, f: File) {
@@ -54,7 +60,7 @@ class R13iPrivateEvalTest {
         assumeTrue("VK_PRIVATE_EVAL not set", !path.isNullOrBlank())
         val msgs = R13iPrivateEval.load(File(path!!))
         val rep = R13iPrivateEval.run(msgs) { System.err.println("r13i private eval: $it") }
-        assertAggregatesOnly(rep, msgs)
+        assertAggregatesOnly(rep)
         val out = System.getenv("VK_PRIVATE_EVAL_OUT")?.takeIf { it.isNotBlank() }?.let(::File) ?: File("build/r13i-private-eval/aggregate.json")
         write(rep, out)
     }
@@ -63,7 +69,7 @@ class R13iPrivateEvalTest {
         assumeTrue("VK_R13I_STANDIN not set", System.getenv("VK_R13I_STANDIN") == "1")
         val msgs = R13iPrivateEval.standIn()
         val rep = R13iPrivateEval.run(msgs, standIn = true) { System.err.println("r13i stand-in: $it") }
-        assertAggregatesOnly(rep, msgs)
+        assertAggregatesOnly(rep)
         write(rep, File("build/r13i/standin.json"))
         // the same stand-in as the script's input format (public text), to run scripts/r13i_private_eval.sh end to end
         File("build/r13i/standin-messages.jsonl").writeText(msgs.joinToString("") {
@@ -97,7 +103,7 @@ class R13iPrivateEvalTest {
         val msgs = R13iPrivateEval.standIn().take(SMOKE_MESSAGES)
         val rep = R13iPrivateEval.run(msgs, seeds = listOf(1), standIn = true)
         write(rep, File("build/r13i/smoke.json"))
-        assertAggregatesOnly(rep, msgs)
+        assertAggregatesOnly(rep)
         val splits = rep["splits"] as Map<*, *>
         assertEquals(setOf("split80", "split65"), splits.keys)
         val got = LinkedHashMap<String, List<Any?>>()
@@ -118,7 +124,112 @@ class R13iPrivateEvalTest {
         assertEquals("the smoke run's offers (A made/right, B made/right/wrong/false, clean B made, B made per τ)", SMOKE_FROZEN, got)
     }
 
+    /**
+     * PM12b: a technical writer's history (every schema key written as a word, in kept and in dropped messages) is
+     * not refused: no key of the report comes from the input, so a word the code also uses as a field name is no leak.
+     */
+    @Test fun schemaWordsInTheInputPass() {
+        val (msgs, rep) = schemaWordsRun
+        assertTrue("the run got past the cleaning (splits in the report)", rep["splits"] is Map<*, *>)
+        val ks = HashSet<String>()
+        keys(rep, ks)
+        val words = msgs.flatMap { R13iPrivateEval.WORDRE.findAll(it.text).map { m -> m.value.lowercase() }.toList() }.toSet()
+        assertTrue("the history writes the report's own field names (a real collision, not a vacuous pass)", ks.count { it.lowercase() in words } >= 20)
+        assertAggregatesOnly(rep)
+    }
+
+    private fun withKey(m: Map<*, *>, path: List<String>, key: String): Map<String, Any?> {
+        val c = LinkedHashMap<String, Any?>()
+        m.forEach { (k, v) -> c[k.toString()] = v }
+        if (path.isEmpty()) c[key] = 1 else c[path[0]] = withKey(m[path[0]] as Map<*, *>, path.drop(1), key)
+        return c
+    }
+
+    /** PM12b: a report holding one key taken from its input (its most frequent word, at any depth) fails, counts only. */
+    @Test fun aKeyFromTheInputFails() {
+        val (msgs, rep) = schemaWordsRun
+        val freq = msgs.flatMap { R13iPrivateEval.WORDRE.findAll(it.text).map { m -> m.value.lowercase() }.toList() }.groupingBy { it }.eachCount()
+        val word = freq.filterKeys { it !in SCHEMA }.maxByOrNull { it.value }!!.key
+        val mutants = listOf(
+            emptyList<String>() to word,
+            listOf("drops") to "lines_$word",
+            listOf("messages_kept_by_source") to word,
+            listOf("splits", "split80", "memory") to word,
+            listOf("splits", "split65", "synthetic", "B_tau_sweep") to word,
+        )
+        for ((path, key) in mutants) {
+            val e = assertThrows(AssertionError::class.java) { assertAggregatesOnly(withKey(rep, path, key)) }
+            assertEquals("1 report keys outside the closed schema (not printed: private)", e.message)
+        }
+    }
+
+    /**
+     * PM12 / PM12b: a unique marker word, in kept messages (learned and evaluated), in dropped lines and messages and
+     * in the source field, appears neither in the written aggregate nor in anything the run prints; nothing is
+     * written next to the input.
+     */
+    @Test fun aMarkerInTheInputIsNeverWrittenOrPrinted() {
+        val marker = "zquorvexmarcador"
+        val root = File("build/r13i/marker-probe").apply { deleteRecursively() }
+        val dir = File(root, "in").apply { mkdirs() }
+        val input = File(dir, "messages.jsonl")
+        val base = R13iPrivateEval.standIn().take(60)
+        val rows = ArrayList<Map<String, Any?>>()
+        for ((i, m) in base.withIndex()) {
+            val sp = m.text.indexOf(' ')
+            val text = if (i % 3 == 0 && sp > 0) m.text.substring(0, sp) + " $marker" + m.text.substring(sp) else m.text
+            rows += linkedMapOf("ts" to m.ts, "source" to (if (i % 5 == 0) marker else if (i % 2 == 0) "phone" else "desktop"), "text" to text)
+        }
+        val t = base.last().ts
+        for ((k, text) in listOf("```$marker```", "git commit $marker", "$marker ok", "la casa del $marker ".repeat(80), "mira https://$marker.com hoy", "$marker = 1;").withIndex()) {
+            rows += linkedMapOf("ts" to t - 1000.0 * (k + 1), "source" to "phone", "text" to text)
+        }
+        input.writeText(rows.joinToString("") { R13iPrivateEval.json(it).replace("\n", "") + "\n" })
+        val out = File(root, "out/aggregate.json")
+        val captured = java.io.ByteArrayOutputStream()
+        val (oldOut, oldErr) = System.out to System.err
+        val cap = java.io.PrintStream(captured, true, "UTF-8")
+        System.setOut(cap)
+        System.setErr(cap)
+        var msgs: List<R13iPrivateEval.Msg> = emptyList()
+        try {
+            msgs = R13iPrivateEval.load(input)
+            val rep = R13iPrivateEval.run(msgs, seeds = listOf(1)) { System.err.println("r13i marker probe: $it") }
+            assertAggregatesOnly(rep)
+            assertTrue("the run got past the cleaning", rep["splits"] is Map<*, *>)
+            write(rep, out)
+        } finally {
+            System.setOut(oldOut)
+            System.setErr(oldErr)
+        }
+        val printed = captured.toString("UTF-8")
+        assertTrue("the probe captured the run's log", printed.contains("r13i marker probe: split80"))
+        assertTrue("the marker reached the learn/eval path (kept messages hold it)", R13iPrivateEval.clean(msgs, HashMap()).count { marker in it.text } >= 5)
+        assertFalse("the marker is in the written aggregate", out.readText().contains(marker, ignoreCase = true))
+        assertFalse("the marker is in what the run printed", printed.contains(marker, ignoreCase = true))
+        assertEquals("nothing is written next to the input", listOf("messages.jsonl"), dir.list()!!.toList())
+    }
+
     companion object {
+        val SCHEMA_FILE = File("src/test/resources/r13i/private-eval-keys.txt")
+        val SCHEMA: Set<String> by lazy { SCHEMA_FILE.readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toSet() }
+
+        /** The stand-in's first messages plus messages that write every schema key, run once for the tests that read it. */
+        val schemaWordsRun: Pair<List<R13iPrivateEval.Msg>, Map<String, Any?>> by lazy {
+            val base = R13iPrivateEval.standIn().take(60)
+            val dt = (base.last().ts - base.first().ts) / (base.size * 2)
+            val extra = ArrayList<R13iPrivateEval.Msg>()
+            val all = SCHEMA.toList()
+            // dropped: the raw key lists (not Spanish-dominant, symbols)
+            for ((n, chunk) in all.chunked(12).withIndex()) extra += R13iPrivateEval.Msg(base.first().ts + (2 * n + 1) * dt, if (n % 2 == 0) "phone" else "desktop", chunk.joinToString(" "))
+            // kept: Spanish sentences carrying the alphabetic keys, so they are learned and evaluated too
+            val alpha = all.filter { k -> k.all { it.isLetter() } && k.length >= 4 }
+            for ((n, chunk) in alpha.chunked(3).withIndex()) extra += R13iPrivateEval.Msg(base.first().ts + (2 * n + 2) * dt, if (n % 2 == 0) "phone" else "desktop",
+                "hoy revisé la ${chunk[0]} con calma y también el ${chunk.getOrElse(1) { "dato" }} de la semana, pero el ${chunk.getOrElse(2) { "resto" }} sigue igual que ayer")
+            val msgs = (base + extra).sortedBy { it.ts }
+            msgs to R13iPrivateEval.run(msgs, seeds = listOf(1), standIn = true)
+        }
+
         const val SMOKE_MESSAGES = 200
         /** Frozen on 0.13.0 (λ 0.2, τ_memory 5.0, the 2,000-token cold start); τ sweep 4.5 … 6.0. */
         val SMOKE_FROZEN: Map<String, List<Any?>> = linkedMapOf(

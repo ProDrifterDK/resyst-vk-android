@@ -25,14 +25,20 @@ import kotlin.math.sqrt
  * written, nothing is written next to the input, no network.
  */
 object R13iPrivateEval {
-    class Msg(val ts: Double, val source: String, val text: String)
+    /**
+     * One message. PM12b: [source] keys report maps (drop reasons, counts by source), so it is normalised here, for
+     * every caller, to one of two fixed names: "phone", anything else "desktop".
+     */
+    class Msg(val ts: Double, source: String?, val text: String) {
+        val source: String = if (source == "phone") "phone" else "desktop"
+    }
 
     // ── 1. input, hygiene, splits (r13g clean.py / common.py) ──────────────────────────────────────────────────
     fun load(f: File): List<Msg> = f.readLines().filter { it.isNotBlank() }.mapNotNull { line ->
         val m = runCatching { MiniJson.parse(line) as Map<*, *> }.getOrNull() ?: return@mapNotNull null
         val ts = (m["ts"] as? Number)?.toDouble() ?: (m["ts"] as? String)?.toDoubleOrNull() ?: return@mapNotNull null
         val text = m["text"] as? String ?: return@mapNotNull null
-        Msg(ts, if (m["source"] == "phone") "phone" else "desktop", text)
+        Msg(ts, m["source"] as? String, text)
     }.sortedBy { it.ts }
 
     private val WORD = Regex("[a-záéíóúüñ]+(?:'[a-záéíóúüñ]+)?", RegexOption.IGNORE_CASE)

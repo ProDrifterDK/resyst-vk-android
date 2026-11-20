@@ -1,0 +1,118 @@
+# r13i PM12b: the closed schema of the private-eval report's keys (R13iPrivateEval.run). Every key the report holds,
+# at any depth, must be one of these lines; R13iPrivateEvalTest fails closed on any other (it says how many, never
+# which). None is taken from the input: fixed field names, the drop reasons (cleanText / clean, per normalised
+# source), the split names (SPLITS), the formatted tau values (TAUS), the sources and the slip classes.
+# Change this file together with the code that emits a new key.
+
+# top level
+label
+build
+messages_in
+messages_kept
+messages_kept_by_source
+words_kept
+drops
+active_tokens
+error
+splits
+
+# sources (messages_kept_by_source, by_source)
+phone
+desktop
+
+# drop reasons (drops)
+code_blocks
+lines_inline_code
+lines_url_or_filename
+lines_path_or_code_syntax
+lines_command
+lines_token_like_or_email
+lines_log_json_markup
+msg_long_paste/phone
+msg_long_paste/desktop
+msg_too_short/phone
+msg_too_short/desktop
+msg_not_spanish_dominant/phone
+msg_not_spanish_dominant/desktop
+
+# split names (splits)
+split80
+split65
+
+# per split
+learn_messages
+eval_messages
+memory
+seeds
+synthetic
+clean_run_seed0
+size_curve
+seconds
+
+# memory
+learned_tokens
+entries
+words
+pairs
+bytes
+active
+
+# synthetic
+A_0121_tau6
+B_0130_tau_memory
+right_gain_pct
+recall_gain_pp
+mcnemar_only_A
+mcnemar_only_B
+mcnemar_p
+B_false_le_A_false
+B_tau_sweep
+lowest_tau_at_A_false_budget
+lowest_tau_at_strict_budget
+by_source
+by_class
+
+# tau sweep (B_tau_sweep)
+4.50
+4.75
+5.00
+5.25
+5.50
+5.75
+6.00
+
+# by_source
+A
+B
+
+# by_class
+single
+real_word
+accent
+two_word
+residual_targets
+A_right
+B_right
+
+# clean run
+A_tau6
+B_tau_memory
+
+# size curve
+false_on_real_text
+A_false_on_clean
+A_false_on_real_text
+
+# a block (block)
+right
+wrong_alt
+false_on_clean
+unscorable
+made
+precision
+precision_ci
+recall_residual
+recall_residual_ci
+clean_words
+false_per_1000_clean
+false_rate_clean_ci
