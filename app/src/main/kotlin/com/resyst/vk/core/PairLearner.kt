@@ -34,7 +34,11 @@ class PairLearner(private val memory: () -> PairMemory?) {
     /** The text before the cursor after VK's last edit, and whether it was the field's whole text before the cursor. */
     private var seen: String? = null
     private var seenWhole = false
-    /** VK pasted into this field: nothing is learned in it until it is empty again (pasted text is not the user's). */
+    /**
+     * VK pasted into this field: nothing is learned in it until it is empty again (pasted text is not the user's).
+     * PM3b: only [emptiedFromOutside] (the WHOLE field empty: the selection at 0 and nothing after the cursor) or
+     * [reset] ends it; the reads here are the text before the cursor, which may be empty while the paste is after it.
+     */
     private var hold = false
 
     /**
@@ -45,14 +49,15 @@ class PairLearner(private val memory: () -> PairMemory?) {
      */
     fun track(before: String, outs: List<Out>, windowFull: Boolean) {
         if (memory() == null) { seen = null; return }
-        if (before.isEmpty() && !windowFull) { learned.clear(); hold = false } // the edit started in an empty field
+        // nothing before the cursor; the field may still hold text after it, so the paste hold stays (PM3b)
+        if (before.isEmpty() && !windowFull) learned.clear()
         val s = seen
         val base: String
         if (s != null && s.endsWith(before)) base = s else { base = before; seenWhole = !windowFull }
         var t = Edits.apply(base, outs)
         if (t.length > MAX_SEEN) { t = t.takeLast(MAX_SEEN); seenWhole = false }
         seen = t
-        if (t.isBlank()) { learned.clear(); hold = false }
+        if (t.isBlank()) learned.clear()
     }
 
     /**
@@ -65,7 +70,7 @@ class PairLearner(private val memory: () -> PairMemory?) {
         if (m == null) { seen = null; return false }
         seen = after
         seenWhole = whole
-        if (after.isBlank()) { learned.clear(); hold = false; return false }
+        if (after.isBlank()) { learned.clear(); return false }
         if (!wordEnd || words == null || hold) return false
         val segs = ContextSegments.segments(after)
         if (segs.size < 2) return false
@@ -86,7 +91,10 @@ class PairLearner(private val memory: () -> PairMemory?) {
         return learnTail(m, after, whole, words, fixes, now)
     }
 
-    /** (c) The field was emptied, not by VK (the app sent the message and cleared it). */
+    /**
+     * (c) The field was emptied, not by VK (the app sent the message and cleared it). The IME calls it whenever the
+     * whole field is seen empty (also after VK's own deletions: [seen] is empty then and nothing is learned).
+     */
     fun emptiedFromOutside(words: Words?, fixes: Collection<String>, now: Long): Boolean {
         val t = seen
         val whole = seenWhole

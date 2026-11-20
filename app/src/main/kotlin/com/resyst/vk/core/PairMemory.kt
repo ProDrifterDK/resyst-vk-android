@@ -198,8 +198,11 @@ class PairMemory(
     private fun idForLearn(t: String): Int {
         val id = idOf(t)
         if (id >= 0) return id
-        return if (nWords >= MAX_WORDS) UNK else addWord(t)
+        return if (nWords >= MAX_WORDS || !storable(t)) UNK else addWord(t)
     }
+
+    /** PM11b: a word the file's reader accepts (non-empty, lowercase, ≤ [MAX_WORD_BYTES] UTF-8 bytes); any other is `<unk>`. */
+    private fun storable(w: String): Boolean = w.isNotEmpty() && w == w.lowercase() && w.toByteArray(Charsets.UTF_8).size <= MAX_WORD_BYTES
 
     private fun count(run: List<Int>, stamp: Int) {
         for (k in run.indices) {
@@ -523,6 +526,8 @@ class PairMemory(
         const val HALF_LIFE_DAYS = 30.0
         const val MAX_HALVINGS = 12
         const val DAY_MS = 86_400_000L
+        /** PM11b: the longest word the file holds (UTF-8 bytes); the writer and the reader share it. */
+        const val MAX_WORD_BYTES = 64
 
         /** The special tokens, ids 0..4. */
         val RESERVED = listOf(ContextTokens.UNK, ContextTokens.BOS, ContextTokens.EOS, ContextTokens.COMMA, ContextTokens.NUM)
@@ -596,7 +601,7 @@ class PairMemory(
             if (clock > Int.MAX_VALUE || day > Int.MAX_VALUE || nw > MAX_WORDS) return null
             for (i in 0 until nw.toInt()) {
                 val len = varint().toInt()
-                if (len <= 0 || len > 64 || p + len > b.size) return null
+                if (len <= 0 || len > MAX_WORD_BYTES || p + len > b.size) return null
                 val w = String(b, p, len, Charsets.UTF_8)
                 p += len
                 if (m.idOf(w) >= 0 || w != w.lowercase()) return null

@@ -223,6 +223,7 @@ class SettingsActivity : Activity() {
         Updater.resume(this)
         ClipStore.listeners += clipListener
         PersonalStore.wiped += personalListener
+        PersonalStore.pairsWiped += personalListener
         ConnectionBook.listeners += bookListener
         render()
         maybeAutoInstall()
@@ -245,6 +246,7 @@ class SettingsActivity : Activity() {
         ConnectionBook.listeners -= bookListener
         ClipStore.listeners -= clipListener
         PersonalStore.wiped -= personalListener
+        PersonalStore.pairsWiped -= personalListener
         Updater.listeners -= updaterListener
         super.onPause()
     }
@@ -821,6 +823,14 @@ class SettingsActivity : Activity() {
 
     /** r13i (KN1): how many pairs the section lists before "Mostrar más". */
     private var pairsShown = KNOW_PAIRS_STEP
+    /** r13i (KN3): the memory's file size in bytes, kept per memory and [com.resyst.vk.core.PairMemory.version]. */
+    private var pairsSize: Triple<com.resyst.vk.core.PairMemory, Long, Int>? = null
+
+    private fun pairsBytes(p: com.resyst.vk.core.PairMemory): Int {
+        val v = p.version
+        pairsSize?.let { (m, ver, n) -> if (m === p && ver == v) return n }
+        return p.toBytes().size.also { pairsSize = Triple(p, v, it) }
+    }
 
     /**
      * r13i (KN1): the pair memory — its size, whether the offers use it yet (cold start, PM6) or the switch is off, the
@@ -837,7 +847,7 @@ class SettingsActivity : Activity() {
             else -> getString(R.string.know_pairs_learning, (100 * p.tokens / com.resyst.vk.core.PairMemory.ACTIVE_TOKENS).toInt().coerceIn(0, 99))
         }
         knowHead(title, if (p.isEmpty()) getString(R.string.know_pairs_empty) + if (!b.pairMemory) " · " + getString(R.string.know_pairs_off) else ""
-            else getString(R.string.know_pairs_summary, n, p.wordCount, (p.toBytes().size + 1023) / 1024) + " · " + state)
+            else getString(R.string.know_pairs_summary, n, p.wordCount, (pairsBytes(p) + 1023) / 1024) + " · " + state)
         for (e in p.topPairs(pairsShown)) {
             val pair = "${e.first} ${e.second}"
             knowRow(pair, "×${e.count.roundToInt().coerceAtLeast(1)}", pair, "pair.${e.first}.${e.second}", deleteDesc = getString(R.string.know_pairs_forget_desc, pair)) {

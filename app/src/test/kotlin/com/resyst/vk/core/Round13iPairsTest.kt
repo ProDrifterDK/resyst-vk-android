@@ -202,6 +202,86 @@ class Round13iPairsTest {
         }
     }
 
+    // ── PM3b: the paste hold lasts until the WHOLE field is empty, not the text before the cursor ────────────
+    /**
+     * A field with a cursor, driven with ResystImeService's calls: [PairLearner.track] after every VK edit on the text
+     * before the cursor, [PairLearner.edited] at a word end on the offers' read (before the cursor), [PairLearner.sent]
+     * at VK's Enter, [PairLearner.pasted] after onPasteOffer's commit, [PairLearner.emptiedFromOutside] when
+     * onUpdateSelection sees the whole field empty (selection 0 and nothing after the cursor).
+     */
+    private class Field(val pl: PairLearner, val words: PairLearner.Words, val now: Long) {
+        var text = ""
+        var cursor = 0
+        private fun before() = text.substring(0, cursor)
+        private fun edit(outs: List<Out>) {
+            val b = before()
+            val nb = Edits.apply(b, outs)
+            text = nb + text.substring(cursor)
+            cursor = nb.length
+            pl.track(b, outs, false)
+            selection()
+        }
+        private fun selection() { if (cursor == 0 && text.isEmpty()) pl.emptiedFromOutside(words, emptyList(), now) }
+        fun type(s: String) {
+            for (ch in s) {
+                edit(listOf(Out.Commit(ch.toString())))
+                if (ch == ' ' || ch == '.') pl.edited(before(), true, true, words, emptyList(), now)
+            }
+        }
+        fun backspace(n: Int) = repeat(n) { edit(listOf(Out.Backspace)) }
+        fun paste(clip: String) {
+            text = before() + clip + text.substring(cursor)
+            cursor += clip.length
+            pl.pasted()
+        }
+        fun moveTo(i: Int) { cursor = i; selection() }
+        fun vkSends(): Boolean = pl.sent(before(), true, words, emptyList(), now).also { text = ""; cursor = 0; selection() }
+    }
+
+    @Test fun pm3bThePasteHoldLastsUntilTheWholeFieldIsEmpty() {
+        val words = object : PairLearner.Words {
+            override fun isEs(w: String) = OffersOracle.lex.isWord(w)
+            override fun isEn(w: String) = OffersOracle.lex.isEn(w)
+            override fun owned(w: String) = false
+        }
+        val clip = "vamos a la playa mañana temprano"
+        // (1) paste, cursor to the field's start, a key there; (2) a word typed, then the paste after it, the word
+        // deleted from in front of the paste: the text before the cursor is empty, the field is not
+        for (variant in listOf("a key at the start", "the text before the paste deleted")) {
+            val m = PairMemory()
+            val f = Field(PairLearner { m }, words, t0)
+            if (variant == "a key at the start") {
+                f.paste(clip)
+                f.moveTo(0)
+                f.type("Mira ")
+            } else {
+                f.type("Mira ")
+                f.paste(clip)
+                f.moveTo(5)
+                f.backspace(5)
+                assertEquals(clip, f.text)
+            }
+            f.moveTo(f.text.length)
+            f.type(". Nos vemos allá. Listo ")
+            assertTrue("$variant: precondition, the field still holds the paste: ${f.text}", f.text.contains(clip))
+            assertFalse("$variant: VK's send learns nothing", f.vkSends())
+            assertEquals("$variant: nothing from the paste is learned: ${m.dump().keys}", 0, m.entries)
+            // the field is empty now: it learns again
+            f.type("vamos a la playa mañana")
+            assertTrue(f.vkSends())
+            assertTrue("$variant: after the field was empty it learns", m.pairCount("vamos", "a") > 0)
+        }
+        // the replay's composer: a paste VK deleted entirely releases the hold (the IME's onUpdateSelection, field empty)
+        val m = PairMemory()
+        val c = chat(m)
+        c.paste("Te paso lo que dijo")
+        c.type("⌫".repeat("Te paso lo que dijo".length))
+        assertEquals("", c.text)
+        c.type("vamos a la playa mañana")
+        c.appSends()
+        assertTrue("${m.dump().keys}", m.pairCount("vamos", "a") > 0)
+    }
+
     // ── PM4: caps, halving, decay ────────────────────────────────────────────────────────────────────────────
     private fun word(i: Int): String {
         val sb = StringBuilder()
@@ -281,6 +361,20 @@ class Round13iPairsTest {
         val bad = listOf(b.copyOf(b.size - 1), b + byteArrayOf(0), b.copyOf().also { it[0] = 'X'.code.toByte() },
             b.copyOf().also { it[4] = 9 }, ByteArray(0), ByteArray(5000) { (it * 37).toByte() }, b.copyOf(b.size / 2))
         for (x in bad) assertTrue(PairMemory.fromBytes(x).isEmpty())
+    }
+
+    // PM11b: the writer stores only words its reader accepts (a longer one is <unk>, the file stays readable)
+    @Test fun pm11bWriterAndReaderAgreeOnTheWordCap() {
+        val m = PairMemory()
+        val long = "ñ".repeat(PairMemory.MAX_WORD_BYTES / 2 + 1) // 66 UTF-8 bytes
+        val edge = "a".repeat(PairMemory.MAX_WORD_BYTES)
+        assertTrue(m.learn(listOf("de", long, "la", edge), bos = true, eos = true, now = t0))
+        assertFalse(m.knows(long))
+        assertTrue(m.knows(edge))
+        assertEquals(1.0, m.pairCount("de", "<unk>"), 0.0)
+        val back = PairMemory.fromBytes(m.toBytes())
+        assertFalse("the file is readable", back.isEmpty())
+        assertArrayEquals(m.toBytes(), back.toBytes())
     }
 
     // ── PM5: forget one, clear all ───────────────────────────────────────────────────────────────────────────
@@ -374,6 +468,16 @@ class Round13iPairsTest {
         val o = offer(seed)
         assertEquals("pega", o?.alt)
         assertTrue("Δ ${o?.delta}", o!!.delta >= ContextCheck.TAU_MEMORY)
+        // PM13: λ is pinned. The shipped decision is λ 0.2's to the bit, frozen like Round 13f's numbers, and the
+        // memory alone (λ 1, r13g's C variant) or no memory weight (λ 0) decide differently
+        val job = ContextOffers().job(typed, whole = true)!!
+        fun at(lambda: Double) = OffersOracle.check.decide(job.text, job.start, job.end, ContextCheck.Params(lambda = lambda), OffersOracle.keepGeneric, memory = seed)!!
+        assertEquals("the taught offer's Δ (λ 0.2, frozen)", 15.259437108609784, o.delta, 1e-9)
+        assertEquals("the shipped decision is λ 0.2's", at(0.2).delta, o.delta, 0.0)
+        for (l in listOf(0.0, 1.0)) {
+            val d = at(l)
+            assertTrue("λ $l decides alike: ${d.alt.word} Δ ${d.delta}", d.alt.word != "pega" || Math.abs(d.delta - o.delta) > 0.1)
+        }
         // clear all: gone
         seed.clear()
         assertNull(offer(seed))

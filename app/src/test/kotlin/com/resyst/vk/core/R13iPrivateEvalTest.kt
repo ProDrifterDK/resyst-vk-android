@@ -89,16 +89,41 @@ class R13iPrivateEvalTest {
             "words" to mem.wordCount, "bytes" to mem.toBytes().size, "active" to mem.active, "source" to "STAND-IN public text (r13f chat-source + prose A)")) + "\n")
     }
 
+    /**
+     * PM13: enough of the stand-in that both splits learn past the cold start, so the always-on suite runs the mixed
+     * path (λ) end to end; its offers are frozen like Round 13f's numbers.
+     */
     @Test fun smoke() {
-        val msgs = R13iPrivateEval.standIn().take(120)
+        val msgs = R13iPrivateEval.standIn().take(SMOKE_MESSAGES)
         val rep = R13iPrivateEval.run(msgs, seeds = listOf(1), standIn = true)
+        write(rep, File("build/r13i/smoke.json"))
         assertAggregatesOnly(rep, msgs)
         val splits = rep["splits"] as Map<*, *>
         assertEquals(setOf("split80", "split65"), splits.keys)
-        for (s in splits.values) {
-            val m = (s as Map<*, *>)["memory"] as Map<*, *>
+        val got = LinkedHashMap<String, List<Any?>>()
+        for ((name, s) in splits) {
+            s as Map<*, *>
+            val m = s["memory"] as Map<*, *>
             assertTrue("the product path learned the stand-in: $m", (m["entries"] as Int) > 100)
+            assertEquals("$name: the memory is past the cold start: $m", true, m["active"])
+            val syn = s["synthetic"] as Map<*, *>
+            val a = syn["A_0121_tau6"] as Map<*, *>
+            val b = syn["B_0130_tau_memory"] as Map<*, *>
+            val cleanB = (s["clean_run_seed0"] as Map<*, *>)["B_tau_memory"] as Map<*, *>
+            val sweep = syn["B_tau_sweep"] as Map<*, *>
+            got[name.toString()] = listOf(a["made"], a["right"], b["made"], b["right"], b["wrong_alt"], b["false_on_clean"], cleanB["made"],
+                sweep.values.map { (it as Map<*, *>)["made"] })
         }
-        write(rep, File("build/r13i/smoke.json"))
+        println("r13i smoke frozen: $got")
+        assertEquals("the smoke run's offers (A made/right, B made/right/wrong/false, clean B made, B made per τ)", SMOKE_FROZEN, got)
+    }
+
+    companion object {
+        const val SMOKE_MESSAGES = 200
+        /** Frozen on 0.13.0 (λ 0.2, τ_memory 5.0, the 2,000-token cold start); τ sweep 4.5 … 6.0. */
+        val SMOKE_FROZEN: Map<String, List<Any?>> = linkedMapOf(
+            "split80" to listOf(39, 33, 49, 40, 4, 2, 1, listOf(50, 49, 49, 49, 45, 42, 38)),
+            "split65" to listOf(57, 55, 62, 60, 1, 1, 2, listOf(71, 66, 62, 59, 58, 58, 56)),
+        )
     }
 }

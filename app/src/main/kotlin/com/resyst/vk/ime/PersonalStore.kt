@@ -126,6 +126,9 @@ object PersonalStore {
      */
     val wiped = LinkedHashSet<() -> Unit>()
 
+    /** r13i (KN3): told on the main thread once "Borrar todos los pares" is done on disk (only the pairs went). */
+    val pairsWiped = LinkedHashSet<() -> Unit>()
+
     /**
      * Wipes everything under filesDir/personal (words, values, rejections, emoji recents, tone defaults), in
      * memory and on disk; a load still in flight is discarded (X4). [wiped] runs after the delete.
@@ -158,7 +161,7 @@ object PersonalStore {
         val d = dir ?: File(context.applicationContext.filesDir, DIR).also { dir = it }
         io.execute {
             PairFile.delete(d)
-            main.post { for (l in wiped.toList()) l() }
+            main.post { for (l in pairsWiped.toList()) l() }
         }
     }
 

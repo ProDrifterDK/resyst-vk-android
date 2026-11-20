@@ -201,6 +201,8 @@ object S4Chat {
             val whole = read.length < ContextOffers.WINDOW
             if (sends) pairLearner.sent(read, whole, pairWords, engine.fieldFixes, now)
             else if (ends) pairLearner.edited(read, whole, true, pairWords, engine.fieldFixes, now)
+            // onUpdateSelection: VK's edit left the whole field empty (the cursor is always at the end here)
+            if (!sends && text.isEmpty()) pairLearner.emptiedFromOutside(pairWords, engine.fieldFixes, now)
         }
 
         /**
