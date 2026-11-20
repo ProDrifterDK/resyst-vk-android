@@ -87,10 +87,21 @@ object S4Chat {
      * The composer, one instance per session: the engine, the language and the learned words carry over from message
      * to message. [singleLine] = s4's field (Enter is its key); false = a multi-line field.
      */
-    class Composer(val singleLine: Boolean = true, val model: PersonalModel? = PersonalModel(), val store: Rejections? = Rejections()) {
+    class Composer(val singleLine: Boolean = true, val model: PersonalModel? = PersonalModel(), val store: Rejections? = Rejections(),
+                   val pairs: PairMemory? = null) {
         val w: Writing = ShippedWriting.writing(model, store)
         val engine = KeyboardEngine()
         private val learner = Learner { model }
+        /** r13i: the pair memory's learner, wired as ResystImeService wires it (the write gate open: a normal field). */
+        val pairLearner = PairLearner { pairs }
+        /** r13i: the wall clock the pair memory's decay reads (ms). */
+        var now = 0L
+        /** r13i: the lexicon hooks as the IME builds them (ContextLexicon + the learned words' owns ≥ 2). */
+        val pairWords: PairLearner.Words = object : PairLearner.Words {
+            override fun isEs(w: String) = OffersOracle.lex.isWord(w)
+            override fun isEn(w: String) = OffersOracle.lex.isEn(w)
+            override fun owned(w: String) = model?.owns(listOf(Lang.ES, Lang.EN), w, 2) == true
+        }
         private val trail = TouchTrail()
         private var learnedLang = Lang.ES
         private var bsRepeats = 0
@@ -166,6 +177,7 @@ object S4Chat {
             afterKey(before, outs, if (key.type == KeyType.BACKSPACE) Learner.Edit.BACKSPACE else Learner.Edit.KEY, late = ends)
             trail(key.type, outs, near)
             val sends = outs.any { it is Out.Action || it == Out.EnterKey }
+            pairsAfter(before, outs, ends, sends)
             if (ends && word.isNotEmpty()) {
                 val s = fieldLen - word.length
                 val got = if (text.length < s) "" else text.substring(s).takeWhile { Tokens.isWordChar(it) }
@@ -174,7 +186,28 @@ object S4Chat {
             if (sends) {
                 sent += text
                 text = "" // the page sends the message and empties the field: a selection update at offset 0
+                pairLearner.emptiedFromOutside(pairWords, engine.fieldFixes, now) // r13i: onUpdateSelection, the field empty
             }
+            refresh()
+        }
+
+        /**
+         * r13i: ResystImeService's pair-memory calls after a key: the edit tracked on the key path's short read; at a word
+         * end (posted after the key there) and at VK's send, the offers' longer read of the field ([ContextOffers.WINDOW]).
+         */
+        private fun pairsAfter(before: String, outs: List<Out>, ends: Boolean, sends: Boolean) {
+            pairLearner.track(before, outs, before.length >= WINDOW)
+            val read = text.takeLast(ContextOffers.WINDOW)
+            val whole = read.length < ContextOffers.WINDOW
+            if (sends) pairLearner.sent(read, whole, pairWords, engine.fieldFixes, now)
+            else if (ends) pairLearner.edited(read, whole, true, pairWords, engine.fieldFixes, now)
+        }
+
+        /** r13i: the app sends the message with its own button and empties the field (ResystImeService.onUpdateSelection). */
+        fun appSends() {
+            sent += text
+            text = ""
+            pairLearner.emptiedFromOutside(pairWords, engine.fieldFixes, now)
             refresh()
         }
 
@@ -185,6 +218,7 @@ object S4Chat {
             val outs = engine.variant(t, before, "")
             text = text.dropLast(before.length) + Edits.apply(before, outs)
             afterKey(before, outs, Learner.Edit.KEY, late = ends)
+            pairsAfter(before, outs, ends, sends = false)
             trail(KeyType.CHAR, outs, "")
             refresh()
         }
