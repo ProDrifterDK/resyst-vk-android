@@ -1766,7 +1766,10 @@ Written before the code; each item names what a JVM test, the offline replay or 
   correction is not in the text any more, so it is not learned; the typed word the user restored is a word like any
   other (learned as `<unk>` unless a dictionary knows it or it is his). A sentence already learned in this field is not
   learned again until the field is empty. Only Spanish sentences are learned (r13b's rule, CO3) with ≥ 2 words. JVM
-  tests for each moment and each exclusion; the device run teaches by typing and sending.
+  tests for each moment and each exclusion; the device run teaches by typing and sending. Found while writing the
+  tests (after the code): text VK pastes (the clipboard chip or panel, the edit panel's paste) would be learned with the
+  sentence it lands in; after a VK paste the field learns nothing until it is empty again. A paste through the app's
+  own menu cannot be seen by the keyboard and stays a residual risk.
 - PM4 Growth (the IME process lives for days; the file lives for years). Rules: at most 20,000 pair/triple entries and
   8,000 words; past a cap the least-used entries go (lowest count, oldest among equals), never one written by the
   learn in progress; a word with no entry left is dropped. Counts halve when one passes 4,096 (like PersonalModel's
@@ -1785,7 +1788,9 @@ Written before the code; each item names what a JVM test, the offline replay or 
   τ alone raises false offers. Rule: the memory has no effect (and τ stays 6) until it holds enough evidence: at least
   N_ACTIVE learned tokens (2,000 ≈ 100 short messages; set from the stand-in size curve and r13g's history curve, where
   the gain appears after ~200-300 kept messages and the 10 % history already gains). A decay that brings it under the
-  bar switches it off again.
+  bar switches it off again. Checked after the code on the stand-in history (public text, the harness's size curve):
+  at 2,000 tokens the false offers on clean words and on the unslipped text are at or under 0.12.1's on both splits;
+  at 500-1,000 tokens one split goes one offer over.
 - PM7 An empty (or not yet active) memory changes 0.12.1: every acceptance number (s4 15 made / 14 right, the 315
   set, prose A / A', the chat set) and every decision must be byte-identical. Rule: without an active memory the
   decision runs the 0.12.1 code path, term for term, at τ 6. A JVM test runs every acceptance group with no memory,

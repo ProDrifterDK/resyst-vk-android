@@ -413,7 +413,16 @@ class PairMemory(
         }
         for (i in 0 until nWords) float(o, uni[i])
         varint(o, grams.size.toLong())
-        grams.forEach { k, v, s ->
+        // in key order: the same table always gives the same bytes, whatever its insertion history
+        val slots = IntArray(grams.size)
+        var n = 0
+        grams.forEachSlot { slots[n++] = it }
+        val keys = grams.keys
+        val order = slots.sortedBy { keys[it] }
+        for (slot in order) {
+            val k = keys[slot]
+            val v = grams.vals[slot]
+            val s = grams.aux[slot]
             val t = tag(k)
             o.write(t)
             if (t == TRI) varint(o, idA(k).toLong())

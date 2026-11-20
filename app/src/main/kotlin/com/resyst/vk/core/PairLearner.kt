@@ -45,6 +45,7 @@ class PairLearner(private val memory: () -> PairMemory?) {
      */
     fun track(before: String, outs: List<Out>, windowFull: Boolean) {
         if (memory() == null) { seen = null; return }
+        if (before.isEmpty() && !windowFull) { learned.clear(); hold = false } // the edit started in an empty field
         val s = seen
         val base: String
         if (s != null && s.endsWith(before)) base = s else { base = before; seenWhole = !windowFull }

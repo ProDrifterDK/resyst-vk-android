@@ -247,7 +247,7 @@ object OffersOracle {
     }
 
     /** One scored word: where, what, the decision's alternative and Δ. */
-    class Decision(val doc: Doc, val i: Int, val alt: String, val delta: Double) {
+    class Decision(val doc: Doc, val i: Int, val alt: String, val delta: Double, val personal: Boolean = false) {
         val id get() = "${doc.corpus}|${doc.id}|$i"
         val typed get() = doc.words[i].text
         val gold get() = doc.gold[i]!!
@@ -259,7 +259,7 @@ object OffersOracle {
      * sentence) for every word with a gold label; null-decisions are skipped. [oracleWindow]: the contrast guard sees
      * the whole sentence, words typed later included, as in the r13e oracle (the live IME cannot).
      */
-    fun decisions(docs: List<Doc>, check: ContextCheck = this.check, oracleWindow: Boolean = false): List<Decision> {
+    fun decisions(docs: List<Doc>, check: ContextCheck = this.check, oracleWindow: Boolean = false, memory: PairMemory? = null): List<Decision> {
         val out = ArrayList<Decision>()
         for (d in docs) for ((i, w) in d.words.withIndex()) {
             if (d.only != null && i !in d.only) continue
@@ -273,8 +273,8 @@ object OffersOracle {
                 ContextCheck.OracleView(ContextSegments.words(d.text, if (si > 0) d.segs[si - 1].start else seg.start, seg.end).map { it.text.lowercase() },
                     ContextSegments.words(d.text, seg.start, seg.end).map { it.text })
             }
-            val c = check.decide(cut, w.start, w.end, ContextCheck.Params(), d.keep, window) ?: continue
-            out += Decision(d, i, c.alt.word, c.delta)
+            val c = check.decide(cut, w.start, w.end, ContextCheck.Params(), d.keep, window, memory) ?: continue
+            out += Decision(d, i, c.alt.word, c.delta, c.personal)
         }
         return out
     }
@@ -284,7 +284,7 @@ object OffersOracle {
      * space, a mark, a new line; nothing = the message was sent with Enter for a chat, a space otherwise), then
      * [ContextOffers.decide]. Returns the offers made (Δ ≥ τ) with the word they sit on.
      */
-    fun liveOffers(docs: List<Doc>, check: ContextCheck = this.check): List<Pair<Decision, ContextOffers.Offer>> {
+    fun liveOffers(docs: List<Doc>, check: ContextCheck = this.check, memory: PairMemory? = null): List<Pair<Decision, ContextOffers.Offer>> {
         val offers = ContextOffers()
         val out = ArrayList<Pair<Decision, ContextOffers.Offer>>()
         for (d in docs) for ((i, w) in d.words.withIndex()) {
@@ -294,7 +294,7 @@ object OffersOracle {
             val endKey = d.text.getOrNull(nextEnd) ?: if (d.chat) continue else ' '
             val job = offers.job(d.text.substring(0, nextEnd) + endKey, whole = true) ?: continue
             check(job.typed == w.text && job.text.endsWith(d.text.substring(w.start, nextEnd))) { "${d.id}: job on another word" }
-            val o = offers.decide(job, check, d.keep) ?: continue
+            val o = offers.decide(job, check, d.keep, memory = memory) ?: continue
             out += Decision(d, i, o.alt, o.delta) to o
         }
         return out

@@ -59,14 +59,18 @@ object PersonalStore {
         val d = File(context.applicationContext.filesDir, DIR)
         dir = d
         val gen = generation
+        val debug = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         io.execute {
             val w = read(File(d, WORDS))?.let(PersonalModel::fromJson) ?: PersonalModel()
             val v = read(File(d, VALUES))?.let(ValueMemory::fromJson) ?: ValueMemory()
             val rText = read(File(d, REJECTIONS))
             val r = rText?.let(Rejections::fromJson) ?: Rejections()
+            // r13i (PM4, debuggable builds): the Java heap the loaded memory keeps, measured around a GC; never text
+            val heap0 = if (debug) heapUsed() else 0L
             val t0 = android.os.SystemClock.uptimeMillis()
             val p = runCatching { PairFile.read(d) }.onFailure { Log.w(TAG, "personal: read pairs failed", it) }.getOrNull() ?: PairMemory()
             val pairsMs = android.os.SystemClock.uptimeMillis() - t0
+            val heapKb = if (debug) " heapKb=${(heapUsed() - heap0) / 1024}" else ""
             main.post {
                 if (gen != generation) return@post
                 if (words == null) words = w
@@ -76,7 +80,7 @@ object PersonalStore {
                     pairs = p
                     pairsSaved = p.version
                     // r13i (PM4): sizes and load time only, never a word
-                    Log.i(TAG, "pairs: loaded entries=${p.entries} words=${p.wordCount} tokens=${p.tokens.toLong()} active=${p.active} ms=$pairsMs")
+                    Log.i(TAG, "pairs: loaded entries=${p.entries} words=${p.wordCount} tokens=${p.tokens.toLong()} active=${p.active} ms=$pairsMs$heapKb")
                 }
             }
         }
@@ -156,6 +160,12 @@ object PersonalStore {
             PairFile.delete(d)
             main.post { for (l in wiped.toList()) l() }
         }
+    }
+
+    private fun heapUsed(): Long {
+        val rt = Runtime.getRuntime()
+        repeat(2) { System.gc(); Thread.sleep(40) }
+        return rt.totalMemory() - rt.freeMemory()
     }
 
     private fun read(f: File): String? = runCatching {

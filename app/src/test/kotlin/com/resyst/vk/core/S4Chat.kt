@@ -88,12 +88,12 @@ object S4Chat {
      * to message. [singleLine] = s4's field (Enter is its key); false = a multi-line field.
      */
     class Composer(val singleLine: Boolean = true, val model: PersonalModel? = PersonalModel(), val store: Rejections? = Rejections(),
-                   val pairs: PairMemory? = null) {
+                   val pairs: PairMemory? = null, val pairGate: () -> Boolean = { true }) {
         val w: Writing = ShippedWriting.writing(model, store)
         val engine = KeyboardEngine()
         private val learner = Learner { model }
         /** r13i: the pair memory's learner, wired as ResystImeService wires it (the write gate open: a normal field). */
-        val pairLearner = PairLearner { pairs }
+        val pairLearner = PairLearner { pairs?.takeIf { pairGate() } }
         /** r13i: the wall clock the pair memory's decay reads (ms). */
         var now = 0L
         /** r13i: the lexicon hooks as the IME builds them (ContextLexicon + the learned words' owns ≥ 2). */
@@ -201,6 +201,27 @@ object S4Chat {
             val whole = read.length < ContextOffers.WINDOW
             if (sends) pairLearner.sent(read, whole, pairWords, engine.fieldFixes, now)
             else if (ends) pairLearner.edited(read, whole, true, pairWords, engine.fieldFixes, now)
+        }
+
+        /**
+         * r13i: ResystImeService.onContextOffer: the live offers of [offers] taken on the offers' read, the edit applied,
+         * then the pair memory's tracking (a tapped offer is the user's choice). True when something was applied.
+         */
+        fun tapOffer(offers: ContextOffers): Boolean {
+            val before = text.takeLast(ContextOffers.WINDOW)
+            val outs = offers.take(before, whole = before.length < ContextOffers.WINDOW) ?: return false
+            text = text.dropLast(before.length) + Edits.apply(before, outs)
+            pairLearner.track(before, outs, before.length >= ContextOffers.WINDOW)
+            refresh()
+            return true
+        }
+
+        /** r13i: ResystImeService.onPasteOffer: VK commits the clip; the pair memory holds this field until it is empty. */
+        fun paste(clip: String) {
+            text += clip
+            pairLearner.pasted()
+            engine.endProvisional()
+            refresh()
         }
 
         /** r13i: the app sends the message with its own button and empties the field (ResystImeService.onUpdateSelection). */

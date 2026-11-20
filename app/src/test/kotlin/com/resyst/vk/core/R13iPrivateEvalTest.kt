@@ -67,6 +67,24 @@ class R13iPrivateEvalTest {
         write(rep, File("build/r13i/standin.json"))
     }
 
+    /**
+     * The device run's seed (scripts/e2e_r13i.py --seed): `VK_R13I_SEED=1` → build/r13i/seed-pairs.bin, the stand-in
+     * history (public text) learned through the product path with today's clock, so the phone's memory is active
+     * (≥ [PairMemory.ACTIVE_TOKENS]) before the run teaches it one pair by typing.
+     */
+    @Test fun seedForDevice() {
+        assumeTrue("VK_R13I_SEED not set", System.getenv("VK_R13I_SEED") == "1")
+        val mem = PairMemory()
+        val c = S4Chat.Composer(singleLine = false, model = PersonalModel(), store = Rejections(), pairs = mem)
+        c.now = System.currentTimeMillis()
+        for ((n, m) in R13iPrivateEval.standIn().withIndex()) { c.run(S4Chat.Message("s$n", R13iPrivateEval.keys(m.text, null))); c.appSends() }
+        assertTrue(mem.active && mem.pairCount("la", "pega") == 0.0)
+        File("build/r13i").mkdirs()
+        File("build/r13i/seed-pairs.bin").writeBytes(mem.toBytes())
+        File("build/r13i/seed-pairs.json").writeText(R13iPrivateEval.json(linkedMapOf("learned_tokens" to Math.round(mem.tokens), "entries" to mem.entries,
+            "words" to mem.wordCount, "bytes" to mem.toBytes().size, "active" to mem.active, "source" to "STAND-IN public text (r13f chat-source + prose A)")) + "\n")
+    }
+
     @Test fun smoke() {
         val msgs = R13iPrivateEval.standIn().take(120)
         val rep = R13iPrivateEval.run(msgs, seeds = listOf(1), standIn = true)
