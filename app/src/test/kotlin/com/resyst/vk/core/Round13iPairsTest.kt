@@ -245,15 +245,20 @@ class Round13iPairsTest {
             override fun owned(w: String) = false
         }
         val clip = "vamos a la playa mañana temprano"
-        // (1) paste, cursor to the field's start, a key there; (2) a word typed, then the paste after it, the word
-        // deleted from in front of the paste: the text before the cursor is empty, the field is not
-        for (variant in listOf("a key at the start", "the text before the paste deleted")) {
+        // (1) paste, cursor to the field's start, a key there; (2) the same with a space (a word end: the read before
+        // the cursor is blank); (3) a word typed, then the paste after it, the word deleted from in front of the paste:
+        // the text before the cursor is empty, the field is not
+        for (variant in listOf("a key at the start", "a space at the start", "the text before the paste deleted")) {
             val m = PairMemory()
             val f = Field(PairLearner { m }, words, t0)
             if (variant == "a key at the start") {
                 f.paste(clip)
                 f.moveTo(0)
                 f.type("Mira ")
+            } else if (variant == "a space at the start") {
+                f.paste(clip)
+                f.moveTo(0)
+                f.type(" ")
             } else {
                 f.type("Mira ")
                 f.paste(clip)
