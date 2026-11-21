@@ -523,9 +523,14 @@ def section_p():
         if hit:
             found.append((m, hit))
     check('P', 'no query in any file of the app', not found, found or f'{len(files.split())} files searched')
-    log = e2e.adb('logcat', '-d', check=False)
-    leaks = [l for l in log.splitlines() if PKG.split('.')[-1] and any(m in l for m in marks) and ('ResystVK' in l or 'resyst' in l.lower())]
-    check('P', 'no query in the log', not leaks, leaks[:3])
+    # every line the app's own process logged (the keyboard and the E2E host share it); adbd's record of this script's
+    # own grep commands is another process and is not the app's
+    pids = sh(f'pidof {PKG}', check=False).split()
+    lines = []
+    for pid in pids:
+        lines += e2e.adb('logcat', '-d', f'--pid={pid}', check=False).splitlines()
+    leaks = [l for l in lines if any(m in l for m in marks)]
+    check('P', 'no query in the app process\'s log', bool(pids) and not leaks, leaks[:3] or f'{len(lines)} lines of pid {pids} searched')
 
 
 # ── M: measurements ──────────────────────────────────────────────────────
