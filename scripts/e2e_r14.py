@@ -38,6 +38,8 @@ import subprocess
 import sys
 import time
 
+from PIL import Image  # desktop-side pixel reads of the screenshots (sections N, U)
+
 sys.path.insert(0, os.path.dirname(__file__))
 import e2e  # noqa: E402
 import e2e_r10_bilingual as bl  # noqa: E402
@@ -530,6 +532,269 @@ def section_m(apk):
     night(False)
 
 
+# ── N / U: what 0.14.0 adds, and the upgrade (0.14.0 only) ──────────────
+# Follow the system's dark mode (pixel luminance of the drawn keyboard, light and dark, and a live flip), a manual
+# Día / noche stops following, the quick panel's tema row switches tema and «Personalizar» opens Apariencia, a style
+# applies and «Deshacer» restores, high-contrast text and reduced motion reach the keyboard (the IME's debug "look:"
+# line), the key names are the E2E contract's, a gallery of every style; U: 0.13.0 → 0.14.0 in place keeps the temas,
+# accent and settings and does not start following. Pixel reads use Pillow on the desktop (screenshots only).
+M = sys.modules[__name__]
+
+KEY_NAMES = ['Borrar', 'Espacio', 'Mayúsculas', 'Ajustes de Resyst VK', 'Emojis', 'Símbolos', 'coma', 'punto', 'q', 'ñ', 'á', '¿']
+
+
+def prefs():
+    return M.run_as(f'cat {M.PROFILES}')
+
+
+def pref(key):
+    m = re.search(r'<string name="' + re.escape(key) + r'">([^<]*)</string>', prefs())
+    return m.group(1) if m else None
+
+
+def lum_at(png, x, y):
+    im = Image.open(png).convert('RGB')
+    r, g, b = im.getpixel((x, y))
+
+    def ch(v):
+        v = v / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def bar_point():
+    """A point on the bar's background: left edge of the keyboard window, just above the first key row."""
+    k = M.km()
+    q = M.key('q', k)
+    x1, y1, x2, y2 = e2e.bounds(q)
+    top_row = M.find('á', k) or q
+    _, ty1, _, _ = e2e.bounds(top_row)
+    return 3, max(0, ty1 - int((y2 - y1) * 0.35))
+
+
+def keyboard_luminance(name):
+    M.shot(name)
+    x, y = bar_point()
+    return lum_at(os.path.join(M.OUT, name + '.png'), x, y)
+
+
+def frames_for_tap():
+    """Frames our package renders for one tap on a letter (host field + keyboard; the same host on both sides)."""
+    k = M.km()
+    n = M.key('j', k)
+    M.sh(f'dumpsys gfxinfo {M.PKG} reset', check=False)
+    time.sleep(0.4)
+    e2e.tap(n)
+    time.sleep(1.0)
+    m = re.search(r'Total frames rendered: (\d+)', M.sh(f'dumpsys gfxinfo {M.PKG}', check=False))
+    return int(m.group(1)) if m else None
+
+
+def look_log():
+    """The IME's last 'look:' line (debuggable builds: the resolved palette, follow, dark, hc, motion; never text)."""
+    lines = re.findall(r'look: .*', M.sh('logcat -d -s ResystVK:I', check=False))
+    return lines[-1] if lines else ''
+
+
+def section_n():
+    pre_hc = M.sh('settings get secure high_text_contrast_enabled', check=False).strip()
+    pre_anim = M.sh('settings get global animator_duration_scale', check=False).strip()
+    try:
+        follow()
+        quick_temas()
+        styles()
+        contrast_and_motion()
+        key_names()
+        gallery()
+    finally:
+        M.sh(f"settings put secure high_text_contrast_enabled {pre_hc if pre_hc not in ('', 'null') else 0}", check=False)
+        if pre_anim in ('', 'null'):
+            M.sh('settings delete global animator_duration_scale', check=False)
+        else:
+            M.sh(f'settings put global animator_duration_scale {pre_anim}', check=False)
+        M.night(False)
+
+
+def follow():
+    # a fresh install follows the system: a store with no tema / phone key (only update.auto=false, so the run makes no
+    # request) is a fresh install for the codec (FS1); the resyst tema is Midnight Laboratory (dark)
+    M.write_prefs({'update.auto': 'false'})
+    M.night(False)
+    M.host('text')
+    light = keyboard_luminance('N-follow-light')
+    M.night(True)
+    M.host('text')
+    dark = keyboard_luminance('N-follow-dark')
+    M.check('N', 'fresh install follows the system: light mode draws a light keyboard, dark mode a dark one (FS1/FS2)',
+            light > 0.5 and dark < 0.1, f'bar luminance light {light:.3f}, dark {dark:.3f}')
+    # a live flip with the keyboard up re-skins it (FS3)
+    M.night(False)
+    time.sleep(1.5)
+    live = keyboard_luminance('N-follow-live-flip')
+    M.check('N', 'flipping the system to light with the keyboard on screen re-skins it', live > 0.5, f'luminance {live:.3f}')
+    # Día / noche while following: stops following, shows the opposite of what is on screen (FS2)
+    e2e.tap(M.gear())
+    time.sleep(0.9)
+    M.shot('N-quick-follow')
+    tile = M.find('Día / noche')
+    desc = tile.get('content-desc') if tile is not None else None
+    M.check('N', 'the quick panel says it follows ("Día / noche, Auto · Claro")', desc is not None and 'Auto' in desc, desc)
+    if tile is not None:
+        e2e.tap(tile)
+        time.sleep(1.2)
+    M.press('Volver al teclado', wait=0.8)
+    after = keyboard_luminance('N-follow-manual-flip')
+    M.check('N', 'Día / noche while following: following stops (daynight.auto false) and the keyboard turns dark in light mode',
+            pref('daynight.auto') == 'false' and after < 0.1, f'daynight.auto={pref("daynight.auto")}, luminance {after:.3f}')
+
+
+def quick_temas():
+    M.write_prefs(M.store('lab'))
+    M.night(True)
+    M.host('text')
+    e2e.tap(M.gear())
+    time.sleep(0.9)
+    k = M.km()
+    chips = [d for d in k if re.match(r'^(Tema|Theme) ', d)]
+    M.shot('N-quick-temas')
+    M.check('N', 'the quick panel lists every tema with a TalkBack name, the active one "en uso" (PS4)',
+            len(chips) >= 3 and any(re.search(r'(en uso|in use)$', d) for d in chips), chips)
+    target = next((d for d in chips if 'Arcade' in d), None)
+    if target is not None:
+        e2e.tap(k[target])
+        time.sleep(1.4)
+        M.shot('N-quick-tema-arcade')
+    M.check('N', 'a tap on «Arcade» puts that tema in use', pref('active') == 'arcade', f'active={pref("active")}')
+    pers = M.find('Personalizar') or M.find('Customise')
+    if pers is not None:
+        e2e.tap(pers)
+        time.sleep(2.0)
+    texts = M.texts()
+    M.shot('N-personalize-settings')
+    M.check('N', '«Personalizar» opens Settings › Apariencia del tema', 'Apariencia del tema' in texts, [t for t in texts if t][:8])
+
+
+def styles():
+    M.write_prefs(M.store('lab'))
+    M.settings_open('apariencia')
+    node = None
+    for _ in range(3):
+        node = next((n for n in e2e.dump().iter('node') if (n.get('content-desc') or '').startswith(('Mecánico', 'Mechanical'))), None)
+        if node is not None:
+            break
+        M.scroll_down(0.3)
+    if node is not None:
+        e2e.tap(node)
+        time.sleep(1.5)
+    M.shot('N-style-applied')
+    cap = pref('t.resyst.cap')
+    M.check('N', 'the style «Mecánico» sets the tema look (mechanical keycaps, graphite)', cap == 'KEYCAP' and pref('t.resyst.theme') == 'graphite',
+            f'cap={cap}, theme={pref("t.resyst.theme")}')
+    undo = next((n for n in e2e.dump().iter('node') if (n.get('text') or '') in ('Deshacer', 'Undo')), None)
+    if undo is not None:
+        e2e.tap(undo)
+        time.sleep(1.2)
+    M.check('N', '«Deshacer» puts the previous look back', pref('t.resyst.cap') == 'RAISED' and pref('t.resyst.theme') == 'lab',
+            f'cap={pref("t.resyst.cap")}, theme={pref("t.resyst.theme")}')
+    M.shot('N-style-undone')
+
+
+def contrast_and_motion():
+    M.write_prefs(M.store('lab'))
+    M.night(True)
+    M.sh('settings put secure high_text_contrast_enabled 1', check=False)
+    M.sh('logcat -c', check=False)
+    M.write_prefs(M.store('lab'))  # a fresh IME process reads the setting
+    M.host('text')
+    M.type_seq('hol')
+    M.shot('N-high-contrast')
+    hc = look_log()
+    M.sh('settings put secure high_text_contrast_enabled 0', check=False)
+    M.check('N', 'Android high-contrast text reaches the keyboard (hc=true: outlines, legends at the maximum, LG5; screenshot N-high-contrast)', 'hc=true' in hc, hc)
+    M.write_prefs(M.store('lab'))
+    M.host('text')
+    full = [frames_for_tap() for _ in range(3)]
+    M.sh('settings put global animator_duration_scale 0', check=False)
+    M.sh('logcat -c', check=False)
+    M.write_prefs(M.store('lab'))
+    M.host('text')
+    none = [frames_for_tap() for _ in range(3)]
+    M.check('N', 'with animations removed the effective motion is OFF (MO2)', 'motion=OFF' in look_log(), look_log())
+    M.sh('settings put global animator_duration_scale 1', check=False)
+    ok = all(x is not None for x in full + none) and sorted(none)[1] < sorted(full)[1]
+    M.check('N', 'Android "Quitar animaciones" (animator scale 0): one tap draws fewer frames than with motion (MO2)', ok, f'frames per tap: motion {full}, none {none}')
+
+
+def key_names():
+    M.write_prefs(M.store('lab'))
+    k = M.host('text')
+    missing = [n for n in KEY_NAMES if M.bl.node(k, n) is None and M.find(n, k) is None]
+    M.check('N', 'the key names TalkBack reads (the E2E contract) are unchanged (VO1b)', not missing, f'missing {missing}' if missing else f'{len(k)} names')
+
+
+STYLE_LOOKS = {
+    'mecanico': dict(theme='graphite', cap='KEYCAP', shape='SOFT', legendWeight='MEDIUM', upperLegends='true', accent='#e2735a'),
+    'minimal': dict(theme='cloud', cap='BORDERLESS', shape='ROUND', legendWeight='LIGHT', subLegends='false', bubble='FLOATING'),
+    'burbuja': dict(theme='lavender', cap='FLAT', shape='PILL', font='ROUNDED', legendWeight='MEDIUM', tint='SOFT', barStyle='CHIPS', subLegends='false'),
+    'terminal': dict(theme='amoled', cap='OUTLINE', shape='SQUARE', font='TECH', density='TIGHT', accent='#5ee0a8'),
+    'papel': dict(theme='paper', cap='FLAT', shape='ROUND', font='HUMAN', density='AIRY', subLegends='false'),
+    'arcade': dict(theme='arcade', cap='FLAT', shape='CHAMFER', legendWeight='BOLD', upperLegends='true', tint='SOFT', barStyle='CHIPS'),
+    'legible': dict(theme='hc', cap='RAISED', shape='SOFT', font='LEGIBLE', legendWeight='BOLD', legendScale='1.15', subLegends='false'),
+    'tint-strong': dict(theme='lab', accent='#5b9cf0', tint='STRONG'),
+}
+
+
+def gallery():
+    M.night(True)
+    for sid, look in STYLE_LOOKS.items():
+        M.write_prefs(M.store(**{'theme': look.get('theme', 'lab')}, **{f't__resyst__{k}': v for k, v in look.items() if k != 'theme'}))
+        k = M.host('text')
+        M.type_seq('hola, nos vemos ', k)
+        r13c.type_seq('mañ')
+        time.sleep(0.6)
+        M.shot(f'N-gallery-{sid}', f'style {sid} on the keyboard')
+        n = M.key('e')
+        M.hold_and_shoot(n, f'N-gallery-{sid}-longpress', hold_ms=2000, at=1.1, note=f'style {sid}: long-press popup')
+
+
+def section_u(before_apk, apk):
+    """0.13.0 with a customised store, then 0.14.0 installed over it in place."""
+    r13c.install('-r', '-t', '-d', before_apk)
+    M.sh(f'pm clear {M.PKG}', check=False)
+    e2e.ensure_ime()
+    store = M.store('slate', **{
+        'active': 'pizarra', 't__resyst__accent': '#e06c9f', 't__resyst__shape': 'ROUND', 't__resyst__theme': 'paper',
+        't__pizarra__name': 'Mi pizarra', 't__pizarra__theme': 'slate', 't__pizarra__font': 'HUMAN', 't__pizarra__heightScale': '1.15',
+        't__pizarra__accent': '#4fc58f', 't__pizarra__subLegends': 'false', 'phone__sound': 'true', 'phone__soundPack': 'THOCK',
+        'phone__hapticStrength': 'HIGH', 'phone__longPressMs': '300'})
+    store.pop('t.resyst.theme', None)
+    store['t.resyst.theme'] = 'paper'
+    M.write_prefs(store)
+    M.night(False)
+    M.host('text')
+    M.type_seq('hola')
+    M.shot('U-0130-keyboard')
+    before = lum_at(os.path.join(M.OUT, 'U-0130-keyboard.png'), *bar_point())
+    r13c.install('-r', '-t', apk)  # in place: data kept
+    e2e.ensure_ime()
+    M.host('text')
+    M.type_seq('hola')
+    M.shot('U-0140-keyboard')
+    after = lum_at(os.path.join(M.OUT, 'U-0140-keyboard.png'), *bar_point())
+    M.check('U', 'after the update the keyboard keeps its dark Pizarra in light system mode (no follow on upgrade, FS1)',
+            before < 0.1 and after < 0.1, f'bar luminance 0.13.0 {before:.3f}, 0.14.0 {after:.3f}')
+    M.settings_open()
+    M.shot('U-0140-settings')
+    descs = [n.get('content-desc') or '' for n in e2e.dump().iter('node')]
+    tema = next((d for d in descs if d.startswith('Tema Mi pizarra')), None)
+    follow = next((d for d in descs if d.startswith(('Seguir el modo oscuro del sistema', 'Follow the system'))), None)
+    M.check('U', 'Settings shows the user\'s tema "Mi pizarra" in use and following off',
+            tema is not None and tema.endswith('en uso') and follow is not None and follow.endswith('desactivado'), f'{tema} | {follow}')
+    p = prefs()
+    kept = all(x in p for x in ('#4fc58f', '#e06c9f', 'Mi pizarra', 'THOCK', '>300<', '>HIGH<', '>HUMAN<', '>1.15<'))
+    M.check('U', 'the stored 0.13.0 values are all still there (accents, names, sound, haptics, long press, font, height)', kept, 'prefs read via run-as')
+
+
 # ── index: before / after side by side ───────────────────────────────────
 SECTIONS = [
     ('K', 'Every palette, system light and dark', 'K-'),
@@ -675,11 +940,9 @@ def main():
         if 'R' in only:
             section_r()
         if 'N' in only and LABEL == 'after':
-            import e2e_r14_new as new  # noqa: E402  (0.14.0-only rows, kept apart so the before run never imports them)
-            new.run(sys.modules[__name__])
+            section_n()
         if 'U' in only and LABEL == 'after' and a.before_apk:
-            import e2e_r14_new as new  # noqa: E402
-            new.upgrade(sys.modules[__name__], a.before_apk, apk)
+            section_u(a.before_apk, apk)
         if 'M' in only:
             section_m(apk)
     finally:

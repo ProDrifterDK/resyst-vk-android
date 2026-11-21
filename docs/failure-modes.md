@@ -1933,7 +1933,8 @@ Written before the code; each item names what a JVM test, a source guard or the 
 
 ### HS — haptics and sound
 - HS1 Haptics are one pulse for everything while sounds have four kinds. Rule: "Por tecla" (default) gives keys a
-  click, space a softer click, modifiers a tick, Enter a firm click and ⌫ repeats a tick, matching the sound kinds;
+  click, space a softer click, modifiers (⌫ included, as its sound) a tick and Enter a firm click, matching the sound
+  kinds; a tick also marks the moment a held ⌫ starts taking whole words (each repeat stays silent, as in 0.13.0);
   "Uniforme" is 0.13.0 exactly. Long press stays the heaviest, the cursor tick the lightest (K6-K8 still hold).
 
 ### PS — personalisation and Settings
@@ -1947,9 +1948,10 @@ Written before the code; each item names what a JVM test, a source guard or the 
   the next. JVM: create / rename / delete round-trip through the codec.
 - PS4 The quick panel's tema row: every tema is one 48 dp target with a TalkBack name ("Tema Arcade, en uso");
   «Personalizar» opens «Apariencia».
-- PS5 A bundled font lacks a glyph the keys draw (ñ, ¿, ¡, «», €, …): a tofu box on a key. Rule: a legend the font
-  cannot draw falls back to DM Sans; the subset covers every character of every layer and every variant. JVM: the
-  font file's character map covers the layouts' and variants' characters.
+- PS5 A bundled font lacks a glyph the keys draw (ñ, ¿, ¡, «», €, …): a tofu box, or a glyph in another face, on a
+  key. Rule: the subset covers every legend of every layer (labels, typed texts, top-row hints, both languages); a
+  rarer variant the subset does not hold (‼, ‽) falls back to Android's sans-serif (the typeface's system fallback),
+  never a box. JVM: the font file's character map covers every legend.
 - PS6 Strings: every new string exists in Spanish and English (resources); the old key names stay Spanish (VO1b).
 
 ### Version
