@@ -2054,3 +2054,89 @@ checks, and what the painters actually fill and write) that nothing kept equal. 
   13+; the service itself when none is chosen), an app-language change rebuilds the views like any configuration change
   (`ACTION_APPLICATION_LOCALE_CHANGED`), and the download notification asks the same context. E2E (scripts/e2e_r14b.py)
   drives both languages through `cmd locale set-app-locales` and checks every dumped text for the other language's words.
+
+## r15 (0.15.0): emoji search, a roomy quick-settings panel and the owner's UX fixes
+
+0.14.1 never shipped: 0.15.0 carries the r14b translation and what the owner reported while using 0.14.0 on his phone.
+
+### UC — the automatic update check and its status line
+- UC1 A release published right after a check stays hidden for up to 12 h (the owner saw 0.13.0 announced as the newest
+  an hour after 0.14.0 was out; the server was right, the 12 h throttle hid it). Rule: `OpenCheck.OK_HOURS` = 3, a failed
+  attempt still retries after 1 h; every text that states the interval reads the constant or is updated (Settings, the
+  privacy line, README, docs, site). JVM: a check is due exactly 3 h after an answer and not 1 ms before; the 12 h value
+  fails it.
+- UC2 A past answer worded as a present fact («✓ Ya tienes la última versión (0.13.0).»). Rule: the line states the result
+  with the time of the check («No había versiones nuevas cuando revisé, hace 1 h» / «No newer version when checked, 1 h
+  ago»), built by one pure function from the check time; with no known check time no age is claimed, never «ahora». JVM:
+  the age is in the line in both languages; the present-tense wording is gone from both.
+
+### ER — emoji recents that move under the finger
+- ER1 Tapping a recent moves it to the front at once: the row shifts and a second tap on the same spot inserts a different
+  emoji. Rule: the use is recorded and persisted at once (a killed process loses nothing); the panel draws the order it
+  snapshotted when it opened; the new order shows the next time it opens.
+- ER2 An emoji picked from another tab (or from the search) jumps into «Recientes» mid-session. Rule: the same snapshot.
+- ER3 «Borrar lo aprendido» while the panel is open must still empty the row at once: a wipe is not a reorder.
+- ER4 Coming back from the emoji search to the panel is not a new open: the tab, the scroll and the snapshot stay.
+
+### QP — the quick-settings panel, redesigned
+- QP6 Tema names cut to «No…», «Ju…», «Es…»: a chip had a fixed share of the row (≥ 76 dp) and its miniature takes 49 dp of
+  it. Rule: a chip is as wide as its whole name; when the temas do not fit, the row scrolls sideways; a name is never
+  ellipsized. The panel logs (debuggable builds) how many names it would have cut with the real font: 0.
+- QP7 The chip row and the tiles fight for the height, and below a height the row vanished. Rule: the layout takes the
+  richest arrangement that fits: chips on their own row with full tiles (icon disc, label, state), then plain-icon tiles,
+  then the chips move into the header beside «← Teclado» (the title yields), then icon + label tiles; a tile is never
+  under 48 dp.
+- QP8 Uneven gaps (6, 4, 3 dp mixed) and a dead band under the grid. Rule: one rhythm: side margins, the gap between
+  sections and the bottom margin are 12 dp; tiles are 8 dp apart in both directions; a tile's content is centred as a
+  group, never placed by fixed fractions of its height.
+- QP9 The panel's text ignored the font scale (fixed dp). Rule: it follows the font scale (×1 to ×1.3) and the layout
+  absorbs it; a label shrinks to fit before it is shortened.
+- QP10 Longer strings in either language («Portapapeles», «Cursor y selección», «Customize», «Day / night»). Rule: checked
+  on the rendered pixels in both languages at heights 80-130 % and font scales 1.0 / 1.3, light and dark; the JVM sweep
+  covers 70-150 %, widths 320-600 dp and both languages.
+- QP11 A sideways drag on the chip row taps a tema. Rule: past 10 dp the touch scrolls the row and taps nothing.
+- QP12 The tema in use is off screen after opening or after a switch. Rule: the row scrolls it into view; a switch keeps the
+  scroll.
+- QP13 140 % is not a height the app offers (Settings and Altura: 80-130 %, `ProfileCodec.HEIGHT_MAX`). Rule: the panel is
+  proven for taller panels by the JVM sweep; the setting's range is not changed here.
+- QP14 New surfaces bypass the legibility gate. Rule: every (surface, ink) a new painter names is declared in `Drawn.PAIRS`;
+  edge fades are decoration (no ink on them).
+
+### ES — emoji search
+- ES1 The query reaches the app's field, the corrector, the personal model, the pair memory, the clipboard, a log or the
+  network. Rule: while searching, every key, variant, ⌫ swipe and space drag is handled by the private search box before
+  the input connection is read; nothing is learned; no log line carries the query (lengths and timings only); no request.
+  E2E: after searching, the app's files and the log do not contain the query.
+- ES2 Search reachable where the emoji panel is not (password fields). Rule: it opens only from the panel, so the panel's
+  rule gates it; a field change or the keyboard hiding ends it and empties the box.
+- ES3 «aguila» misses «águila», «AGUILA» misses both. Rule: the query and the index fold case and accents the same way (NFD,
+  marks dropped, lower case); a JVM test applies the Kotlin fold to every token of the asset and gets the token back.
+- ES4 Only the interface language matches («hawk» on a Spanish phone finds nothing). Rule: both languages always; a
+  result's TalkBack name is in the interface language.
+- ES5 CLDR has no entry for a common word (CLDR 49 has no «hawk» or «halcón» at all; 🦅 is «águila» / «eagle»). Rule: a
+  small Resyst-owned supplement (scripts/data/emoji-search-extra.tsv), each line with its reason; it only adds keywords.
+- ES6 Ranking surprises (a prefix match before the exact name). Rule: exact name > exact keyword > exact word > prefix;
+  within a tier the recents first, then the catalog's order.
+- ES7 A result the phone's font cannot draw shows a box. Rule: the same glyph check as the grid.
+- ES8 The index sits on the heap of a process that lives for days. Rule: compact arrays (no String per token), loaded on a
+  background thread when the search opens, released when the keyboard hides; size and heap measured.
+- ES9 A keystroke waits for the lookup. Rule: ≤ 5 ms per keystroke on the Pixel 6, measured on the phone.
+- ES10 Escaping: ← and the emoji key return to the panel as it was, ABC from there to the letters, Enter inserts the top
+  match (with none it returns to the panel), hiding the keyboard or a new field ends the search.
+- ES11 The keyboard grows by the results band while searching: the keys stay where they are on screen (the band sits above
+  the bar), and the band leaves with the search; outside the search nothing moves by a pixel.
+- ES12 TalkBack: the field, each result («🦅, águila»), ←, ✕ and the empty state are nodes named in the interface language.
+- ES13 The asset's licence: CLDR is © Unicode, Inc. under the Unicode License v3: NOTICE next to the asset, the in-app
+  credits, README and the site; the inputs are pinned by sha256 and `--check` regenerates the asset byte for byte.
+- ES14 A catalog emoji without CLDR data. Rule: the generator reports coverage; an emoji without data is not searchable
+  (no guessed names).
+
+### SW — an English address for the site
+- SW1 English phones open the Spanish page (TR9). Rule: `?lang=en` / `?lang=es` on any page picks and saves the language
+  before the first paint (no flash of Spanish); `WhatsNew.url` gives `…/novedades/?lang=en` on English phones. Checked in a
+  headless browser at 390 and 1440 px.
+- SW2 A bad value (`?lang=fr`) changes nothing and is not saved.
+
+### VR9
+- VR9 0.15.0 / versionCode 18 are the build defaults (0.14.1 never shipped); docs/novedades-0.15.0.md is the site text in
+  plain language, both languages.
