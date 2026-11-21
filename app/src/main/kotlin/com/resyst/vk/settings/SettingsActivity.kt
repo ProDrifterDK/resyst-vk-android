@@ -30,6 +30,7 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import com.resyst.vk.R
 import com.resyst.vk.core.ClipSettings
+import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.ConnectionLog
 import com.resyst.vk.core.EmojiRecents
@@ -48,6 +49,7 @@ import com.resyst.vk.core.KeyCap
 import com.resyst.vk.core.KeyFont
 import com.resyst.vk.core.KeyShape
 import com.resyst.vk.core.KeyboardLayouts
+import com.resyst.vk.core.Look
 import com.resyst.vk.core.Lang
 import com.resyst.vk.core.Region
 import com.resyst.vk.core.Layer
@@ -74,6 +76,7 @@ import com.resyst.vk.ime.KeyboardView
 import com.resyst.vk.ime.PersonalStore
 import com.resyst.vk.ime.ResystImeService
 import com.resyst.vk.ime.SubtypeSync
+import com.resyst.vk.ime.SystemLook
 import kotlin.math.roundToInt
 
 /**
@@ -160,6 +163,7 @@ class SettingsActivity : Activity() {
 
     // ── navigation ──────────────────────────────────────────────────────
     private fun go(id: String?) {
+        undoStyle = null
         page = id?.takeIf { SettingsIA.page(it) != null }
         render()
         scroll.scrollTo(0, 0)
@@ -259,8 +263,14 @@ class SettingsActivity : Activity() {
         }
     }
 
-    private val pal get() = store.settings.let { Palette.of(it.theme, it.accent) }
+    /** r14: the palette the screen wears, computed once per render (the keyboard's: resolved, tinted, gated). */
+    private lateinit var palNow: Palette
+    private val pal get() = palNow
     private val t get() = pal.theme
+    /** r14 (PS2): the style just applied and the look it replaced («Deshacer»); cleared when the page changes. */
+    private var undoStyle: Pair<String, Look>? = null
+    /** r14: «Más colores» open under the accent swatches. */
+    private var moreAccents = false
 
     /** What the user edits: phone behavior + active tema look, never the mode-overridden view. */
     private val b get() = store.base
@@ -283,6 +293,7 @@ class SettingsActivity : Activity() {
 
     // ── rendering ───────────────────────────────────────────────────────
     private fun render() {
+        palNow = SystemLook.palette(this, shownSettings())
         val p = pal
         window.statusBarColor = p.theme.bg
         window.navigationBarColor = p.theme.bg
@@ -308,12 +319,15 @@ class SettingsActivity : Activity() {
     private fun renderHome() {
         header()
         setupCard()
+        // r14: the keyboard first — its live look, Personalizar and Día / noche one tap away
+        heroCard()
         section("Tema y modo")
         ctl(Ctl.TEMA)
         ctl(Ctl.MODE)
-        livePreview()
+        section(getString(R.string.group_styles))
+        ctl(Ctl.STYLES)
         section("Ajustes rápidos")
-        for (c in SettingsIA.HOME) if (c != Ctl.TEMA && c != Ctl.MODE) ctl(c)
+        for (c in SettingsIA.HOME) if (c != Ctl.TEMA && c != Ctl.MODE && c != Ctl.DAY_NIGHT) ctl(c)
         section("Todos los ajustes")
         for (pg in SettingsIA.PAGES) navRow(pg)
         section("Probar")
@@ -325,9 +339,10 @@ class SettingsActivity : Activity() {
         pageHeader(pg)
         if (store.mode != Mode.NONE && pg.id in MODE_AFFECTED) modeBanner()
         if (pg.preview) livePreview()
-        if (pg.id == PAGE_KNOW) knowIntro()
+        if (pg.id == PAGE_KNOW) { knowIntro(); knowDashboard() }
         val hinted = HashSet<Ctl>()
         for (row in SettingsIA.rows(pg) { on(it) }) {
+            if (row.ctl in pg.groups) groupTitle(row.ctl)?.let { into = root; groupHeader(it) }
             val parent = row.ctl.dependsOn
             val hint = if (!row.enabled && parent != null && hinted.add(parent)) parent else null
             ctl(row.ctl, row.enabled, row.indent, hint)
@@ -411,23 +426,63 @@ class SettingsActivity : Activity() {
         when (ctl) {
             Ctl.TEMA -> temaPicker()
             Ctl.MODE -> modePicker()
-            Ctl.FOLLOW_SYSTEM -> toggle(ctl.label, null, store.followSystem) { v -> commitStore(store.copy(followSystem = v)) }
-            Ctl.TEMA_MANAGE -> Unit
-            Ctl.STYLES -> Unit
-            Ctl.TINT -> choice(ctl.label, com.resyst.vk.core.Tint.values().map { it to it.name }, s.tint) { v -> commit { it.copy(tint = v) } }
-            Ctl.LEGEND_WEIGHT -> choice(ctl.label, com.resyst.vk.core.LegendWeight.values().map { it to it.name }, s.legendWeight) { v -> commit { it.copy(legendWeight = v) } }
-            Ctl.LEGEND_SCALE -> slider(ctl.label, 85, 130, (s.legendScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(legendScale = v / 100f) } }
-            Ctl.UPPER_LEGENDS -> toggle(ctl.label, null, s.upperLegends) { v -> commit { it.copy(upperLegends = v) } }
-            Ctl.BUBBLE -> choice(ctl.label, com.resyst.vk.core.Bubble.values().map { it to it.name }, s.bubble) { v -> commit { it.copy(bubble = v) } }
-            Ctl.BAR_STYLE -> choice(ctl.label, com.resyst.vk.core.BarStyle.values().map { it to it.name }, s.barStyle) { v -> commit { it.copy(barStyle = v) } }
-            Ctl.HAPTIC_PROFILE -> choice(ctl.label, com.resyst.vk.core.HapticProfile.values().map { it to it.name }, s.hapticProfile) { v -> commit { it.copy(hapticProfile = v) } }
-            Ctl.MOTION -> choice(ctl.label, com.resyst.vk.core.Motion.values().map { it to it.name }, s.motion) { v -> commit { it.copy(motion = v) } }
-            Ctl.THEME -> choice(ctl.label, Themes.ALL.map { it.id to it.label }, s.theme) { v -> commit { it.copy(theme = v) } }
+            Ctl.FOLLOW_SYSTEM -> toggle(getString(R.string.follow_system_title), getString(R.string.follow_system_summary), store.followSystem) { v -> commitStore(store.copy(followSystem = v)) }
+            Ctl.TEMA_MANAGE -> temaManage()
+            Ctl.STYLES -> stylesGallery()
+            Ctl.TINT -> {
+                choice(getString(R.string.tint_title), listOf(com.resyst.vk.core.Tint.NONE to getString(R.string.tint_none), com.resyst.vk.core.Tint.SOFT to getString(R.string.tint_soft),
+                    com.resyst.vk.core.Tint.STRONG to getString(R.string.tint_strong)), s.tint) { v -> commit { it.copy(tint = v) } }
+                into.addView(label(getString(R.string.tint_summary), 12f, t.muted), lp(bottom = 4f))
+            }
+            Ctl.LEGEND_WEIGHT -> keyTiles(getString(R.string.legend_weight_title), listOf(
+                Triple(com.resyst.vk.core.LegendWeight.LIGHT, getString(R.string.weight_light), KeyTile(weight = com.resyst.vk.core.LegendWeight.LIGHT.wght, legend = "Aa")),
+                Triple(com.resyst.vk.core.LegendWeight.REGULAR, getString(R.string.weight_regular), KeyTile(weight = com.resyst.vk.core.LegendWeight.REGULAR.wght, legend = "Aa")),
+                Triple(com.resyst.vk.core.LegendWeight.MEDIUM, getString(R.string.weight_medium), KeyTile(weight = com.resyst.vk.core.LegendWeight.MEDIUM.wght, legend = "Aa")),
+                Triple(com.resyst.vk.core.LegendWeight.BOLD, getString(R.string.weight_bold), KeyTile(weight = com.resyst.vk.core.LegendWeight.BOLD.wght, legend = "Aa")),
+            ), s.legendWeight) { v -> commit { it.copy(legendWeight = v) } }
+            Ctl.LEGEND_SCALE -> {
+                slider(getString(R.string.legend_scale_title), 85, 130, (s.legendScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(legendScale = v / 100f) } }
+                into.addView(label(getString(R.string.legend_scale_summary), 12f, t.muted), lp(bottom = 4f))
+            }
+            Ctl.UPPER_LEGENDS -> toggle(getString(R.string.upper_legends_title), getString(R.string.upper_legends_summary), s.upperLegends) { v -> commit { it.copy(upperLegends = v) } }
+            Ctl.BUBBLE -> choice(getString(R.string.bubble_title), listOf(com.resyst.vk.core.Bubble.CONNECTED to getString(R.string.bubble_connected),
+                com.resyst.vk.core.Bubble.FLOATING to getString(R.string.bubble_floating)), s.bubble) { v -> commit { it.copy(bubble = v) } }
+            Ctl.BAR_STYLE -> choice(getString(R.string.bar_style_title), listOf(com.resyst.vk.core.BarStyle.TEXT to getString(R.string.bar_text),
+                com.resyst.vk.core.BarStyle.CHIPS to getString(R.string.bar_chips)), s.barStyle) { v -> commit { it.copy(barStyle = v) } }
+            Ctl.HAPTIC_PROFILE -> {
+                choice(getString(R.string.haptic_profile_title), listOf(com.resyst.vk.core.HapticProfile.BY_KEY to getString(R.string.haptic_by_key),
+                    com.resyst.vk.core.HapticProfile.UNIFORM to getString(R.string.haptic_uniform)), s.hapticProfile) { v -> commit { it.copy(hapticProfile = v) } }
+                into.addView(label(getString(R.string.haptic_profile_summary), 12f, t.muted), lp(bottom = 4f))
+            }
+            Ctl.MOTION -> {
+                choice(getString(R.string.motion_title), listOf(com.resyst.vk.core.Motion.FULL to getString(R.string.motion_full),
+                    com.resyst.vk.core.Motion.SUBTLE to getString(R.string.motion_subtle), com.resyst.vk.core.Motion.OFF to getString(R.string.motion_off)), s.motion) { v -> commit { it.copy(motion = v) } }
+                into.addView(label(getString(R.string.motion_summary), 12f, t.muted), lp(bottom = 4f))
+            }
+            Ctl.THEME -> paletteGrid(s)
             Ctl.DAY_NIGHT -> dayNightPill(s)
             Ctl.ACCENT -> accentRow(s)
-            Ctl.SHAPE -> choice(ctl.label, listOf(KeyShape.SQUARE to "Recta", KeyShape.SOFT to "Suave", KeyShape.ROUND to "Redonda"), s.shape) { v -> commit { it.copy(shape = v) } }
-            Ctl.CAP -> choice(ctl.label, listOf(KeyCap.RAISED to "Relieve", KeyCap.FLAT to "Plana", KeyCap.OUTLINE to "Contorno"), s.cap) { v -> commit { it.copy(cap = v) } }
-            Ctl.FONT -> choice(ctl.label, listOf(KeyFont.BRAND to "DM Sans", KeyFont.TECH to "Mono", KeyFont.HUMAN to "Serif"), s.font) { v -> commit { it.copy(font = v) } }
+            Ctl.SHAPE -> keyTiles(getString(R.string.shape_title), listOf(
+                Triple(KeyShape.SQUARE, getString(R.string.shape_square), KeyTile(shape = KeyShape.SQUARE)),
+                Triple(KeyShape.SOFT, getString(R.string.shape_soft), KeyTile(shape = KeyShape.SOFT)),
+                Triple(KeyShape.ROUND, getString(R.string.shape_round), KeyTile(shape = KeyShape.ROUND)),
+                Triple(KeyShape.PILL, getString(R.string.shape_pill), KeyTile(shape = KeyShape.PILL)),
+                Triple(KeyShape.CHAMFER, getString(R.string.shape_chamfer), KeyTile(shape = KeyShape.CHAMFER)),
+            ), s.shape) { v -> commit { it.copy(shape = v) } }
+            Ctl.CAP -> keyTiles(getString(R.string.cap_title), listOf(
+                Triple(KeyCap.RAISED, getString(R.string.cap_raised), KeyTile(cap = KeyCap.RAISED)),
+                Triple(KeyCap.FLAT, getString(R.string.cap_flat), KeyTile(cap = KeyCap.FLAT)),
+                Triple(KeyCap.OUTLINE, getString(R.string.cap_outline), KeyTile(cap = KeyCap.OUTLINE)),
+                Triple(KeyCap.KEYCAP, getString(R.string.cap_keycap), KeyTile(cap = KeyCap.KEYCAP)),
+                Triple(KeyCap.BORDERLESS, getString(R.string.cap_borderless), KeyTile(cap = KeyCap.BORDERLESS)),
+            ), s.cap) { v -> commit { it.copy(cap = v) } }
+            Ctl.FONT -> keyTiles(getString(R.string.font_title), listOf(
+                Triple(KeyFont.BRAND, getString(R.string.font_brand), KeyTile(font = KeyFont.BRAND, legend = "Añ")),
+                Triple(KeyFont.LEGIBLE, getString(R.string.font_legible), KeyTile(font = KeyFont.LEGIBLE, legend = "Añ")),
+                Triple(KeyFont.ROUNDED, getString(R.string.font_rounded), KeyTile(font = KeyFont.ROUNDED, legend = "Añ")),
+                Triple(KeyFont.TECH, getString(R.string.font_tech), KeyTile(font = KeyFont.TECH, legend = "Añ")),
+                Triple(KeyFont.HUMAN, getString(R.string.font_human), KeyTile(font = KeyFont.HUMAN, legend = "Añ")),
+            ), s.font) { v -> commit { it.copy(font = v) } }
             Ctl.DENSITY -> choice(ctl.label, listOf(Density.TIGHT to "Compacta", Density.NORMAL to "Normal", Density.AIRY to "Aireada"), s.density) { v -> commit { it.copy(density = v) } }
             Ctl.HEIGHT -> slider(ctl.label, 80, 130, (s.heightScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(heightScale = v / 100f) } }
             Ctl.SUB_LEGENDS -> toggle(ctl.label, "Dígitos sobre la fila superior y punto de variantes", s.subLegends) { v -> commit { it.copy(subLegends = v) } }
@@ -502,26 +557,39 @@ class SettingsActivity : Activity() {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (tm in store.temas) {
             val sel = tm.id == store.active
-            val pp = Palette.of(tm.look.theme, tm.look.accent)
-            // Each card wears its own tema; the one in use gets a 2 dp accent ring + a dot (one signal).
+            // r14: each card is the tema in miniature (its palette as drawn now, its shape and cap); the one in use ringed
+            val look = if (store.followSystem) DayNight.resolve(tm.look, SystemLook.dark(this)) else tm.look
+            val pp = paletteOf(look)
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                minimumHeight = px(76f)
-                background = rounded(pp.theme.bg2, pp.theme.edgeHi, 12f).apply { if (sel) setStroke(px(2f), pp.accent) }
+                gravity = Gravity.CENTER_HORIZONTAL
+                background = rounded(pp.theme.bg2, pp.theme.edgeHi, 14f).apply { if (sel) setStroke(px(2f), pp.accent) }
                 setPadding(px(8f), px(8f), px(8f), px(8f))
                 isClickable = true
+                isLongClickable = true
                 tag = "tema.${tm.id}"
                 setOnClickListener { if (!sel) commitStore(store.withTema(tm.id)) }
+                setOnLongClickListener { renameTema(tm.id); true }
                 contentDescription = "Tema ${tm.name}, ${Themes.byId(tm.look.theme).label}" + if (sel) ", en uso" else ""
             }
-            card.addView(label(tm.name + if (sel) "  ●" else "", 14f, pp.theme.text, if (sel) 700 else 550).apply {
+            card.addView(MiniKeyboardView(this, pp, look.shape, look.cap), LinearLayout.LayoutParams(px(112f), px(58f)))
+            card.addView(label("${tm.icon} ${tm.name}" + if (sel) "  ●" else "", 14f, pp.theme.text, if (sel) 700 else 550).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            card.addView(label(Themes.byId(tm.look.theme).label, 11f, pp.theme.textMod, 500).apply {
+            }, lp(top = 6f))
+            card.addView(label(Themes.byId(look.theme).label, 11f, pp.theme.textMod, 500).apply {
                 gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-            }, lp(top = 2f))
-            row.addView(card, LinearLayout.LayoutParams(px(118f), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+            }, lp(top = 1f))
+            row.addView(card, LinearLayout.LayoutParams(px(128f), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+        }
+        if (store.temas.size < com.resyst.vk.core.TemaOps.MAX_TEMAS) {
+            row.addView(label(getString(R.string.tema_new), 14f, pal.accent, 650).apply {
+                gravity = Gravity.CENTER
+                background = rounded(t.bg, pal.accentGlow, 14f)
+                isClickable = true
+                tag = "tema-new"
+                contentDescription = getString(R.string.tema_new_title)
+                setOnClickListener { createTema() }
+            }, LinearLayout.LayoutParams(px(112f), ViewGroup.LayoutParams.MATCH_PARENT).apply { marginEnd = px(8f) })
         }
         into.addView(bleedRow(row), bleedLp())
         into.addView(label("Un tema es solo la apariencia. Idioma, sugerencias, vibración y sonido valen para todos los temas.", 12f, t.muted), lp(top = 4f, bottom = 6f))
@@ -555,12 +623,14 @@ class SettingsActivity : Activity() {
         root.addView(card, lp(bottom = 12f))
     }
 
-    private fun dayNightPill(s: KbSettings) {
+    private fun dayNightPill(s0: KbSettings) {
+        // r14 (FS2): what is on screen flips; while following the system the flip also stops following
+        val s = shownSettings()
         val dark = Themes.byId(s.theme).dark
         val toLabel = Themes.byId(DayNight.toggle(s).theme).label
         into.addView(label(Ctl.DAY_NIGHT.label, 14f, t.textMod, 550), lp(top = 8f))
         into.addView(pill(if (dark) "☀  Modo día · $toLabel" else "☾  Modo noche · $toLabel") {
-            commitStore(store.updateLook(store.activeTema.id) { DayNight.toggle(it) })
+            commitStore(com.resyst.vk.core.Quick.apply(store, com.resyst.vk.core.QuickAction.DAY_NIGHT, SystemLook.dark(this)))
         }.apply { tag = "daynight"; contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel" }, lp(top = 8f, bottom = 4f))
     }
 
@@ -1139,6 +1209,340 @@ class SettingsActivity : Activity() {
         Haptics.pulseFor(HapticEvent.KEY, enabled = true)?.let { player.play(it, strength) }
     }
 
+    // ── r14: the look, seen ──────────────────────────────────────────────
+
+    /** The settings the keyboard shows right now: the stored look resolved against the system's dark mode (FS2). */
+    private fun shownSettings(): KbSettings = store.settingsFor(SystemLook.dark(this))
+
+    /** The palette a look would be drawn with on this phone now (tint, high contrast, the wallpaper's colours). */
+    private fun paletteOf(l: Look): Palette = SystemLook.palette(this, l.applyTo(store.phone))
+
+    /** «Tu teclado»: the live keyboard of the tema in use, its name, and the two things people change most. */
+    private fun heroCard() {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(t.bg2, t.edge, 18f)
+            setPadding(px(12f), px(12f), px(12f), px(12f))
+            tag = "hero"
+        }
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(label(getString(R.string.home_your_keyboard).uppercase(), 11f, pal.accent, 700).apply { letterSpacing = 0.14f })
+        col.addView(label("${store.activeTema.icon}  ${store.activeTema.name}", 18f, t.text, 700), lp(top = 2f))
+        head.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        card.addView(head, lp(bottom = 8f))
+        val prev = into
+        into = card
+        try {
+            livePreviewInto(card)
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            actions.addView(pill(getString(R.string.home_customize)) { go(PAGE_LOOK) }.apply {
+                tag = "customize"
+                contentDescription = getString(R.string.home_customize_desc)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = px(8f) })
+            actions.addView(dayNightButton(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            card.addView(actions, lp(top = 8f))
+            ctl(Ctl.FOLLOW_SYSTEM)
+        } finally {
+            into = prev
+        }
+        root.addView(card, lp(bottom = 6f))
+    }
+
+    /** Día / noche as a quiet pill; while following the system it stops following and shows the opposite (FS2). */
+    private fun dayNightButton(): View {
+        val s = shownSettings()
+        val dark = Themes.byId(s.theme).dark
+        val toLabel = Themes.byId(DayNight.toggle(s).theme).label
+        return label(if (dark) "☀  $toLabel" else "☾  $toLabel", 14f, t.text, 600).apply {
+            gravity = Gravity.CENTER
+            minHeight = px(46f)
+            maxLines = 1
+            setPadding(px(14f), px(10f), px(14f), px(10f))
+            background = rounded(t.key, t.edgeHi, 23f)
+            isClickable = true
+            tag = "daynight"
+            contentDescription = "Cambiar a modo ${if (dark) "día" else "noche"}: $toLabel"
+            setOnClickListener { commitStore(com.resyst.vk.core.Quick.apply(store, com.resyst.vk.core.QuickAction.DAY_NIGHT, SystemLook.dark(this@SettingsActivity))) }
+        }
+    }
+
+    /** A group heading inside a page (the long «Apariencia» reads in sections). */
+    private fun groupHeader(title: String) {
+        into.addView(label(title.uppercase(), 11f, t.muted, 700).apply { letterSpacing = 0.14f; tag = "group" }, lp(top = 20f, bottom = 2f))
+        into.addView(View(this).apply { setBackgroundColor(t.edge) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(1f)).apply { bottomMargin = px(4f) })
+    }
+
+    private fun groupTitle(ctl: Ctl): String? = when (ctl) {
+        Ctl.STYLES -> getString(R.string.group_styles)
+        Ctl.THEME -> getString(R.string.group_colors)
+        Ctl.SHAPE -> getString(R.string.group_keys)
+        Ctl.FONT -> getString(R.string.group_type)
+        Ctl.BUBBLE -> getString(R.string.group_details)
+        else -> null
+    }
+
+    /** A card that is selected wears a 2 dp accent ring; the others a hairline (one signal, LG). */
+    private fun cardBg(sel: Boolean, fill: Int = t.bg2) = rounded(fill, if (sel) pal.accent else t.edge, 14f).apply { if (sel) setStroke(px(2f), pal.accent) }
+
+    /** The palettes as miniature keyboards in a 3-column grid: dark, light, then the wallpaper's (Android 12+). */
+    private fun paletteGrid(s: KbSettings) {
+        into.addView(label(getString(R.string.group_colors), 14f, t.textMod, 550), lp(top = 6f, bottom = 4f))
+        val look = store.activeTema.look
+        fun group(title: String, list: List<com.resyst.vk.core.Theme>, enabled: Boolean = true, note: String? = null) {
+            into.addView(label(title, 12f, t.muted, 600), lp(top = 8f, bottom = 4f))
+            if (note != null) into.addView(label(note, 11f, t.muted), lp(bottom = 4f))
+            list.chunked(3).forEach { chunk ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                for (th in chunk) {
+                    val sel = th.id == s.theme
+                    val pp = paletteOf(look.copy(theme = th.id))
+                    val cardV = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        background = cardBg(sel)
+                        setPadding(px(6f), px(6f), px(6f), px(4f))
+                        isClickable = enabled
+                        isEnabled = enabled
+                        alpha = if (enabled) 1f else 0.45f
+                        tag = "palette.${th.id}"
+                        contentDescription = getString(R.string.palette_desc, th.label) + (if (sel) ", seleccionado" else "") + if (enabled) "" else ", no disponible"
+                        if (enabled) setOnClickListener { if (!sel) commit { it.copy(theme = th.id) } }
+                    }
+                    cardV.addView(MiniKeyboardView(this, pp, look.shape, look.cap), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(54f)))
+                    cardV.addView(label(th.label, 11f, t.text, if (sel) 700 else 500).apply {
+                        maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
+                    }, lp(top = 4f))
+                    row.addView(cardV, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = px(6f) })
+                }
+                repeat(3 - chunk.size) { row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { marginEnd = px(6f) }) }
+                into.addView(row, lp(bottom = 6f))
+            }
+        }
+        val all = Themes.CATALOG.filter { it.id !in Themes.DYNAMIC }
+        group(getString(R.string.colors_dark), all.filter { it.dark })
+        group(getString(R.string.colors_light), all.filter { !it.dark })
+        val sys = android.os.Build.VERSION.SDK_INT >= 31
+        group(getString(R.string.colors_system), Themes.CATALOG.filter { it.id in Themes.DYNAMIC }, sys, if (sys) null else getString(R.string.colors_system_off))
+        // following the system: say which palette is on screen when it is the partner of the chosen one (FS2)
+        val shown = shownSettings().theme
+        if (store.followSystem && shown != s.theme) {
+            into.addView(label("${getString(R.string.follow_system_title)}: ahora se ve «${Themes.byId(shown).label}», su pareja ${if (Themes.byId(shown).dark) "oscura" else "clara"}.",
+                12f, pal.accent, 550).apply { tag = "palette-follow" }, lp(top = 2f, bottom = 4f))
+        }
+    }
+
+    /** Option tiles: each one a key drawn in that shape / cap / font, its name under it; the chosen one ringed. */
+    private fun <T> keyTiles(title: String, options: List<Triple<T, String, KeyTile>>, current: T, onPick: (T) -> Unit) {
+        into.addView(label(title, 14f, t.textMod, 550), lp(top = 10f, bottom = 6f))
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val s = shownSettings()
+        for ((value, name, k) in options) {
+            val sel = value == current
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                background = cardBg(sel)
+                setPadding(px(4f), px(6f), px(4f), px(6f))
+                isClickable = true
+                contentDescription = "$title: $name" + if (sel) ", seleccionado" else ""
+                setOnClickListener { if (!sel) onPick(value) }
+            }
+            tile.addView(SampleKeyView(this, pal, k.shape ?: s.shape, k.cap ?: s.cap, k.legend, Fonts.get(this, k.font ?: s.font, k.weight ?: s.legendWeight.wght)),
+                LinearLayout.LayoutParams(px(64f), px(54f)))
+            tile.addView(label(name, 12f, t.text, if (sel) 700 else 500).apply { gravity = Gravity.CENTER; maxLines = 1 }, lp(top = 2f))
+            row.addView(tile, LinearLayout.LayoutParams(px(88f), ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+        }
+        into.addView(bleedRow(row), bleedLp())
+    }
+
+    /** What one option tile draws (null = the tema's current value). */
+    private class KeyTile(val shape: KeyShape? = null, val cap: KeyCap? = null, val font: KeyFont? = null, val weight: Int? = null, val legend: String = "a")
+
+    /** «Empieza con un estilo»: curated looks as miniature keyboards; a tap applies one to the tema in use, «Deshacer» puts it back. */
+    private fun stylesGallery() {
+        into.addView(label(getString(R.string.styles_title), 14f, t.textMod, 550), lp(top = 4f))
+        into.addView(label(getString(R.string.styles_summary), 12f, t.muted), lp(bottom = 6f))
+        undoStyle?.let { (id, previous) ->
+            val name = styleName(id)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = rounded(pal.chipFill, pal.accentGlow, 12f)
+                setPadding(px(12f), px(4f), px(4f), px(4f))
+                tag = "style-applied"
+            }
+            row.addView(label(getString(R.string.styles_applied, name), 13f, pal.accent, 600), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(label(getString(R.string.styles_undo), 14f, pal.accent, 700).apply {
+                minHeight = px(44f); minWidth = px(64f); gravity = Gravity.CENTER
+                isClickable = true
+                tag = "style-undo"
+                setOnClickListener { undoStyle = null; commitStore(com.resyst.vk.core.Styles.undo(store, previous)) }
+            })
+            into.addView(row, lp(bottom = 8f))
+        }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val now = store.activeTema.look
+        for (st in com.resyst.vk.core.Styles.ALL) {
+            val look = st.on(now)
+            val sel = look == now
+            val name = styleName(st.id)
+            val cardV = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = cardBg(sel)
+                setPadding(px(8f), px(8f), px(8f), px(8f))
+                isClickable = true
+                tag = "style.${st.id}"
+                contentDescription = "$name. ${styleLine(st.id)}" + if (sel) ", en uso" else ""
+                setOnClickListener {
+                    val (next, previous) = com.resyst.vk.core.Styles.apply(store, st)
+                    undoStyle = st.id to previous
+                    commitStore(next)
+                }
+            }
+            cardV.addView(MiniKeyboardView(this, paletteOf(look), look.shape, look.cap), LinearLayout.LayoutParams(px(132f), px(70f)))
+            cardV.addView(label("${st.icon}  $name", 14f, t.text, 650).apply { maxLines = 1 }, lp(top = 6f))
+            cardV.addView(label(styleLine(st.id), 11f, t.muted).apply { maxLines = 2 }, LinearLayout.LayoutParams(px(132f), ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(cardV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
+        }
+        into.addView(bleedRow(row), bleedLp(bottom = 6f))
+    }
+
+    private fun styleName(id: String) = resources.getIdentifier("style_$id", "string", packageName).takeIf { it != 0 }?.let(::getString) ?: id
+    private fun styleLine(id: String) = resources.getIdentifier("style_${id}_line", "string", packageName).takeIf { it != 0 }?.let(::getString) ?: ""
+
+    /** «Tus temas»: each tema with Renombrar / Borrar, and «Nuevo tema» (a copy of the one in use). */
+    private fun temaManage() {
+        into.addView(label(getString(R.string.tema_manage_title), 14f, t.textMod, 550), lp(top = 10f, bottom = 4f))
+        for (tm in store.temas) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = px(52f)
+                tag = "manage.${tm.id}"
+            }
+            val sel = tm.id == store.active
+            row.addView(MiniKeyboardView(this, paletteOf(tm.look), tm.look.shape, tm.look.cap), LinearLayout.LayoutParams(px(58f), px(36f)).apply { marginEnd = px(10f) })
+            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            col.addView(label("${tm.icon}  ${tm.name}", 15f, t.text, if (sel) 700 else 550).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            col.addView(label(Themes.byId(tm.look.theme).label + if (sel) " · ${getString(R.string.tema_in_use)}" else "", 12f, t.muted).apply { maxLines = 1 })
+            row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(label(getString(R.string.tema_rename), 13f, pal.accent, 600).apply {
+                minHeight = px(48f); gravity = Gravity.CENTER; setPadding(px(10f), 0, px(10f), 0)
+                isClickable = true
+                contentDescription = getString(R.string.tema_rename_title, tm.name)
+                setOnClickListener { renameTema(tm.id) }
+            })
+            row.addView(label(getString(R.string.tema_delete), 13f, if (store.temas.size > 1) t.bad else t.muted, 600).apply {
+                minHeight = px(48f); gravity = Gravity.CENTER; setPadding(px(10f), 0, 0, 0)
+                isClickable = true
+                contentDescription = getString(R.string.tema_delete_title, tm.name)
+                setOnClickListener { deleteTema(tm.id) }
+            })
+            into.addView(row, lp())
+        }
+        into.addView(pill(getString(R.string.tema_new)) { createTema() }.apply { tag = "tema-new" }, lp(top = 8f, bottom = 4f))
+    }
+
+    private fun nameField(initial: String): EditText = EditText(this).apply {
+        setText(initial)
+        hint = getString(R.string.tema_name_hint)
+        setSingleLine()
+        filters = arrayOf(android.text.InputFilter.LengthFilter(com.resyst.vk.core.TemaOps.NAME_MAX))
+        setSelection(text.length)
+        setPadding(px(20f), px(14f), px(20f), px(14f))
+    }
+
+    private fun createTema() {
+        if (store.temas.size >= com.resyst.vk.core.TemaOps.MAX_TEMAS) {
+            AlertDialog.Builder(this).setMessage(getString(R.string.tema_full, com.resyst.vk.core.TemaOps.MAX_TEMAS)).setPositiveButton("OK", null).show()
+            return
+        }
+        val field = nameField("")
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tema_new_title))
+            .setMessage(getString(R.string.tema_new_message, store.activeTema.name))
+            .setView(field)
+            .setPositiveButton(getString(R.string.tema_create)) { _, _ ->
+                val next = com.resyst.vk.core.TemaOps.create(store, field.text.toString(), "✦")
+                if (next != store) commitStore(next)
+            }
+            .setNegativeButton(getString(R.string.tema_cancel), null)
+            .show()
+    }
+
+    private fun renameTema(id: String) {
+        val tm = store.byId(id) ?: return
+        val field = nameField(tm.name)
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tema_rename_title, tm.name))
+            .setView(field)
+            .setPositiveButton(getString(R.string.tema_save)) { _, _ ->
+                val next = com.resyst.vk.core.TemaOps.rename(store, id, field.text.toString(), tm.icon)
+                if (next != store) commitStore(next)
+            }
+            .setNegativeButton(getString(R.string.tema_cancel), null)
+            .show()
+    }
+
+    private fun deleteTema(id: String) {
+        val tm = store.byId(id) ?: return
+        if (store.temas.size <= 1) {
+            AlertDialog.Builder(this).setMessage(getString(R.string.tema_last)).setPositiveButton("OK", null).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tema_delete_title, tm.name))
+            .setMessage(getString(R.string.tema_delete_message))
+            .setPositiveButton(getString(R.string.tema_delete)) { _, _ -> commitStore(com.resyst.vk.core.TemaOps.delete(store, id)) }
+            .setNegativeButton(getString(R.string.tema_cancel), null)
+            .show()
+    }
+
+    /**
+     * «Lo que sé de ti», in numbers: one row of counts (words, pairs, undone corrections, emails, recent emoji,
+     * clipboard), each one tap from its section. Read from the same stores the sections list.
+     */
+    private fun knowDashboard() {
+        val words = PersonalStore.words?.let { w -> Lang.values().sumOf { w.vocabCount(it) } }
+        val pairs = PersonalStore.pairs?.pairCount()
+        val fixes = PersonalStore.rejections?.let { it.items().size + it.strikes().size }
+        val emails = PersonalStore.values?.values(FieldKind.EMAIL)?.size
+        val emoji = emojiRecents().items().size
+        val clip = ClipStore.history?.size
+        val stats = listOf(
+            Triple(words, getString(R.string.know_dash_words), Ctl.KNOW_WORDS), Triple(pairs, getString(R.string.know_dash_pairs), Ctl.KNOW_PAIRS),
+            Triple(fixes, getString(R.string.know_dash_fixes), Ctl.KNOW_REJECTIONS), Triple(emails, getString(R.string.know_dash_emails), Ctl.KNOW_EMAILS),
+            Triple(emoji, getString(R.string.know_dash_emoji), Ctl.KNOW_EMOJI), Triple(clip, getString(R.string.know_dash_clip), Ctl.KNOW_CLIP),
+        )
+        root.addView(label(getString(R.string.know_dash_title).uppercase(), 11f, t.muted, 700).apply { letterSpacing = 0.12f }, lp(bottom = 6f))
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for ((n, what, ctl) in stats) {
+            val count = n?.toString() ?: "…"
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = rounded(t.bg2, t.edge, 14f)
+                setPadding(px(12f), px(10f), px(12f), px(10f))
+                minimumWidth = px(96f)
+                isClickable = true
+                tag = "dash.${ctl.name}"
+                contentDescription = getString(R.string.know_dash_desc, count, what)
+                setOnClickListener { revealKnow(ctl) }
+            }
+            tile.addView(label(count, 22f, if ((n ?: 0) > 0) pal.accent else t.muted, 700))
+            tile.addView(label(what, 11f, t.textMod, 500).apply { maxLines = 2 })
+            row.addView(tile, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT).apply { marginEnd = px(8f) })
+        }
+        root.addView(bleedRow(row), bleedLp(bottom = 10f))
+    }
+
+    /** Scrolls «Lo que sé de ti» to the section of [ctl]. */
+    private fun revealKnow(ctl: Ctl) {
+        scroll.post {
+            val box = root.findViewWithTag<View>(ctl.name) ?: return@post
+            scroll.smoothScrollTo(0, (box.top - px(8f)).coerceAtLeast(0))
+        }
+    }
+
     // ── chrome ──────────────────────────────────────────────────────────
     private fun typeface(w: Int) = Fonts.get(this, KeyFont.BRAND, w)
 
@@ -1237,6 +1641,7 @@ class SettingsActivity : Activity() {
         card.addView(step(2, "Elegirlo como teclado actual", selected) {
             getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
         }, lp(top = 8f))
+        card.addView(label("3  ·  " + getString(R.string.setup_step3), 14f, t.textMod, 500).apply { setPadding(px(12f), 0, 0, 0) }, lp(top = 8f))
         card.addView(label("Android mostrará un aviso estándar: todo teclado puede leer lo que escribes. Lo que escribes en las apps nunca sale del teléfono. ${UpdateNotice.promise(store.autoUpdateCheck)}", 12f, t.muted, 400), lp(top = 10f))
         root.addView(card, lp(bottom = 20f))
     }
@@ -1263,10 +1668,12 @@ class SettingsActivity : Activity() {
     }
 
     /** The live keyboard with exactly what the keyboard runs: tema look + phone + mode. */
-    private fun livePreview() {
-        val s = store.settings
+    private fun livePreview() = livePreviewInto(root)
+
+    private fun livePreviewInto(parent: LinearLayout) {
+        val s = shownSettings()
         val kv = KeyboardView(this)
-        kv.setStyle(s, Palette.of(s.theme, s.accent))
+        kv.setStyle(s, pal)
         kv.setSuggestions(if (s.suggest) listOf("está", "estaba", "estar") else emptyList())
         val spec = LayoutSpec(s.lang, s.effectiveTopRow, emojiKey = s.emojiKey)
         kv.setKeyboard(KeyboardLayouts.rows(Layer.LETTERS, spec), s.baseRowCount, Layer.LETTERS)
@@ -1280,9 +1687,9 @@ class SettingsActivity : Activity() {
         }
         frame.addView(kv)
         preview = kv
-        root.addView(frame, lp(top = 6f, bottom = 6f))
+        parent.addView(frame, lp(top = 6f, bottom = 6f))
         val mode = if (store.mode == Mode.NONE) "" else " · modo ${store.mode.label}"
-        root.addView(label("Vista previa · ${store.activeTema.name} (${Themes.byId(s.theme).label})$mode", 11f, t.muted, 500).apply {
+        parent.addView(label("Vista previa · ${store.activeTema.name} (${Themes.byId(s.theme).label})$mode", 11f, t.muted, 500).apply {
             gravity = Gravity.END
             tag = "preview-caption"
         }, lp(bottom = 6f))
@@ -1330,7 +1737,8 @@ class SettingsActivity : Activity() {
     private fun accentRow(s: KbSettings) {
         into.addView(label(Ctl.ACCENT.label, 14f, t.textMod, 550), lp(top = 8f, bottom = 6f))
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val options = listOf<Pair<Int?, String>>(null to "Del tema") + Themes.ACCENTS.map { it.first to it.second }
+        val options = listOf<Pair<Int?, String>>(null to getString(R.string.accent_theme)) + Themes.ACCENTS.map { it.first to it.second } +
+            (if (moreAccents || (s.accent != null && Themes.ACCENTS.none { it.first == s.accent })) Themes.MORE_ACCENTS.map { it to ColorMath.toHex(it) } else emptyList())
         for ((c, name) in options) {
             val sel = s.accent == c
             val shown = Palette.of(s.theme, c).accent
@@ -1351,7 +1759,8 @@ class SettingsActivity : Activity() {
             row.addView(sw, LinearLayout.LayoutParams(px(44f), px(44f)).apply { marginEnd = px(8f) })
         }
         into.addView(bleedRow(row), bleedLp())
-        into.addView(label("«T» = el acento propio del tema. Cualquier acento se ajusta solo para leerse bien sobre las teclas.", 11f, t.muted), lp(top = 2f, bottom = 4f))
+        if (!moreAccents) link("${getString(R.string.accent_more)} ›") { moreAccents = true; rerender() }
+        into.addView(label("«T» = " + getString(R.string.accent_theme) + ". " + getString(R.string.accent_hint), 11f, t.muted), lp(top = 2f, bottom = 4f))
     }
 
     private fun toggle(title: String, sub: String?, value: Boolean, onChange: (Boolean) -> Unit) {
@@ -1446,6 +1855,8 @@ class SettingsActivity : Activity() {
 
     private fun footer() {
         root.addView(label("✦ Resyst · DM Sans (OFL) · léxico FrequencyWords (CC BY-SA 4.0) · diccionario español RLA-ES de Hunspell (se usa bajo la GPL; lo ofrece como GPL, LGPL o MPL) y SCOWL (en_US)", 11f, t.muted).apply { gravity = Gravity.CENTER }, lp(top = 18f))
+        // r14 (PS5): the two bundled key fonts (assets/fonts/, their OFL texts beside them)
+        root.addView(label(getString(R.string.credits_fonts), 11f, t.muted).apply { gravity = Gravity.CENTER; tag = "credits-fonts" }, lp(top = 6f))
         // r13f (offers, LC1): the context-offer model's sources, next to the dictionaries (assets/context/NOTICE.txt)
         root.addView(label("Sugerencias por contexto: modelo construido con textos de Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0) y de Tatoeba contributors (CC BY 2.0 FR); el modelo se distribuye bajo la GPL 3 (solo versión 3)", 11f, t.muted).apply {
             gravity = Gravity.CENTER
@@ -1479,6 +1890,8 @@ class SettingsActivity : Activity() {
         private const val STATE_PAGE = "page"
         /** r10 (F-4): the "Lo que sé de ti" page. */
         const val PAGE_KNOW = "datos"
+        /** r14 (PS4): the «Apariencia» page (the quick panel's «Personalizar»). */
+        const val PAGE_LOOK = "apariencia"
         private const val KNOW_WORDS_STEP = 25
         private const val KNOW_PAIRS_STEP = 15
         /** Pages whose controls a mode can override (they get the "modo encendido" banner). */

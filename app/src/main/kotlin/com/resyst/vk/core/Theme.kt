@@ -379,7 +379,7 @@ object Legibility {
         }
         t = t.copy(
             text = ensure(t.text, LEGEND, t.key, t.keyTop, t.keyHi, t.keyNum, t.bg, t.bg2),
-            textMod = ensure(t.textMod, TEXT, t.keyMod, t.keyHi, t.bg),
+            textMod = ensure(t.textMod, TEXT, t.keyMod, t.keyHi, t.key, t.bg),
             muted = ensure(t.muted, TEXT, t.key, t.keyTop, t.keyNum, t.bg),
         )
         var acc = accent0
@@ -478,6 +478,35 @@ data class Palette(
                 chipPressedInk = ink,
                 outline = t.edgeHi,
                 highContrast = highContrast || base.id == "hc",
+            )
+        }
+
+        /**
+         * r14 (motion): the palette [t] of the way from [a] to [b] — the colours of a tema switch or a day/night flip
+         * cross-fading for a few frames. Both ends are gated; the frames between are sRGB mixes of legible pairs and
+         * last ≤ 200 ms.
+         */
+        fun mix(a: Palette, b: Palette, t: Float): Palette {
+            if (t <= 0f) return a
+            if (t >= 1f) return b
+            fun m(x: Int, y: Int) = ColorMath.mix(x, y, t)
+            fun ma(x: Int, y: Int): Int {
+                val al = ((x ushr 24) + (((y ushr 24) - (x ushr 24)) * t)).toInt().coerceIn(0, 255)
+                return (al shl 24) or (m(x, y) and 0xFFFFFF)
+            }
+            val ta = a.theme
+            val tb = b.theme
+            return b.copy(
+                theme = tb.copy(
+                    bg = m(ta.bg, tb.bg), bg2 = m(ta.bg2, tb.bg2), key = m(ta.key, tb.key), keyTop = m(ta.keyTop, tb.keyTop),
+                    keyHi = m(ta.keyHi, tb.keyHi), keyMod = m(ta.keyMod, tb.keyMod), keyNum = m(ta.keyNum, tb.keyNum),
+                    edge = m(ta.edge, tb.edge), edgeHi = m(ta.edgeHi, tb.edgeHi), accent = m(ta.accent, tb.accent),
+                    text = m(ta.text, tb.text), textMod = m(ta.textMod, tb.textMod), muted = m(ta.muted, tb.muted),
+                ),
+                accent = m(a.accent, b.accent), accentInk = m(a.accentInk, b.accentInk), accentSoft = ma(a.accentSoft, b.accentSoft),
+                accentGlow = ma(a.accentGlow, b.accentGlow), ghost = ma(a.ghost, b.ghost), chipFill = m(a.chipFill, b.chipFill),
+                chipPressedFill = m(a.chipPressedFill, b.chipPressedFill), chipPressedInk = m(a.chipPressedInk, b.chipPressedInk),
+                outline = m(a.outline, b.outline),
             )
         }
 

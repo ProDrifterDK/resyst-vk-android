@@ -402,11 +402,12 @@ def section_t():
         shot(f'T-{mode}-home-2', 'Settings home, second screen')
         scroll_down()
         shot(f'T-{mode}-home-3', 'Settings home, third screen')
-        for page in ('apariencia', 'teclas', 'respuesta', 'datos'):
+        for page in ('apariencia', 'teclas', 'respuesta', 'datos', 'modos'):
             settings_open(page)
             shot(f'T-{mode}-{page}-1', f'page {page}, top')
-            scroll_down()
-            shot(f'T-{mode}-{page}-2', f'page {page}, second screen')
+            for i in range(2, 6 if page == 'apariencia' else 3):
+                scroll_down()
+                shot(f'T-{mode}-{page}-{i}', f'page {page}, screen {i}')
         # the setup card: our keyboard enabled but not the current one (Gboard selected for the shot)
         gboard = 'com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME'
         if gboard in sh('ime list -s', check=False):

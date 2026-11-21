@@ -7,10 +7,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import android.os.Build
 import android.provider.Settings
@@ -28,7 +27,11 @@ import android.view.animation.DecelerateInterpolator
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.customview.widget.ExploreByTouchHelper
+import com.resyst.vk.core.BarStyle
+import com.resyst.vk.core.Bubble
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.Legend
+import com.resyst.vk.core.Motion
 import com.resyst.vk.core.DeleteSwipe
 import com.resyst.vk.core.EditOp
 import com.resyst.vk.core.EditPad
@@ -131,6 +134,10 @@ class KeyboardView(context: Context) : View(context) {
         fun onGifSearchGo() = Unit
         /** r13f (offers): the context offer chip — replace the earlier word with the offered one. */
         fun onContextOffer() = Unit
+        /** r14 (PS4): a tema chip in the quick panel's row. */
+        fun onQuickTema(id: String) = Unit
+        /** r14 (PS4): «Personalizar» in the quick panel — Settings › Apariencia. */
+        fun onPersonalize() = Unit
     }
 
     var listener: Listener? = null
@@ -177,7 +184,19 @@ class KeyboardView(context: Context) : View(context) {
         private set
 
     /** r10: the quick panel under ⚙ (UX-3), same overlay pattern. */
-    val quickPanel = QuickPanel(resources.displayMetrics.density)
+    val quickPanel = QuickPanel(resources.displayMetrics.density).apply {
+        labels(context.getString(com.resyst.vk.R.string.quick_title), context.getString(com.resyst.vk.R.string.quick_back))
+        localize = { label, state -> quickLabel(label) to quickState(state) }
+    }
+
+    /**
+     * r14 (PS6): the quick panel's drawn words in the phone's language (Spanish / English), from the core tiles'
+     * Spanish; the tiles' TalkBack names stay the core's (the E2E contract, VO1b).
+     */
+    private fun quickLabel(es: String): String = QUICK_WORDS[es]?.let(context::getString) ?: es
+
+    private fun quickState(es: String): String =
+        if (es.startsWith("Auto · ")) context.getString(com.resyst.vk.R.string.q_auto) + " · " + quickState(es.removePrefix("Auto · ")) else quickLabel(es)
     var quickOpen = false
         private set
     private var mode = Mode.NONE
@@ -191,6 +210,7 @@ class KeyboardView(context: Context) : View(context) {
     fun showEdit(selecting: Boolean) {
         cancelPointers()
         hideClipboard(); hideEmoji(); hideQuick()
+        if (!editOpen) panelAt = SystemClock.uptimeMillis()
         editOpen = true
         layoutPanel()
         editPanel.set(selecting, secretField)
@@ -210,14 +230,15 @@ class KeyboardView(context: Context) : View(context) {
         invalidate(); a11y.invalidateRoot()
     }
 
-    /** The quick panel with [tiles]; [update] = the r9 notice line (null = none). */
-    fun showQuick(tiles: List<Quick.Tile>, update: String?, mode: Mode) {
+    /** The quick panel with [tiles]; [update] = the r9 notice line (null = none); r14: [temas] = the tema row. */
+    fun showQuick(tiles: List<Quick.Tile>, update: String?, mode: Mode, temas: List<QuickPanel.TemaChip> = emptyList()) {
         cancelPointers()
         hideClipboard(); hideEmoji(); hideEdit()
         this.mode = mode
+        if (!quickOpen) panelAt = SystemClock.uptimeMillis()
         quickOpen = true
         layoutPanel()
-        quickPanel.set(tiles, update)
+        quickPanel.set(tiles, update, temas, context.getString(com.resyst.vk.R.string.quick_personalize))
         invalidate(); a11y.invalidateRoot()
     }
 
@@ -320,6 +341,7 @@ class KeyboardView(context: Context) : View(context) {
         cancelPointers()
         hideClipboard()
         quickOpen = false
+        if (!emojiOpen) panelAt = SystemClock.uptimeMillis()
         emojiOpen = true
         layoutPanel()
         emojiPanel.open(recents)
@@ -367,7 +389,10 @@ class KeyboardView(context: Context) : View(context) {
 
     // ── geometry ─────────────────────────────────────────────────────────
     private val dp = resources.displayMetrics.density
-    private class Box(val key: Key, val rect: RectF, val cellLeft: Float, val cellRight: Float, val row: Int)
+    private class Box(val key: Key, val rect: RectF, val cellLeft: Float, val cellRight: Float, val row: Int) {
+        /** r14 (MO1): when a finger left it (the press fades out from here); 0 = at rest. */
+        var releasedAt = 0L
+    }
     private val boxes = ArrayList<Box>()
     private val rowBoxes = ArrayList<List<Box>>()
     private var rowH = 0f
@@ -399,6 +424,11 @@ class KeyboardView(context: Context) : View(context) {
         /** r13d (TB1): the last position seen (a roll-over commits a held key from here). */
         var lastX = downX
         var lastY = 0f
+        /** r14 (MO1): the preview's key and when it showed (it grows out of the key), when the variants opened, the selection's drawn x. */
+        var previewBox: Box? = null
+        var previewAt = 0L
+        var popupAt = 0L
+        var hlX = -1f
     }
     private val ptrs = LinkedHashMap<Int, Ptr>()
     /** r13h (JG3): pointers whose touch ended at a merged-touch jump, until they settle (a new touch starts there). */
@@ -412,6 +442,33 @@ class KeyboardView(context: Context) : View(context) {
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val tmp = RectF()
+
+    // ── r14: painter, motion (no allocation while drawing: PE1) ─────────
+    private val painter = KeyPainter(dp)
+    /** The face of the key being drawn (its legend centres here); also scratch for necks and highlights. */
+    private val face = RectF()
+    private val popupBody = RectF()
+    private val chipBody = RectF()
+    private val chipX = RectF()
+    private val bubblePath = Path()
+    private val neckPath = Path()
+    private val headPath = Path()
+    private val pressedNow = HashSet<Box>()
+    private val pressedStrip = HashSet<StripItem>()
+    /** The effective animation level (Android's "Quitar animaciones" forces OFF) and Android's animator scale. */
+    private var motion = Motion.FULL
+    private var animScale = 1f
+    /** The system font scale (legends follow it from 1 to 2, LG4). */
+    private var fontScale = 1f
+    /** Set while drawing when an effect is still moving: the frame asks for the next one. */
+    private var animating = false
+    /** A palette change cross-fades (tema switch, day/night). */
+    private var fadeFrom: Palette? = null
+    private var fadeTo: Palette? = null
+    private var fadeAt = 0L
+    /** When the open panel opened (it rises into place) and when the context offer chip arrived. */
+    private var panelAt = 0L
+    private var offerAt = 0L
 
     private val a11y = KeyA11y()
     private val accessibility = context.getSystemService(AccessibilityManager::class.java)
@@ -437,8 +494,21 @@ class KeyboardView(context: Context) : View(context) {
     fun setStyle(s: KbSettings, p: Palette) {
         val heightChanged = s.heightScale != settings.heightScale
         if (s.oneHanded != settings.oneHanded) cancelPointers()
+        animScale = runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) }.getOrDefault(1f)
+        motion = Motion.effective(s.motion, animScale)
+        fontScale = resources.configuration.fontScale
+        // r14: colours cross-fade when the keyboard is on screen and only they changed (a tema switch, day/night)
+        val target = fadeTo ?: palette
+        if (isShown && width > 0 && p != target && motion == Motion.FULL && !heightChanged) {
+            fadeFrom = palette; fadeTo = p; fadeAt = SystemClock.uptimeMillis()
+        } else if (p != target) {
+            fadeFrom = null; fadeTo = null
+        }
         settings = s
-        palette = p
+        palette = if (fadeTo != null) palette else p
+        painter.shape = s.shape
+        painter.cap = s.cap
+        painter.reset()
         if (heightChanged) requestLayout()
         layoutKeys()
         invalidate()
@@ -464,6 +534,7 @@ class KeyboardView(context: Context) : View(context) {
      */
     fun setOffer(label: String?, desc: String?) {
         if (label == offerLabel && (desc ?: "") == offerDesc) return
+        if (offerLabel == null && label != null) offerAt = SystemClock.uptimeMillis()
         offerLabel = label; offerDesc = desc ?: ""
         layoutStrip(); invalidate(); a11y.invalidateRoot()
     }
@@ -479,7 +550,7 @@ class KeyboardView(context: Context) : View(context) {
         cancelPointers()
         hideEmoji()
         quickOpen = false
-        if (!clipboardOpen) clipPanel.reset()
+        if (!clipboardOpen) { clipPanel.reset(); panelAt = SystemClock.uptimeMillis() }
         clipboardOpen = true
         layoutPanel()
         clipPanel.setItems(items, now)
@@ -819,6 +890,7 @@ class KeyboardView(context: Context) : View(context) {
             if (p.popup == null && !p.cursorMode && b.key.type == KeyType.CHAR) {
                 handler.removeCallbacksAndMessages(p)
                 ptrs.remove(p.id)
+                b.releasedAt = SystemClock.uptimeMillis()
                 listener?.onKeyNear(nearKeys(b, p.lastX, p.lastY))
                 listener?.onKeyCommit(b.key)
             }
@@ -884,6 +956,7 @@ class KeyboardView(context: Context) : View(context) {
                 val cell = max(b.rect.width(), 34 * dp)
                 val popup = PopupGeometry.variants(b.rect.left, b.rect.width(), items.size, cell, width.toFloat(), 4 * dp)
                 p.popup = popup
+                p.popupAt = SystemClock.uptimeMillis()
                 p.popupItems = items
                 p.sel = 0
                 p.popupTop = PopupGeometry.previewTop(b.rect.top - 4 * dp, rowH * 0.95f)
@@ -948,6 +1021,7 @@ class KeyboardView(context: Context) : View(context) {
                 val nb = boxAt(a.x, a.y)
                 if (nb != null && nb !== b && nb.key.type == KeyType.CHAR) {
                     handler.removeCallbacksAndMessages(p)
+                    b.releasedAt = SystemClock.uptimeMillis()
                     p.box = nb
                     if (nb.key.variants.isNotEmpty()) scheduleLongPress(p)
                     invalidate()
@@ -993,6 +1067,7 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         val b = p.box ?: return
+        b.releasedAt = SystemClock.uptimeMillis()
         val popup = p.popup
         val held = p.held
         when {
@@ -1050,6 +1125,8 @@ class KeyboardView(context: Context) : View(context) {
             QuickPanel.Act.CLOSE -> hideQuick()
             QuickPanel.Act.UPDATE -> { hideQuick(); listener?.onUpdateChip() }
             QuickPanel.Act.TILE -> h.action?.let { listener?.onQuickAction(it) }
+            QuickPanel.Act.TEMA -> h.tema?.let { listener?.onQuickTema(it) }
+            QuickPanel.Act.PERSONALIZE -> listener?.onPersonalize()
         }
         invalidate(); a11y.invalidateRoot()
     }
@@ -1296,93 +1373,100 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     // ── drawing ──────────────────────────────────────────────────────────
+    /** r14 (MO1): 0…1 progress of an effect of [ms] started at [at] (1 when motion is off); flags the frame to continue. */
+    private fun grow(at: Long, now: Long, ms: Long): Float {
+        val d = motion.ms(ms, animScale)
+        if (d <= 0L || at <= 0L) return 1f
+        val f = (now - at).toFloat() / d
+        if (f < 1f) { animating = true; return f.coerceAtLeast(0f) }
+        return 1f
+    }
+
+    /** Ease-out (cubic): fast start, soft landing. */
+    private fun ease(f: Float): Float { val g = 1f - f; return 1f - g * g * g }
+
     override fun onDraw(canvas: Canvas) {
+        val now = SystemClock.uptimeMillis()
+        animating = false
+        val from = fadeFrom
+        val to = fadeTo
+        if (from != null && to != null) {
+            // r14: a tema switch or a day/night flip cross-fades its colours (≤ 200 ms)
+            val f = grow(fadeAt, now, 200)
+            palette = if (f >= 1f) { fadeFrom = null; fadeTo = null; to } else Palette.mix(from, to, ease(f))
+            painter.reset()
+        }
         val t = palette.theme
         canvas.drawColor(t.bg)
-        if (clipboardOpen) {
-            clipPanel.draw(canvas, palette, radius(), ::typeface, if (panelScrolling || panelLong) null else panelHit)
+        if (panelOpen) {
+            // r14: a panel rises 14 dp into place (≤ 160 ms); taps act at once
+            val e = ease(grow(panelAt, now, 160))
+            canvas.save()
+            canvas.translate(0f, (1f - e) * 14 * dp)
+            when {
+                clipboardOpen -> clipPanel.draw(canvas, palette, panelRadius(), ::typeface, if (panelScrolling || panelLong) null else panelHit)
+                emojiOpen -> emojiPanel.draw(canvas, palette, panelRadius(), ::typeface, if (emojiScrolling) null else emojiHit)
+                quickOpen -> quickPanel.draw(canvas, palette, panelRadius(), ::typeface, quickHit, mode)
+                editOpen -> editPanel.draw(canvas, palette, panelRadius(), ::typeface, editHit)
+            }
+            canvas.restore()
+            if (animating) postInvalidateOnAnimation()
             return
         }
-        if (emojiOpen) {
-            emojiPanel.draw(canvas, palette, radius(), ::typeface, if (emojiScrolling) null else emojiHit)
-            return
-        }
-        if (quickOpen) {
-            quickPanel.draw(canvas, palette, radius(), ::typeface, quickHit, mode)
-            return
-        }
-        if (editOpen) {
-            editPanel.draw(canvas, palette, radius(), ::typeface, editHit)
-            return
-        }
-        drawStrip(canvas)
+        drawStrip(canvas, now)
         drawRail(canvas)
-        val pressed = HashSet<Box>()
-        for (p in ptrs.values) p.box?.let { if (!p.cursorMode) pressed += it }
-        for (b in boxes) drawKey(canvas, b, b in pressed)
+        pressedNow.clear()
+        for (p in ptrs.values) p.box?.let { if (!p.cursorMode) pressedNow += it }
+        for (b in boxes) drawKey(canvas, b, pressOf(b, now))
         for (p in ptrs.values) {
             val b = p.box ?: continue
             val pop = p.popup
-            if (pop != null) drawVariants(canvas, p, pop)
-            else if (settings.popups && !secretField && b.key.type == KeyType.CHAR && !p.cursorMode) drawPreview(canvas, b)
+            if (pop != null) drawVariants(canvas, p, pop, now)
+            else if (settings.popups && !secretField && b.key.type == KeyType.CHAR && !p.cursorMode) drawPreview(canvas, p, b, now)
         }
+        if (animating) postInvalidateOnAnimation()
     }
 
-    private fun radius() = settings.shape.radiusDp * dp
+    /** 1 while held; after the release it fades out (≤ 110 ms) so the key reads as coming back up. */
+    private fun pressOf(b: Box, now: Long): Float {
+        if (b in pressedNow) return 1f
+        if (b.releasedAt <= 0L || motion == Motion.OFF) return 0f
+        val f = grow(b.releasedAt, now, if (motion == Motion.SUBTLE) 90 else 110)
+        return if (f >= 1f) { b.releasedAt = 0L; 0f } else 1f - f
+    }
 
-    private fun drawStrip(c: Canvas) {
+    /** Panels draw rounded cards: the key shape's radius, never a capsule (a PILL key would make every row one). */
+    private fun panelRadius() = min(settings.shape.radiusDp, 16f) * dp
+
+    private fun drawStrip(c: Canvas, now: Long) {
         val t = palette.theme
         fill.shader = null
         fill.color = t.edge
         c.drawRect(0f, stripH - 1, width.toFloat(), stripH, fill)
-        val pressedStrip = ptrs.values.mapNotNull { it.strip }.toSet()
+        pressedStrip.clear()
+        for (p in ptrs.values) p.strip?.let { pressedStrip += it }
         var firstSuggestion = true
+        val chips = settings.barStyle == BarStyle.CHIPS
         for (s in stripItems) {
             val r = s.rect
             when (s.kind) {
-                StripKind.PASTE -> {
-                    val pressed = s in pressedStrip
-                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
-                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
-                    stroke.color = palette.accentGlow
-                    stroke.strokeWidth = 1 * dp
-                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
-                    KeyIcons.draw(c, Icon.CLIPBOARD, r.left + 17 * dp, r.centerY(), 14 * dp, palette.accent, stroke, fill)
-                    text.color = palette.accent
-                    text.textSize = 14 * dp
-                    text.typeface = typeface(600)
-                    val avail = r.width() - 38 * dp
-                    val label = ellipsize(s.text, avail)
-                    text.textAlign = Paint.Align.LEFT
-                    val fm = text.fontMetrics
-                    c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
-                    text.textAlign = Paint.Align.CENTER
-                }
+                StripKind.PASTE -> drawChip(c, r, s in pressedStrip, Icon.CLIPBOARD, s.text, 14f, 600, 1f)
                 StripKind.OFFER -> {
-                    // r13f (offers, CH2): an accent pill with ⇄ and the word it puts in — not a plain completion
-                    val pressed = s in pressedStrip
-                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
-                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
-                    stroke.color = palette.accentGlow
-                    stroke.strokeWidth = 1 * dp
-                    stroke.strokeCap = Paint.Cap.BUTT
-                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
-                    KeyIcons.draw(c, Icon.SWAP, r.left + 17 * dp, r.centerY(), 13 * dp, palette.accent, stroke, fill)
-                    text.color = palette.accent
-                    text.textSize = 15 * dp
-                    text.typeface = typeface(650)
-                    val label = ellipsize(s.text, r.width() - 38 * dp)
-                    text.textAlign = Paint.Align.LEFT
-                    val fm = text.fontMetrics
-                    c.drawText(label, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
-                    text.textAlign = Paint.Align.CENTER
+                    // r13f (offers, CH2): an accent pill with ⇄ and the word it puts in; r14: it arrives (fade + 10 dp slide)
+                    val f = ease(grow(offerAt, now, 180))
+                    if (f < 1f) {
+                        val save = c.saveLayerAlpha(r.left - 12 * dp, 0f, r.right + 2 * dp, stripH, (f * 255).toInt())
+                        c.translate((1f - f) * 10 * dp, 0f)
+                        drawChip(c, r, s in pressedStrip, Icon.SWAP, s.text, 15f, 650, 0.93f)
+                        c.restoreToCount(save)
+                    } else drawChip(c, r, s in pressedStrip, Icon.SWAP, s.text, 15f, 650, 0.93f)
                 }
                 StripKind.DAYNIGHT -> {
                     val pressed = s in pressedStrip
                     if (pressed) {
                         fill.color = t.keyHi
                         tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
-                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                        c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
                     KeyIcons.draw(c, if (dayNight == true) Icon.SUN else Icon.MOON, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted, stroke, fill)
                 }
@@ -1391,7 +1475,7 @@ class KeyboardView(context: Context) : View(context) {
                     if (on) {
                         fill.color = t.keyHi
                         tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp)
-                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                        c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
                     KeyIcons.draw(c, Icon.GEAR, r.centerX(), r.centerY(), 19 * dp, if (on || gearDot) palette.accent else t.muted, stroke, fill)
                     if (gearDot) { // r9: an update waits — amber dot, ringed in the strip color
@@ -1403,7 +1487,7 @@ class KeyboardView(context: Context) : View(context) {
                 }
                 StripKind.NO_MEMORY -> drawNoMemory(c, r, s in pressedStrip)
                 StripKind.GIF_BACK -> {
-                    if (s in pressedStrip) { fill.color = t.keyHi; tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, radius(), radius(), fill) }
+                    if (s in pressedStrip) { fill.color = t.keyHi; tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill) }
                     KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp, t.textMod, stroke, fill)
                 }
                 StripKind.GIF_FIELD -> {
@@ -1430,7 +1514,7 @@ class KeyboardView(context: Context) : View(context) {
                 StripKind.GIF_GO -> {
                     val pressed = s in pressedStrip
                     tmp.set(r.left + 4 * dp, 6 * dp, r.right - 6 * dp, stripH - 6 * dp)
-                    fill.color = if (pressed) ColorMath.withAlpha(palette.accent, 0.7f) else palette.accent
+                    fill.color = if (pressed) ColorMath.mix(palette.accent, t.bg, 0.25f) else palette.accent
                     c.drawRoundRect(tmp, tmp.height() / 2, tmp.height() / 2, fill)
                     text.color = palette.accentInk
                     text.textSize = 14 * dp
@@ -1440,17 +1524,31 @@ class KeyboardView(context: Context) : View(context) {
                 StripKind.UPDATE_X -> Unit // drawn with its chip
                 StripKind.UPDATE -> drawUpdateChip(c, s, pressedStrip)
                 StripKind.SUGGESTION -> {
-                    if (s in pressedStrip) {
+                    val pressed = s in pressedStrip
+                    if (chips) {
+                        // r14: suggestions as chips (one surface each, the first in the accent's chip colours)
+                        tmp.set(r.left + 3 * dp, 7 * dp, r.right - 3 * dp, stripH - 7 * dp)
+                        val rad = min(tmp.height() / 2, panelRadius() + 4 * dp)
+                        fill.color = when {
+                            pressed -> t.keyHi
+                            firstSuggestion -> palette.chipFill
+                            else -> t.key
+                        }
+                        c.drawRoundRect(tmp, rad, rad, fill)
+                        stroke.color = if (firstSuggestion) palette.accentGlow else t.edge
+                        stroke.strokeWidth = dp
+                        c.drawRoundRect(tmp, rad, rad, stroke)
+                    } else if (pressed) {
                         fill.color = t.keyHi
                         tmp.set(r.left + 2 * dp, 5 * dp, r.right - 2 * dp, stripH - 5 * dp)
-                        c.drawRoundRect(tmp, radius(), radius(), fill)
+                        c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
                     text.color = if (firstSuggestion) palette.accent else t.text
-                    text.textSize = 16 * dp
+                    text.textSize = 16 * dp * Legend.fontFactor(fontScale).coerceAtMost(1.25f)
                     text.typeface = typeface(if (firstSuggestion) 650 else 450)
-                    val label = ellipsize(s.text, r.width() - 12 * dp)
+                    val label = ellipsize(s.text, r.width() - (if (chips) 18 else 12) * dp)
                     drawCentered(c, label, r.centerX(), r.centerY())
-                    if (!firstSuggestion) {
+                    if (!firstSuggestion && !chips) {
                         fill.color = t.edge
                         c.drawRect(r.left, stripH * 0.3f, r.left + dp, stripH * 0.7f, fill)
                     }
@@ -1458,6 +1556,34 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
         }
+    }
+
+    /**
+     * r14 (LG1): the bar's accent chips (Pegar, the context offer). At rest: the accent's chip colour with the accent
+     * text (≥ 4.5:1 by the gate); pressed: inverted, the accent fill with its ink — the press is unmistakable and
+     * stays legible (0.13.0's 30 % accent wash fell to 2.83:1 on Papiro).
+     */
+    private fun drawChip(c: Canvas, r: RectF, pressed: Boolean, icon: Icon, label: String, sizeDp: Float, weight: Int, iconScale: Float) {
+        val rad = r.height() / 2
+        fill.shader = null
+        fill.color = if (pressed) palette.chipPressedFill else palette.chipFill
+        c.drawRoundRect(r, rad, rad, fill)
+        if (!pressed) {
+            stroke.color = if (palette.highContrast) palette.accent else palette.accentGlow
+            stroke.strokeWidth = dp
+            stroke.strokeCap = Paint.Cap.BUTT
+            c.drawRoundRect(r, rad, rad, stroke)
+        }
+        val ink = if (pressed) palette.chipPressedInk else palette.accent
+        KeyIcons.draw(c, icon, r.left + 17 * dp, r.centerY(), 14 * dp * iconScale, ink, stroke, fill)
+        text.color = ink
+        text.textSize = sizeDp * dp
+        text.typeface = typeface(weight)
+        val shown = ellipsize(label, r.width() - 38 * dp)
+        text.textAlign = Paint.Align.LEFT
+        val fm = text.fontMetrics
+        c.drawText(shown, r.left + 30 * dp, r.centerY() - (fm.ascent + fm.descent) / 2, text)
+        text.textAlign = Paint.Align.CENTER
     }
 
     /**
@@ -1473,11 +1599,11 @@ class KeyboardView(context: Context) : View(context) {
         if (a <= 0f) return
         val dx = (1f - a) * 8 * dp
         // same 6 dp inset as the profile + paste pills: one height across the strip
-        val body = RectF(s.rect.left + dx, 6 * dp, x.rect.right + dx, stripH - 6 * dp)
+        val body = chipBody.apply { set(s.rect.left + dx, 6 * dp, x.rect.right + dx, stripH - 6 * dp) }
         val save = c.saveLayerAlpha(body.left - 2 * dp, 0f, body.right + 2 * dp, stripH, (a * 255).toInt())
         val rad = body.height() / 2
         fill.shader = null
-        fill.color = if (s in pressedStrip) ColorMath.withAlpha(palette.accent, 0.3f) else palette.accentSoft
+        fill.color = if (s in pressedStrip) ColorMath.mix(palette.chipFill, palette.accent, 0.18f) else palette.chipFill
         c.drawRoundRect(body, rad, rad, fill)
         // the paste chip's hairline: amber, but the disc alone carries full strength (Enter stays the hero)
         stroke.color = palette.accentGlow
@@ -1528,7 +1654,7 @@ class KeyboardView(context: Context) : View(context) {
             c.drawText(label.action, tx + tp.measureText(label.title), base, ap)
         }
         // ✕ cell
-        val xr = RectF(x.rect.left + dx, body.top, x.rect.right + dx, body.bottom)
+        val xr = chipX.apply { set(x.rect.left + dx, body.top, x.rect.right + dx, body.bottom) }
         if (x in pressedStrip) {
             fill.color = ColorMath.withAlpha(palette.accent, 0.22f)
             c.drawCircle(xr.centerX(), xr.centerY(), 13 * dp, fill)
@@ -1553,7 +1679,7 @@ class KeyboardView(context: Context) : View(context) {
         if (pressed) {
             fill.color = t.keyHi
             tmp.set(r.left + 3 * dp, 8 * dp, r.right - 3 * dp, stripH - 8 * dp)
-            c.drawRoundRect(tmp, radius(), radius(), fill)
+            c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
         }
         val cx = r.centerX()
         val cy = r.centerY()
@@ -1564,23 +1690,39 @@ class KeyboardView(context: Context) : View(context) {
         c.drawLine(cx - 4.6f * dp, cy + 4.6f * dp, cx + 4.6f * dp, cy - 4.6f * dp, stroke)
     }
 
-    /** r10 (UX-13): the one-handed rail — move to the other side (top) / back to full width (bottom). */
+    /**
+     * r10 (UX-13): the one-handed rail — move to the other side (top) / back to full width (bottom). r14: one dock the
+     * height of the keys holding two round buttons with a grip between them, instead of two loose key-like slabs.
+     */
     private fun drawRail(c: Canvas) {
         if (rail.isEmpty()) return
         val t = palette.theme
-        val pressed = ptrs.values.mapNotNull { it.rail }.toSet()
+        val first = rail.first().second
+        val last = rail.last().second
+        fill.shader = null
+        tmp.set(first.left + 6 * dp, first.top + 2 * dp, first.right - 6 * dp, last.bottom - 2 * dp)
+        val dockR = min(tmp.width() / 2, 22 * dp)
+        fill.color = t.bg2
+        c.drawRoundRect(tmp, dockR, dockR, fill)
+        stroke.color = t.edge
+        stroke.strokeWidth = dp
+        c.drawRoundRect(tmp, dockR, dockR, stroke)
+        // grip
+        fill.color = t.edgeHi
+        val gy = (first.bottom + last.top) / 2
+        c.drawRoundRect(tmp.centerX() - 7 * dp, gy - 1.5f * dp, tmp.centerX() + 7 * dp, gy - 0.5f * dp, dp, dp, fill)
+        c.drawRoundRect(tmp.centerX() - 7 * dp, gy + 0.5f * dp, tmp.centerX() + 7 * dp, gy + 1.5f * dp, dp, dp, fill)
         for ((side, r) in rail) {
-            val on = side in pressed
-            // drawn like a modifier key (fill + edge), so the rail reads as buttons, not dead space
-            fill.shader = null
-            fill.color = if (on) t.keyHi else t.keyMod
-            tmp.set(r.left + 5 * dp, r.top + 4 * dp, r.right - 5 * dp, r.bottom - 4 * dp)
-            c.drawRoundRect(tmp, radius() + 2 * dp, radius() + 2 * dp, fill)
-            stroke.color = if (on) palette.accentGlow else t.edgeHi
+            var on = false
+            for (p in ptrs.values) if (p.rail == side) on = true
+            val d = min(r.width() - 16 * dp, 44 * dp).coerceAtLeast(28 * dp)
+            fill.color = if (on) palette.chipFill else t.keyMod
+            c.drawCircle(r.centerX(), r.centerY(), d / 2, fill)
+            stroke.color = if (on || palette.highContrast) palette.accent else t.edgeHi
             stroke.strokeWidth = dp
-            c.drawRoundRect(tmp, radius() + 2 * dp, radius() + 2 * dp, stroke)
+            c.drawCircle(r.centerX(), r.centerY(), d / 2, stroke)
             val icon = when (side) { OneHand.LEFT -> Icon.ARROW_LEFT; OneHand.RIGHT -> Icon.ARROW_RIGHT; OneHand.OFF -> Icon.EXPAND }
-            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), min(24 * dp, r.width() * 0.5f), if (on) palette.accent else t.textMod, stroke, fill)
+            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), d * 0.48f, if (on) palette.accent else t.textMod, stroke, fill)
         }
     }
 
@@ -1608,89 +1750,61 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
-    private fun drawKey(c: Canvas, b: Box, pressed: Boolean) {
+    private fun kindOf(k: Key): KeyPainter.Kind = when {
+        k.type == KeyType.ENTER || (k.type == KeyType.SHIFT && shift == ShiftState.LOCKED) -> KeyPainter.Kind.ACCENT_SOLID
+        k.type == KeyType.SPACE -> KeyPainter.Kind.SPACE
+        k.style == KeyStyle.MOD -> KeyPainter.Kind.MOD
+        k.style == KeyStyle.NUM || k.style == KeyStyle.ACCENT -> KeyPainter.Kind.NUM
+        else -> KeyPainter.Kind.NORMAL
+    }
+
+    /** Icons follow the legend size a little (× 0.9-1.2), never past the 0.13.0 cap of 24 dp × 1.2. */
+    private fun iconSize(w: Float): Float = KeyIcons.size(rowH, w, dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.2f)
+
+    private fun drawKey(c: Canvas, b: Box, press: Float) {
         val t = palette.theme
         val k = b.key
-        val r = b.rect
-        val rad = radius()
-        val (base, ink) = keyColors(k)
-        val solidAccent = base == palette.accent
-        fill.shader = null
-        when (settings.cap) {
-            KeyCap.RAISED -> {
-                fill.color = if (solidAccent) ColorMath.mix(palette.accent, t.bg, 0.35f) else t.edge
-                c.drawRoundRect(r.left, r.top, r.right, r.bottom, rad, rad, fill)
-                tmp.set(r.left, r.top, r.right, r.bottom - 2 * dp)
-                if (pressed) {
-                    tmp.offset(0f, 1.5f * dp)
-                    fill.color = if (solidAccent) ColorMath.mix(palette.accent, 0xFFFFFFFF.toInt(), 0.15f) else t.keyHi
-                } else if (solidAccent) {
-                    fill.color = palette.accent
-                } else {
-                    val top = if (k.style == KeyStyle.MOD) ColorMath.mix(base, t.keyTop, 0.5f) else t.keyTop
-                    fill.shader = LinearGradient(0f, tmp.top, 0f, tmp.bottom, top, base, Shader.TileMode.CLAMP)
-                }
-                c.drawRoundRect(tmp, rad, rad, fill)
-                fill.shader = null
-            }
-            KeyCap.FLAT -> {
-                fill.color = when {
-                    pressed && solidAccent -> ColorMath.mix(palette.accent, 0xFFFFFFFF.toInt(), 0.15f)
-                    pressed -> t.keyHi
-                    else -> base
-                }
-                tmp.set(r)
-                c.drawRoundRect(tmp, rad, rad, fill)
-            }
-            KeyCap.KEYCAP, KeyCap.BORDERLESS -> tmp.set(r)
-            KeyCap.OUTLINE -> {
-                tmp.set(r)
-                if (solidAccent || pressed) {
-                    fill.color = if (solidAccent) palette.accent else t.keyHi
-                    c.drawRoundRect(tmp, rad, rad, fill)
-                }
-                stroke.color = if (pressed) palette.accent else t.edgeHi
-                stroke.strokeWidth = 1 * dp
-                tmp.inset(0.5f * dp, 0.5f * dp)
-                c.drawRoundRect(tmp, rad, rad, stroke)
-            }
-        }
-        if (pressed && !solidAccent) {
-            stroke.color = palette.accentGlow
-            stroke.strokeWidth = 1.2f * dp
-            c.drawRoundRect(tmp, rad, rad, stroke)
-        }
-
-        // legend
-        val cx = tmp.centerX()
-        val cy = tmp.centerY()
+        val (_, ink) = keyColors(k)
+        painter.body(c, b.rect, b.row, kindOf(k), palette, press, face)
+        // legend: centred on the face the cap leaves (a keycap's face sits above its skirt)
+        val cx = face.centerX()
+        val cy = face.centerY()
         text.color = ink
         when (k.type) {
             KeyType.CHAR -> {
-                val label = if (shift != ShiftState.OFF) Variants.shiftChar(k.label) else k.label
+                val letter = k.label.length == 1 && k.label[0].isLetter()
+                val label = if (shift != ShiftState.OFF || (settings.upperLegends && letter)) Variants.shiftChar(k.label) else k.label
                 val small = k.style == KeyStyle.ACCENT || k.style == KeyStyle.NUM
-                text.textSize = min(rowH * (if (small) 0.36f else 0.42f), (if (small) 19 else 23) * dp)
-                text.typeface = typeface(if (small) 500 else 450)
+                text.textSize = Legend.letter(rowH, face.width(), face.height(), small, settings.legendScale, fontScale, dp)
+                text.typeface = typeface(settings.legendWeight.wght + if (small) 50 else 0)
                 drawCentered(c, label, cx, cy)
                 if (settings.subLegends && k.hint != null) {
                     text.color = t.muted
-                    text.textSize = min(rowH * 0.2f, 10 * dp)
+                    text.textSize = Legend.hint(rowH, settings.legendScale, fontScale, dp)
                     text.typeface = typeface(500)
-                    c.drawText(k.hint, tmp.right - 6 * dp, tmp.top + 12 * dp, text)
-                } else if (settings.subLegends && k.variants.isNotEmpty() && k.style == KeyStyle.NORMAL && k.label.length == 1 && k.label[0].isLetter()) {
+                    c.drawText(k.hint, face.right - 6 * dp, face.top + 3 * dp + text.textSize * 0.82f, text)
+                } else if (settings.subLegends && k.variants.isNotEmpty() && k.style == KeyStyle.NORMAL && letter) {
                     fill.color = palette.ghost
-                    c.drawCircle(tmp.right - 6 * dp, tmp.top + 6 * dp, 1.4f * dp, fill)
+                    c.drawCircle(face.right - 6 * dp, face.top + 6 * dp, 1.4f * dp, fill)
                 }
             }
             KeyType.SPACE -> {
-                text.color = t.muted
-                text.textSize = 12 * dp
-                text.typeface = typeface(500)
-                drawCentered(c, "✦  " + k.label, cx, cy)
+                // the language in quiet ink, the brand's ✦ in the accent before it
+                text.color = t.textMod
+                text.textSize = 13 * dp * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.35f)
+                text.typeface = typeface(550)
+                val lw = text.measureText(k.label)
+                val star = text.textSize * 0.42f
+                val x0 = cx - (lw + star * 2 + 6 * dp) / 2
+                drawStar(c, x0 + star, cy, star, palette.accent)
+                text.textAlign = Paint.Align.LEFT
+                val fm = text.fontMetrics
+                c.drawText(k.label, x0 + star * 2 + 6 * dp, cy - (fm.ascent + fm.descent) / 2, text)
+                text.textAlign = Paint.Align.CENTER
                 if (spaceHint) {
-                    // the system globe is gone: a small globe says "hold me to switch keyboards"
-                    val sz = min(rowH * 0.26f, 12 * dp)
-                    KeyIcons.draw(c, Icon.GLOBE, tmp.right - 5 * dp - sz / 2, tmp.top + 5 * dp + sz / 2, sz, t.muted, stroke, fill)
+                    // the system globe is gone: a globe says "hold me to switch keyboards"
+                    val sz = min(rowH * 0.3f, 14 * dp)
+                    KeyIcons.draw(c, Icon.GLOBE, face.right - 8 * dp - sz / 2, cy, sz, t.muted, stroke, fill)
                 }
             }
             KeyType.SHIFT -> {
@@ -1701,68 +1815,154 @@ class KeyboardView(context: Context) : View(context) {
                     ShiftState.ONCE, ShiftState.AUTO -> Icon.SHIFT_ON
                 }
                 val color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) palette.accent else ink
-                KeyIcons.draw(c, icon, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), color, stroke, fill)
+                KeyIcons.draw(c, icon, cx, cy, iconSize(face.width()), color, stroke, fill)
             }
-            KeyType.ENTER -> KeyIcons.draw(c, enterIcon, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
-            KeyType.BACKSPACE -> KeyIcons.draw(c, Icon.BACKSPACE, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
-            KeyType.EMOJI -> KeyIcons.draw(c, Icon.EMOJI, cx, cy, KeyIcons.size(rowH, tmp.width(), dp), ink, stroke, fill)
+            KeyType.ENTER -> KeyIcons.draw(c, enterIcon, cx, cy, iconSize(face.width()), ink, stroke, fill)
+            KeyType.BACKSPACE -> KeyIcons.draw(c, Icon.BACKSPACE, cx, cy, iconSize(face.width()), ink, stroke, fill)
+            KeyType.EMOJI -> KeyIcons.draw(c, Icon.EMOJI, cx, cy, iconSize(face.width()), ink, stroke, fill)
             else -> {
-                text.textSize = 14 * dp
                 text.typeface = typeface(600)
+                text.textSize = Legend.label(rowH, face.width(), k.label, settings.legendScale, fontScale, dp) { s, px -> text.textSize = px; text.measureText(s) }
                 drawCentered(c, k.label, cx, cy)
             }
         }
     }
 
-    private fun drawPreview(c: Canvas, b: Box) {
+    /** The brand's four-point star, drawn (no font glyph): the space bar and the bar's notices share it. */
+    private fun drawStar(c: Canvas, cx: Float, cy: Float, R: Float, color: Int) {
+        val r = R * 0.28f
+        starPath.rewind()
+        starPath.moveTo(cx, cy - R)
+        starPath.lineTo(cx + r, cy - r); starPath.lineTo(cx + R, cy); starPath.lineTo(cx + r, cy + r)
+        starPath.lineTo(cx, cy + R); starPath.lineTo(cx - r, cy + r); starPath.lineTo(cx - R, cy)
+        starPath.lineTo(cx - r, cy - r); starPath.close()
+        fill.shader = null
+        fill.color = color
+        c.drawPath(starPath, fill)
+    }
+
+    /**
+     * The key preview. r14: CONNECTED (default) is one shape — the bubble and a neck down into the pressed key, in
+     * the pressed key's colour — and grows out of the key (≤ 70 ms); FLOATING is 0.13.0's card above the key.
+     * Never in secret fields (the caller checks).
+     */
+    private fun drawPreview(c: Canvas, p: Ptr, b: Box, now: Long) {
         val t = palette.theme
+        if (p.previewBox !== b) { p.previewBox = b; p.previewAt = now }
         val w = max(b.rect.width() * 1.25f, 44 * dp)
         val h = rowH * 1.1f
         val top = PopupGeometry.previewTop(b.rect.top - 2 * dp, h)
         val left = (b.rect.centerX() - w / 2).coerceIn(2 * dp, width - w - 2 * dp)
+        val g = if (motion == Motion.FULL) ease(grow(p.previewAt, now, 70)) else 1f
         tmp.set(left, top, left + w, top + h)
-        drawPopupBody(c, tmp)
-        val label = if (shift != ShiftState.OFF) Variants.shiftChar(b.key.label) else b.key.label
+        if (g < 1f) {
+            val s = 0.72f + 0.28f * g
+            val px = b.rect.centerX()
+            val py = b.rect.top
+            tmp.set(px + (tmp.left - px) * s, py + (tmp.top - py) * s, px + (tmp.right - px) * s, py + (tmp.bottom - py) * s)
+        }
+        val rad = min(painter.radius(b.rect) + 4 * dp, tmp.width() / 2)
+        val connected = settings.bubble == Bubble.CONNECTED && tmp.bottom <= b.rect.top + 2 * dp
+        headPath.rewind()
+        headPath.addRoundRect(tmp, rad, rad, Path.Direction.CW)
+        bubblePath.set(headPath)
+        if (connected) {
+            // one outline: the head and the whole pressed key under it (the key rises into the bubble, no seam)
+            joinKey(tmp, rad, b.rect)
+        }
+        fill.shader = null
+        fill.color = t.shadowColor()
+        c.save()
+        c.translate(0f, 2.5f * dp)
+        c.drawPath(headPath, fill)
+        c.restore()
+        fill.color = if (connected) t.keyHi else t.bg2
+        c.drawPath(bubblePath, fill)
+        stroke.strokeWidth = dp
+        stroke.color = if (palette.highContrast) palette.outline else if (connected) t.edgeHi else palette.accentGlow
+        c.drawPath(bubblePath, stroke)
+        val letter = b.key.label.length == 1 && b.key.label[0].isLetter()
+        val label = if (shift != ShiftState.OFF || (settings.upperLegends && letter)) Variants.shiftChar(b.key.label) else b.key.label
         text.color = t.text
-        text.textSize = min(h * 0.5f, 30 * dp)
-        text.typeface = typeface(500)
+        text.textSize = min(min(h * 0.5f, 30 * dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.3f), tmp.height() * 0.66f)
+        text.typeface = typeface(settings.legendWeight.wght + 50)
         drawCentered(c, label, tmp.centerX(), tmp.centerY())
     }
 
-    private fun drawPopupBody(c: Canvas, r: RectF) {
-        val t = palette.theme
-        val rad = radius() + 2 * dp
-        fill.shader = null
-        fill.color = t.shadowColor()
-        c.drawRoundRect(r.left, r.top + 2 * dp, r.right, r.bottom + 3 * dp, rad, rad, fill)
-        fill.color = t.bg2
-        c.drawRoundRect(r, rad, rad, fill)
-        stroke.color = palette.accent
-        stroke.strokeWidth = 1 * dp
-        c.drawRoundRect(r, rad, rad, stroke)
+    /**
+     * Adds to [bubblePath] the pressed key under a popup [head] (corner radius [rad]) and two concave fillets where the
+     * head meets it, so the outline flares from the key into the head instead of stepping.
+     */
+    private fun joinKey(head: RectF, rad: Float, key: RectF) {
+        val kr = min(painter.radius(key), key.width() / 2)
+        neckPath.rewind()
+        neckPath.addRoundRect(key.left, head.bottom - rad, key.right, key.bottom, kr, kr, Path.Direction.CW)
+        if (head.left < key.left - dp && head.right > key.right + dp) {
+            val f = min(6 * dp, rad)
+            val top = head.bottom - rad
+            neckPath.moveTo(head.left + rad * 0.5f, top)
+            neckPath.lineTo(head.right - rad * 0.5f, top)
+            neckPath.quadTo(key.right, head.bottom - rad * 0.2f, key.right, head.bottom + f)
+            neckPath.lineTo(key.left, head.bottom + f)
+            neckPath.quadTo(key.left, head.bottom - rad * 0.2f, head.left + rad * 0.5f, top)
+            neckPath.close()
+        }
+        bubblePath.op(neckPath, Path.Op.UNION)
     }
 
     private fun com.resyst.vk.core.Theme.shadowColor(): Int =
         if (dark) 0xB0000000.toInt() else 0x403A352A
 
-    private fun drawVariants(c: Canvas, p: Ptr, pop: VariantPopup) {
+    /**
+     * The long-press variants, in 0.13.0's cells (PopupGeometry: the slide mapping is unchanged, MO3). r14: the popup
+     * grows from the key (≤ 110 ms, motion FULL), joins the key with a neck, and the selection glides between cells.
+     */
+    private fun drawVariants(c: Canvas, p: Ptr, pop: VariantPopup, now: Long) {
         val t = palette.theme
+        val b = p.box ?: return
         val h = rowH * 0.95f
-        tmp.set(pop.left, p.popupTop, pop.left + pop.width, p.popupTop + h)
-        drawPopupBody(c, tmp)
-        val body = RectF(tmp)
+        val body = popupBody.apply { set(pop.left, p.popupTop, pop.left + pop.width, p.popupTop + h) }
+        val g = if (motion == Motion.FULL) ease(grow(p.popupAt, now, 110)) else 1f
+        c.save()
+        if (g < 1f) {
+            val s = 0.86f + 0.14f * g
+            c.scale(s, s, b.rect.centerX(), b.rect.top)
+        }
+        val rad = min(painter.radius(b.rect) + 4 * dp, h / 2)
+        headPath.rewind()
+        headPath.addRoundRect(body, rad, rad, Path.Direction.CW)
+        bubblePath.set(headPath)
+        val joined = body.bottom <= b.rect.top + 2 * dp
+        if (joined) {
+            joinKey(body, rad, b.rect)
+        }
+        fill.shader = null
+        fill.color = t.shadowColor()
+        c.save()
+        c.translate(0f, 3 * dp)
+        c.drawPath(headPath, fill)
+        c.restore()
+        fill.color = t.bg2
+        c.drawPath(bubblePath, fill)
+        stroke.strokeWidth = dp
+        stroke.color = if (palette.highContrast) palette.outline else t.edgeHi
+        c.drawPath(bubblePath, stroke)
+        // the selection glides to its cell (exponential approach, a few frames)
+        val target = pop.cellLeft(p.sel)
+        p.hlX = if (p.hlX < 0f || motion == Motion.OFF) target else p.hlX + (target - p.hlX) * 0.5f
+        if (abs(target - p.hlX) > 0.5f) animating = true else p.hlX = target
+        face.set(p.hlX + 2 * dp, body.top + 3 * dp, p.hlX + pop.cell - 2 * dp, body.bottom - 3 * dp)
+        fill.color = palette.accent
+        val cr = min(painter.radius(b.rect), face.height() / 2)
+        c.drawRoundRect(face, cr, cr, fill)
         for (i in p.popupItems.indices) {
             val l = pop.cellLeft(i)
-            val cell = RectF(l + 2 * dp, body.top + 3 * dp, l + pop.cell - 2 * dp, body.bottom - 3 * dp)
-            if (i == p.sel) {
-                fill.color = palette.accent
-                c.drawRoundRect(cell, radius(), radius(), fill)
-            }
             text.color = if (i == p.sel) palette.accentInk else t.text
-            text.textSize = min(h * 0.45f, 24 * dp)
-            text.typeface = typeface(500)
-            drawCentered(c, p.popupItems[i], cell.centerX(), cell.centerY())
+            text.textSize = min(h * 0.45f, 24 * dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.25f)
+            text.typeface = typeface(settings.legendWeight.wght + 50)
+            drawCentered(c, p.popupItems[i], l + pop.cell / 2, body.centerY())
         }
+        c.restore()
     }
 
     // ── accessibility (TalkBack: explore by touch + lift-to-type) ────────
@@ -1975,6 +2175,17 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     companion object {
+        /** r14: the core quick tiles' Spanish words → their string resources. */
+        private val QUICK_WORDS = mapOf(
+            "Día / noche" to com.resyst.vk.R.string.q_daynight, "Tema" to com.resyst.vk.R.string.q_tema, "Modo" to com.resyst.vk.R.string.q_mode,
+            "Portapapeles" to com.resyst.vk.R.string.q_clipboard, "Una mano" to com.resyst.vk.R.string.q_onehand, "Altura" to com.resyst.vk.R.string.q_height,
+            "Edición" to com.resyst.vk.R.string.q_edit, "Ajustes" to com.resyst.vk.R.string.q_settings, "Oscuro" to com.resyst.vk.R.string.q_dark,
+            "Claro" to com.resyst.vk.R.string.q_light, "Ninguno" to com.resyst.vk.R.string.q_mode_none, "Código" to com.resyst.vk.R.string.q_mode_code,
+            "Juego" to com.resyst.vk.R.string.q_mode_game, "Historial" to com.resyst.vk.R.string.q_clip_on, "No en contraseñas" to com.resyst.vk.R.string.q_clip_secret,
+            "Historial apagado" to com.resyst.vk.R.string.q_clip_off, "Apagado" to com.resyst.vk.R.string.q_off, "Derecha" to com.resyst.vk.R.string.q_right,
+            "Izquierda" to com.resyst.vk.R.string.q_left, "Cursor y selección" to com.resyst.vk.R.string.q_edit_state, "Próximamente" to com.resyst.vk.R.string.q_soon,
+            "Todos los ajustes" to com.resyst.vk.R.string.q_all_settings,
+        )
         const val TAG = "ResystVK"
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L

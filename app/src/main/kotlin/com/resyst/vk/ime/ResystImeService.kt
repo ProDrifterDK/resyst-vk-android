@@ -52,6 +52,7 @@ import com.resyst.vk.core.HapticEvent
 import com.resyst.vk.core.Haptics
 import com.resyst.vk.core.ImeAction
 import com.resyst.vk.core.Key
+import com.resyst.vk.core.KeyFeel
 import com.resyst.vk.core.KeyStyle
 import com.resyst.vk.core.KeyType
 import com.resyst.vk.core.KeyboardEngine
@@ -269,8 +270,20 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         refreshClip()
     }
 
-    /** r10: effective settings = phone behavior + active tema look + mode overrides. */
-    private val s get() = store.settings
+    /**
+     * r10: effective settings = phone behavior + active tema look + mode overrides. r14 (FS2): the look resolved
+     * against the system's dark mode while the tema follows it (only the palette can differ from [ProfileStore.settings]).
+     */
+    private val s get() = store.settingsFor(SystemLook.dark(this))
+
+    /**
+     * r14 (FS3): the system's dark mode, font scale or wallpaper colours changed: re-resolve the palette when the
+     * system re-skins (never mid-touch: the view cancels its pointers when the layout changes).
+     */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applySettings()
+    }
 
     // ── languages ⇄ IME subtypes ────────────────────────────────────────
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
@@ -486,7 +499,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             ctxCheck = null
             ctxModel.release()
         }
-        v.setStyle(st, Palette.of(st.theme, st.accent))
+        v.setStyle(st, SystemLook.palette(this, st))
+        // r14: what the look resolved to (debuggable builds; the E2E reads it): never text, only the look's names
+        if (timing) Log.i(TAG, "look: theme=${st.theme} follow=${store.followSystem} dark=${SystemLook.dark(this)} hc=${SystemLook.highContrast(this)} motion=${com.resyst.vk.core.Motion.effective(st.motion, runCatching { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) }.getOrDefault(1f))} cap=${st.cap} shape=${st.shape} font=${st.font}")
         refreshMemory()
         sound?.configure(st.sound, st.soundPack)
         lexicon?.region = st.region
@@ -557,6 +572,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (key.type == KeyType.BACKSPACE) {
             // r10 (UX-6): a held ⌫ speeds up to whole words after 8 repeats — never in secret fields (W4)
             val span = TextEdit.backspaceSpan(before, bsRepeats++, policy.secret)
+            // r14 (HS1): a tick marks the moment a held ⌫ starts taking whole words (by-key haptics only)
+            if (bsRepeats == TextEdit.WORD_AFTER_REPEATS + 1 && span > 1 && s.hapticProfile == com.resyst.vk.core.HapticProfile.BY_KEY) {
+                Haptics.pulseForKey(KeyFeel.REPEAT, s.haptics, s.hapticProfile)?.let { haptics.play(it, s.hapticStrength) }
+            }
             if (outs == listOf(Out.Backspace) && span > 2 && ic.getSelectedText(0).isNullOrEmpty()) {
                 outs = listOf(Out.DeleteBefore(span))
                 engine.deleting("", "", before.takeLast(span)) // r13 (LR7): every word the span takes
@@ -773,7 +792,39 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val announced = runCatching { Updater.announced(this) }.getOrNull()
         // the strip chip already shows the update on a fresh field; the panel line is for after typing (QP5)
         val line = if (announced != null && UpdateNotice.surface(true, typedForUpdate, offer != null, policy.secret) != UpdateSurface.CHIP) Quick.updateLine(announced.version) else null
-        v.showQuick(Quick.tiles(store, policy, editPanel = EDIT_PANEL), line, store.mode)
+        v.showQuick(Quick.tiles(store, policy, editPanel = EDIT_PANEL, systemDark = SystemLook.dark(this)), line, store.mode, temaChips())
+    }
+
+    /** r14 (PS4): the quick panel's tema row — every tema in its own colours (as it would be drawn now), the active one marked. */
+    private fun temaChips(): List<QuickPanel.TemaChip> {
+        val dark = SystemLook.dark(this)
+        val hc = SystemLook.highContrast(this)
+        return store.temas.map { t ->
+            val look = if (store.followSystem) DayNight.resolve(t.look, dark) else t.look
+            val ks = look.applyTo(store.phone)
+            val active = t.id == store.active
+            val desc = getString(R.string.quick_tema_desc, t.name) + if (active) getString(R.string.quick_tema_active) else ""
+            QuickPanel.TemaChip(t.id, t.name, t.icon, Palette.of(ks, hc, if (ks.theme in Themes.DYNAMIC) SystemLook.colors(this) else null), active, desc)
+        }
+    }
+
+    /** r14 (PS4): a tema chip in the quick panel puts that tema in use (the colours cross-fade). */
+    override fun onQuickTema(id: String) {
+        feedback(null)
+        if (id == store.active) return
+        store = store.withTema(id)
+        repo.save(store) // listener reloads + re-applies
+        applySettings()
+        openQuick()
+    }
+
+    /** r14 (PS4): «Personalizar» opens Settings on «Apariencia». */
+    override fun onPersonalize() {
+        feedback(null)
+        view?.hideQuick()
+        val i = Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(SettingsActivity.EXTRA_PAGE, SettingsActivity.PAGE_LOOK)
+        startActivity(i)
     }
 
     override fun onQuickAction(action: QuickAction) {
@@ -783,7 +834,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             QuickAction.SETTINGS -> { view?.hideQuick(); onOpenSettings() }
             QuickAction.EDIT -> { view?.hideQuick(); onEditPanel() }
             else -> {
-                store = Quick.apply(store, action)
+                store = Quick.apply(store, action, SystemLook.dark(this))
                 repo.save(store) // listener reloads + re-applies
                 applySettings()
                 openQuick()
@@ -1376,7 +1427,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onDayNight() {
-        val next = store.updateLook(store.activeTema.id) { DayNight.toggle(it) }
+        // r14 (FS2): the strip's sun/moon is the quick panel's Día / noche: following the system, it stops following
+        val next = Quick.apply(store, QuickAction.DAY_NIGHT, SystemLook.dark(this))
         store = next
         repo.save(next) // listener reloads + re-applies
         applySettings()
@@ -1441,7 +1493,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     private fun feedback(key: Key?) {
         val st = s
-        pulse(HapticEvent.KEY)
+        // r14 (HS1): the pulse follows the key's kind like the sound does (Uniforme = 0.13.0's single click)
+        val feel = if (key == null) KeyFeel.LETTER else KeyFeel.of(key.type, key.style)
+        Haptics.pulseForKey(feel, st.haptics, st.hapticProfile)?.let { haptics.play(it, st.hapticStrength) }
         if (st.sound) {
             val kind = when {
                 key == null -> SoundKind.KEY
