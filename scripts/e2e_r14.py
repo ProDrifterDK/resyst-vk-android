@@ -18,6 +18,9 @@ Sections (--only, comma separated; default all but U):
   M  measurements: typing latency (the IME's own keytime lines), frame times (dumpsys gfxinfo) while typing, heap
      (dumpsys meminfo after a GC), APK size
   U  0.14.0 only: upgrade from 0.13.0 (--before-apk) keeps temas, accent and settings (needs --before-apk)
+  X  0.14.0 only: the fix pass — each contrast finding of the independent review re-measured on the rendered pixels
+     (the hero caption, KEYCAP Enter, the pressed first suggestion, the keycap / raised faces), 48 dp targets, «＋ Nuevo
+     tema», the connected preview and the quick panel on Papiro
 
 Writes build/e2e-r14/<label>/*.png|mp4 + r14-<label>.json (rows, metrics, scenes). Debug package only
 (com.resyst.vk.debug); the system's night mode, font scale, animator scale and the default input method are restored
@@ -798,6 +801,161 @@ def section_u(before_apk, apk):
     M.check('U', 'the stored 0.13.0 values are all still there (accents, names, sound, haptics, long press, font, height)', kept, 'prefs read via run-as')
 
 
+# ── X: fix pass — the independent review's contrast findings, measured on the rendered pixels (0.14.0 only) ──
+REVIEW_DIR = 'after-review'  # the 0.14.0 scenes as the review saw them (6f8d83f), kept for the index's third column
+
+
+def wcag(a, b):
+    def ch(v):
+        v = v / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    def lum(c):
+        return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+    la, lb = lum(a), lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def pixel_contrast(png, box):
+    """The rendered ink / surface contrast inside box (x1, y1, x2, y2) of a screenshot: the surface is the most common
+    colour, the ink the pixel farthest from it in WCAG contrast (a glyph's core reaches its ink colour)."""
+    im = Image.open(png).convert('RGB').crop(box)
+    counts = im.getcolors(maxcolors=1 << 24) or []
+    if not counts:
+        return 0.0, '-', '-'
+    bg = max(counts)[1]
+    ink = max((c for _, c in counts), key=lambda c: wcag(c, bg))
+    return round(wcag(ink, bg), 2), '#%02x%02x%02x' % bg, '#%02x%02x%02x' % ink
+
+
+def density():
+    out = sh('wm density')
+    m = re.search(r'Override density: (\d+)', out) or re.search(r'Physical density: (\d+)', out)
+    return int(m.group(1)) / 160 if m else 2.625
+
+
+def enter_key(k):
+    for name in ('Intro', 'Enviar', 'Ir', 'Buscar', 'Siguiente', 'Listo', 'Hecho', 'Enter', 'Send', 'Go', 'Search', 'Next', 'Done'):
+        if name in k:
+            return k[name]
+    return None
+
+
+def x_measure(section, name, png_name, box, minimum, before_png=None, what=''):
+    png = os.path.join(OUT, png_name + '.png')
+    r, bg, ink = pixel_contrast(png, box)
+    detail = f'{what}: rendered {r}:1 (ink {ink} on {bg})'
+    if before_png and os.path.exists(before_png):
+        rb, bgb, inkb = pixel_contrast(before_png, box)
+        detail += f'; at review {rb}:1 (ink {inkb} on {bgb})'
+    check(section, name, r >= minimum, detail)
+    return r
+
+
+def section_x():
+    rev = os.path.join(BASE, REVIEW_DIR)
+    # B1: the Settings hero caption on Papiro, no customisation
+    night(False)
+    write_prefs(store('paper'))
+    settings_open()
+    shot('X-light-paper-settings-home', 'Papiro, Settings home: the hero caption «Vista previa · …» (muted on the card)')
+    cap = next((n for n in e2e.dump().iter('node') if (n.get('text') or '').startswith('Vista previa')), None)
+    if cap is not None:
+        x1, y1, x2, y2 = e2e.bounds(cap)
+        x_measure('X', 'B1 the hero caption reads ≥ 4.5:1 on its card (Papiro, default accent)', 'X-light-paper-settings-home',
+                  (x1, y1, x2, y2), 4.5, os.path.join(rev, 'T-light-home-1.png'), 'muted caption on bg2')
+    else:
+        check('X', 'B1 the hero caption reads ≥ 4.5:1 on its card (Papiro, default accent)', False, 'caption node not found')
+    # PS9: «＋ Nuevo tema» is a whole 48 dp action, not a card cut at the screen edge
+    w, _ = screen()
+    dens = density()
+    new = None
+    for _ in range(3):
+        new = next((n for n in e2e.dump().iter('node') if (n.get('text') or '') in ('＋ Nuevo tema', '＋ New theme')), None)
+        if new is not None:
+            break
+        scroll_down(0.3)
+    if new is not None:
+        x1, y1, x2, y2 = e2e.bounds(new)
+        shot('X-light-paper-new-tema', '«＋ Nuevo tema» under the tema row (PS9)')
+        check('X', 'PS9 «＋ Nuevo tema» is fully on screen and ≥ 48 dp tall', x2 <= w and (y2 - y1) >= 48 * dens - 1, f'bounds {x1},{y1},{x2},{y2}, screen {w}, 48 dp = {48 * dens:.0f} px')
+    else:
+        check('X', 'PS9 «＋ Nuevo tema» is fully on screen and ≥ 48 dp tall', False, 'node not found')
+    # PS7: accent swatches and the Tint choices are ≥ 48 dp
+    settings_open('apariencia')
+    sizes = {}
+    for _ in range(6):
+        for n in e2e.dump().iter('node'):
+            d = n.get('content-desc') or ''
+            if d.startswith(('Acento ', 'Accent ')) or re.match(r'^(Tinte|Tint)[^:]*: ', d):
+                x1, y1, x2, y2 = e2e.bounds(n)
+                sizes[d] = (x2 - x1, y2 - y1)
+        if any(k.startswith(('Tinte', 'Tint')) for k in sizes) and any(k.startswith(('Acento', 'Accent')) for k in sizes):
+            break
+        scroll_down(0.35)
+    shot('X-light-apariencia-targets', 'Apariencia: accent swatches and Tint choices at 48 dp (PS7)')
+    small = {k: v for k, v in sizes.items() if v[1] < 48 * dens - 1}
+    check('X', 'PS7 accent swatches and Tint choices are ≥ 48 dp', bool(sizes) and not small, f'{len(sizes)} targets; under 48 dp: {small or "none"}')
+    # B2: KEYCAP Enter ink on its lifted face, Tinta electrónica + Ámbar / + Lima
+    for hexa, tag in (('#c9a84c', 'amber'), ('#a8c94c', 'lime')):
+        write_prefs(store('eink', t__resyst__cap='KEYCAP', t__resyst__accent=hexa))
+        k = host('text')
+        name = f'X-light-eink-{tag}-keycap'
+        shot(name, f'Tinta electrónica + {hexa}, mechanical keycaps: Enter at rest (ink on the lifted face)')
+        ent = enter_key(km())
+        if ent is not None:
+            x1, y1, x2, y2 = e2e.bounds(ent)
+            x_measure('X', f'B2 Enter ink ≥ 4.5:1 on the KEYCAP face (Tinta electrónica + {hexa})', name,
+                      (x1 + 10, y1 + 6, x2 - 10, y1 + (y2 - y1) // 2), 4.5, None, 'Enter icon on the face top')
+        else:
+            check('X', f'B2 Enter ink ≥ 4.5:1 on the KEYCAP face (Tinta electrónica + {hexa})', False, f'no Enter node in {sorted(km())[:12]}')
+    # M1a: the pressed first suggestion in «Pastillas» with Tinte intenso, Midnight Laboratory
+    night(True)
+    write_prefs(store('lab', t__resyst__tint='STRONG', t__resyst__barStyle='CHIPS'))
+    k = host('text')
+    type_seq('hol', k)
+    time.sleep(0.8)
+    sug = sorted((n for d, n in km().items() if d.startswith('Sugerencia: ')), key=lambda n: e2e.bounds(n)[0])
+    if sug:
+        x1, y1, x2, y2 = e2e.bounds(sug[0])
+        hold_and_shoot(sug[0], 'X-dark-lab-strong-chip-pressed', hold_ms=1400, at=0.4, note='Midnight Laboratory, Tinte intenso, «Pastillas»: the first suggestion held')
+        x_measure('X', 'M1a the pressed first suggestion reads ≥ 4.5:1 (accent on the pressed fill)', 'X-dark-lab-strong-chip-pressed',
+                  (x1 + 8, y1 + int((y2 - y1) * 0.25), x2 - 8, y2 - int((y2 - y1) * 0.25)), 4.5, None, 'accent text on keyHi')
+        e2e.tap(km().get('Borrar')) if km().get('Borrar') is not None else None
+    else:
+        check('X', 'M1a the pressed first suggestion reads ≥ 4.5:1 (accent on the pressed fill)', False, 'no suggestion on the bar')
+    # M2: legends on the KEYCAP dark NUM face (Noche de juego + #3ee0e0 + intenso) and MOD on RAISED (Grafito + #8fe03e + intenso)
+    write_prefs(store('arcade', t__resyst__cap='KEYCAP', t__resyst__accent='#3ee0e0', t__resyst__tint='STRONG', phone__topRow='NUMBERS'))
+    k = host('text')
+    shot('X-dark-arcade-cyan-keycap', 'Noche de juego + #3ee0e0, Tinte intenso, keycaps, number row: legends on the NUM face')
+    one = find('1', k) if k else None
+    if one is not None:
+        x1, y1, x2, y2 = e2e.bounds(one)
+        x_measure('X', 'M2 number-row legend ≥ 7:1 on the KEYCAP dark NUM face', 'X-dark-arcade-cyan-keycap',
+                  (x1 + 8, y1 + 5, x2 - 8, y2 - 12), 7.0, None, 'legend on the NUM face')
+    else:
+        check('X', 'M2 number-row legend ≥ 7:1 on the KEYCAP dark NUM face', False, 'no "1" key')
+    write_prefs(store('graphite', t__resyst__accent='#8fe03e', t__resyst__tint='STRONG'))
+    k = host('text')
+    shot('X-dark-graphite-lime-raised', 'Grafito + #8fe03e, Tinte intenso, raised caps: modifier legends on the gradient top')
+    sym = find('Símbolos', k) if k else None
+    if sym is not None:
+        x1, y1, x2, y2 = e2e.bounds(sym)
+        x_measure('X', 'M2 modifier legend ≥ 4.5:1 on the RAISED modifier face', 'X-dark-graphite-lime-raised',
+                  (x1 + 6, y1 + 4, x2 - 6, y1 + int((y2 - y1) * 0.62)), 4.5, None, '?123 on the gradient top')
+    else:
+        check('X', 'M2 modifier legend ≥ 4.5:1 on the RAISED modifier face', False, 'no Símbolos key')
+    # PS10 / m2: the connected preview on Papiro; PS8 / m5: the quick panel's state lines
+    night(False)
+    write_prefs(store('paper'))
+    k = host('text')
+    hold_and_shoot(key('g', k), 'X-light-paper-pressed', hold_ms=1400, at=0.25, note='Papiro: g held — the connected preview on the lifted face (PS10)')
+    e2e.tap(gear())
+    time.sleep(0.9)
+    shot('X-light-paper-quick', 'Papiro: quick panel — tile states shrink before they shorten, at a word (PS8)')
+    press('Volver al teclado', wait=0.6) if find('Volver al teclado') is not None else None
+
+
 # ── index: before / after side by side ───────────────────────────────────
 SECTIONS = [
     ('K', 'Every palette, system light and dark', 'K-'),
@@ -807,6 +965,7 @@ SECTIONS = [
     ('T', 'Settings', 'T-'),
     ('N', '0.14.0: follow the system, quick-panel temas, styles, high contrast, the style gallery', 'N-'),
     ('U', '0.13.0 → 0.14.0 in place', 'U-'),
+    ('X', 'Fix pass: the independent review\'s contrast findings, re-measured on the rendered pixels', 'X-'),
 ]
 
 
@@ -850,14 +1009,28 @@ def write_index():
         for name, f in rows_m:
             out.append(f'<tr><td>{html.escape(name)}</td><td>{med(m_b, f) if m_b else "—"}</td><td>{med(m_a, f) if m_a else "—"}</td></tr>')
         out.append('</table>')
+    review = os.path.join(BASE, REVIEW_DIR)
+    if os.path.isdir(review):
+        out.append(f'<p>Fix pass: the scenes re-shot after the independent review show three columns — 0.13.0, 0.14.0 as the '
+                   f'review saw it (<code>{REVIEW_DIR}/</code>, commit 6f8d83f) and 0.14.0 after the fix. Section X measures each '
+                   f'review finding on the rendered pixels (rows below).</p>')
     for key, title, prefix in SECTIONS:
         names = sorted({n for label in files for n in files[label] if n.startswith(prefix) and not files[label][n]['file'].endswith('.mp4')})
         if not names:
             continue
-        out.append(f'<h2>{key} — {html.escape(title)}</h2><table><tr><th>scene</th><th>before 0.13.0</th><th>after 0.14.0</th></tr>')
+        out.append(f'<h2>{key} — {html.escape(title)}</h2><table><tr><th>scene</th><th>before 0.13.0</th>'
+                   f'<th>0.14.0 at review (6f8d83f)</th><th>after 0.14.0</th></tr>')
         for n in names:
             cells = []
-            for label in ('before', 'after'):
+            for label in ('before', 'review', 'after'):
+                if label == 'review':
+                    s = files['after'].get(n)
+                    src = f'{REVIEW_DIR}/{s["file"]}' if s is not None else None
+                    if src and os.path.exists(os.path.join(BASE, src)):
+                        cells.append(f'<td><a href="{src}"><img loading="lazy" src="{src}"></a></td>')
+                    else:
+                        cells.append('<td class="na">— (not re-shot: the after column is the reviewed one)</td>' if s is not None and os.path.isdir(review) else '<td class="na">—</td>')
+                    continue
                 s = files[label].get(n)
                 if s is None:
                     cells.append('<td class="na">—</td>')
@@ -946,6 +1119,8 @@ def main():
             section_n()
         if 'U' in only and LABEL == 'after' and a.before_apk:
             section_u(a.before_apk, apk)
+        if 'X' in only and LABEL == 'after':
+            section_x()
         if 'M' in only:
             section_m(apk)
     finally:
