@@ -411,6 +411,17 @@ class SettingsActivity : Activity() {
         when (ctl) {
             Ctl.TEMA -> temaPicker()
             Ctl.MODE -> modePicker()
+            Ctl.FOLLOW_SYSTEM -> toggle(ctl.label, null, store.followSystem) { v -> commitStore(store.copy(followSystem = v)) }
+            Ctl.TEMA_MANAGE -> Unit
+            Ctl.STYLES -> Unit
+            Ctl.TINT -> choice(ctl.label, com.resyst.vk.core.Tint.values().map { it to it.name }, s.tint) { v -> commit { it.copy(tint = v) } }
+            Ctl.LEGEND_WEIGHT -> choice(ctl.label, com.resyst.vk.core.LegendWeight.values().map { it to it.name }, s.legendWeight) { v -> commit { it.copy(legendWeight = v) } }
+            Ctl.LEGEND_SCALE -> slider(ctl.label, 85, 130, (s.legendScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(legendScale = v / 100f) } }
+            Ctl.UPPER_LEGENDS -> toggle(ctl.label, null, s.upperLegends) { v -> commit { it.copy(upperLegends = v) } }
+            Ctl.BUBBLE -> choice(ctl.label, com.resyst.vk.core.Bubble.values().map { it to it.name }, s.bubble) { v -> commit { it.copy(bubble = v) } }
+            Ctl.BAR_STYLE -> choice(ctl.label, com.resyst.vk.core.BarStyle.values().map { it to it.name }, s.barStyle) { v -> commit { it.copy(barStyle = v) } }
+            Ctl.HAPTIC_PROFILE -> choice(ctl.label, com.resyst.vk.core.HapticProfile.values().map { it to it.name }, s.hapticProfile) { v -> commit { it.copy(hapticProfile = v) } }
+            Ctl.MOTION -> choice(ctl.label, com.resyst.vk.core.Motion.values().map { it to it.name }, s.motion) { v -> commit { it.copy(motion = v) } }
             Ctl.THEME -> choice(ctl.label, Themes.ALL.map { it.id to it.label }, s.theme) { v -> commit { it.copy(theme = v) } }
             Ctl.DAY_NIGHT -> dayNightPill(s)
             Ctl.ACCENT -> accentRow(s)

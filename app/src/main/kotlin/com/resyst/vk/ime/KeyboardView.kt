@@ -1642,6 +1642,7 @@ class KeyboardView(context: Context) : View(context) {
                 tmp.set(r)
                 c.drawRoundRect(tmp, rad, rad, fill)
             }
+            KeyCap.KEYCAP, KeyCap.BORDERLESS -> tmp.set(r)
             KeyCap.OUTLINE -> {
                 tmp.set(r)
                 if (solidAccent || pressed) {

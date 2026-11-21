@@ -2,8 +2,11 @@ package com.resyst.vk.core
 
 enum class HapticEvent { KEY, LONG_PRESS, CURSOR_TICK }
 
-/** Abstract pulse; the IME maps it to a platform VibrationEffect. */
-enum class HapticPulse { CLICK, HEAVY_CLICK, TICK }
+/**
+ * Abstract pulse; the IME maps it to a platform VibrationEffect. r14 (HS1): SOFT_CLICK (space) and FIRM_CLICK (Enter)
+ * sit between TICK, CLICK and HEAVY_CLICK, so keys feel like they sound and the long press stays the heaviest.
+ */
+enum class HapticPulse { CLICK, HEAVY_CLICK, TICK, SOFT_CLICK, FIRM_CLICK }
 
 /** User-chosen vibration strength ("Intensidad": Suave / Media / Fuerte). */
 enum class HapticStrength { LOW, MEDIUM, HIGH }
@@ -43,6 +46,22 @@ object Haptics {
         }
     }
 
+    /**
+     * r14 (HS1): the pulse for a key of [feel]. [HapticProfile.UNIFORM] is 0.13.0's single click for every key;
+     * [HapticProfile.BY_KEY] follows the sound kinds: letters click, space a softer click, modifiers and ⌫'s
+     * repeats tick, Enter a firm click.
+     */
+    fun pulseForKey(feel: KeyFeel, enabled: Boolean, profile: HapticProfile): HapticPulse? {
+        if (!enabled) return null
+        if (profile == HapticProfile.UNIFORM) return HapticPulse.CLICK
+        return when (feel) {
+            KeyFeel.LETTER -> HapticPulse.CLICK
+            KeyFeel.SPACE -> HapticPulse.SOFT_CLICK
+            KeyFeel.MOD, KeyFeel.REPEAT -> HapticPulse.TICK
+            KeyFeel.ENTER -> HapticPulse.FIRM_CLICK
+        }
+    }
+
     fun route(systemTouchFeedbackOn: Boolean): HapticRoute =
         if (systemTouchFeedbackOn) HapticRoute.TOUCH else HapticRoute.OTHER
 
@@ -62,6 +81,16 @@ object Haptics {
             HapticStrength.LOW -> HapticSpec(10, 90)
             HapticStrength.MEDIUM -> HapticSpec(14, 160)
             HapticStrength.HIGH -> HapticSpec(18, 230)
+        }
+        HapticPulse.SOFT_CLICK -> when (strength) {
+            HapticStrength.LOW -> HapticSpec(8, 70)
+            HapticStrength.MEDIUM -> HapticSpec(11, 120)
+            HapticStrength.HIGH -> HapticSpec(14, 185)
+        }
+        HapticPulse.FIRM_CLICK -> when (strength) {
+            HapticStrength.LOW -> HapticSpec(13, 110)
+            HapticStrength.MEDIUM -> HapticSpec(18, 190)
+            HapticStrength.HIGH -> HapticSpec(23, 245)
         }
         HapticPulse.HEAVY_CLICK -> when (strength) {
             HapticStrength.LOW -> HapticSpec(16, 130)

@@ -1,11 +1,50 @@
 package com.resyst.vk.core
 
-enum class KeyShape(val radiusDp: Float) { SQUARE(2f), SOFT(7f), ROUND(14f) }
-enum class KeyCap { RAISED, FLAT, OUTLINE }
-enum class KeyFont { BRAND, TECH, HUMAN }
+/**
+ * Key corner shapes. r14: PILL (half the shorter side: a capsule) and CHAMFER (cut corners, the arcade bevel); a
+ * shape only paints inside the key's 0.13.0 rect (VO1).
+ */
+enum class KeyShape(val radiusDp: Float) { SQUARE(2f), SOFT(7f), ROUND(14f), PILL(999f), CHAMFER(5f) }
+
+/** Key caps. r14: KEYCAP (a mechanical keycap: a lighter top face on a darker skirt) and BORDERLESS (legends only). */
+enum class KeyCap { RAISED, FLAT, OUTLINE, KEYCAP, BORDERLESS }
+
+/** Key fonts. r14: LEGIBLE (Atkinson Hyperlegible Next, made for low vision) and ROUNDED (Nunito), bundled under the OFL. */
+enum class KeyFont { BRAND, TECH, HUMAN, LEGIBLE, ROUNDED }
 enum class Density(val gapDp: Float) { TIGHT(3f), NORMAL(5f), AIRY(8f) }
 enum class SoundPack { CLICK, THOCK, TYPE, BUBBLE }
 enum class SoundKind { KEY, MOD, SPACE, ENTER }
+
+/** r14: the legends' weight (the variable fonts' wght axis; system fonts map it to regular / bold). */
+enum class LegendWeight(val wght: Int) { LIGHT(360), REGULAR(450), MEDIUM(560), BOLD(680) }
+
+/** r14: the key preview — joined to the key (CONNECTED, a tab rising from it) or floating above it (0.13.0). */
+enum class Bubble { CONNECTED, FLOATING }
+
+/** r14: suggestions as plain words with dividers (0.13.0) or as chips. */
+enum class BarStyle { TEXT, CHIPS }
+
+/**
+ * r14 (MO1/MO2): how much the keyboard moves. Every effect is ≤ 180 ms; SUBTLE keeps the press feedback and drops
+ * the growing popups; OFF draws every state at once. Android's "Quitar animaciones" (animator scale 0) forces OFF.
+ */
+enum class Motion {
+    FULL, SUBTLE, OFF;
+
+    /** The duration of an effect of [base] ms at this level, scaled by Android's animator duration scale. */
+    fun ms(base: Long, animatorScale: Float = 1f): Long = when (this) {
+        FULL -> (minOf(base, 180L) * animatorScale).toLong()
+        SUBTLE -> (minOf(base, 180L) * 0.6f * animatorScale).toLong().coerceAtLeast(1L)
+        OFF -> 0L
+    }
+
+    companion object {
+        fun effective(user: Motion, animatorScale: Float): Motion = if (animatorScale <= 0f) OFF else user
+    }
+}
+
+/** r14 (HS1): haptics by key kind (matching the sound kinds) or one pulse for every key (0.13.0). */
+enum class HapticProfile { BY_KEY, UNIFORM }
 
 /**
  * The effective keyboard settings the IME and the view consume. Since r10 nobody stores a
@@ -68,6 +107,22 @@ data class KbSettings(
     val spaceFlick: Boolean = false,
     /** r10 (bet 4): which Spanish the lexicon is ranked for ([Regional]). */
     val region: Region = Region.ES_CL,
+    /** r14 (LG2): the accent's hue mixed into the surfaces. Part of the [Look]. */
+    val tint: Tint = Tint.NONE,
+    /** r14: the legends' weight. Part of the [Look]. */
+    val legendWeight: LegendWeight = LegendWeight.REGULAR,
+    /** r14 (LG4): the legends' size, × [Legend.SCALE_MIN]–[Legend.SCALE_MAX] (the system font scale on top). Part of the [Look]. */
+    val legendScale: Float = 1f,
+    /** r14: letters drawn in capitals whatever the shift (what is typed still follows the shift). Part of the [Look]. */
+    val upperLegends: Boolean = false,
+    /** r14: the key preview's shape. Part of the [Look]. */
+    val bubble: Bubble = Bubble.CONNECTED,
+    /** r14: the bar's suggestions as words or chips. Part of the [Look]. */
+    val barStyle: BarStyle = BarStyle.TEXT,
+    /** r14 (MO2): animation level, phone-wide. */
+    val motion: Motion = Motion.FULL,
+    /** r14 (HS1): haptics by key kind or uniform, phone-wide. */
+    val hapticProfile: HapticProfile = HapticProfile.BY_KEY,
 ) {
     /** The row actually laid out: [topRow] unless hidden. */
     val effectiveTopRow: TopRow get() = if (hideTopRow) TopRow.NONE else topRow
@@ -87,17 +142,30 @@ data class Look(
     val subLegends: Boolean = true,
     val heightScale: Float = 1f,
     val altTheme: String? = null,
+    val tint: Tint = Tint.NONE,
+    val legendWeight: LegendWeight = LegendWeight.REGULAR,
+    val legendScale: Float = 1f,
+    val upperLegends: Boolean = false,
+    val bubble: Bubble = Bubble.CONNECTED,
+    val barStyle: BarStyle = BarStyle.TEXT,
 ) {
     fun applyTo(s: KbSettings): KbSettings = s.copy(
         theme = theme, accent = accent, shape = shape, cap = cap, font = font, density = density,
         subLegends = subLegends, heightScale = heightScale, altTheme = altTheme,
+        tint = tint, legendWeight = legendWeight, legendScale = legendScale, upperLegends = upperLegends, bubble = bubble, barStyle = barStyle,
     )
 
     companion object {
         /** Field names (codec keys) a tema owns; every other [KbSettings] field is phone-wide. */
-        val FIELDS = setOf("theme", "accent", "shape", "cap", "font", "density", "subLegends", "heightScale", "altTheme")
+        val FIELDS = setOf(
+            "theme", "accent", "shape", "cap", "font", "density", "subLegends", "heightScale", "altTheme",
+            "tint", "legendWeight", "legendScale", "upperLegends", "bubble", "barStyle",
+        )
 
-        fun of(s: KbSettings) = Look(s.theme, s.accent, s.shape, s.cap, s.font, s.density, s.subLegends, s.heightScale, s.altTheme)
+        fun of(s: KbSettings) = Look(
+            s.theme, s.accent, s.shape, s.cap, s.font, s.density, s.subLegends, s.heightScale, s.altTheme,
+            s.tint, s.legendWeight, s.legendScale, s.upperLegends, s.bubble, s.barStyle,
+        )
     }
 }
 
@@ -144,14 +212,26 @@ data class ProfileStore(
     val mode: Mode = Mode.NONE,
     val clip: ClipSettings = ClipSettings(),
     val autoUpdateCheck: Boolean = true,
+    /**
+     * r14 (FS1): the active tema follows the system's dark mode (its day/night partner when the brightness differs).
+     * Device-wide; ON for a fresh install, OFF for a store written by 0.13.0 or older ([ProfileCodec.decode]).
+     */
+    val followSystem: Boolean = false,
 ) {
     val activeTema: Tema get() = byId(active) ?: temas.first()
 
     /** Phone behavior + active tema look, without the mode: what the settings screen edits. */
     val base: KbSettings get() = activeTema.look.applyTo(phone)
 
-    /** What the keyboard runs with: [base] + [mode]'s overrides. */
+    /** What the keyboard runs with: [base] + [mode]'s overrides (the stored look; see [settingsFor]). */
     val settings: KbSettings get() = mode.apply(base)
+
+    /** r14 (FS2): the active tema's look as drawn: resolved against [systemDark] while following (null = unknown). */
+    fun lookFor(systemDark: Boolean?): Look =
+        if (followSystem && systemDark != null) DayNight.resolve(activeTema.look, systemDark) else activeTema.look
+
+    /** r14 (FS2): what the keyboard runs with on a phone whose dark mode is [systemDark] (null = the stored look). */
+    fun settingsFor(systemDark: Boolean?): KbSettings = mode.apply(lookFor(systemDark).applyTo(phone))
 
     fun byId(id: String): Tema? = temas.firstOrNull { it.id == id }
 
@@ -202,6 +282,8 @@ object ProfileCodec {
     const val ACTIVE_KEY = "active"
     const val PHONE = "phone."
     const val TEMA = "t."
+    /** r14 (FS1): "Seguir el modo oscuro del sistema" (device-wide). */
+    const val FOLLOW_KEY = "daynight.auto"
     private val ID = Regex("^[a-z0-9_-]{1,24}$")
 
     /** Keys of the r1–r9 layout; SettingsRepo drops them once a v2 store is written. */
@@ -219,6 +301,7 @@ object ProfileCodec {
                 Tema("pizarra", "Pizarra", "✎", base.copy(theme = "slate", font = KeyFont.HUMAN, subLegends = false, heightScale = 1.1f)),
             ),
             active = "resyst",
+            followSystem = true, // r14 (FS1): a fresh install follows the system; an upgraded store does not
         )
     }
 
@@ -231,6 +314,7 @@ object ProfileCodec {
         m["clip.history"] = st.clip.history.toString()
         m["clip.purge"] = st.clip.purgeHour.toString()
         m[UPDATE_AUTO_KEY] = st.autoUpdateCheck.toString()
+        m[FOLLOW_KEY] = st.followSystem.toString()
         for (t in st.temas) {
             val k = "$TEMA${t.id}."
             m[k + "name"] = t.name
@@ -277,6 +361,14 @@ object ProfileCodec {
         "bilingual" to s.bilingual.toString(),
         "spaceFlick" to s.spaceFlick.toString(),
         "region" to s.region.name,
+        "tint" to s.tint.name,
+        "legendWeight" to s.legendWeight.name,
+        "legendScale" to s.legendScale.toString(),
+        "upperLegends" to s.upperLegends.toString(),
+        "bubble" to s.bubble.name,
+        "barStyle" to s.barStyle.name,
+        "motion" to s.motion.name,
+        "hapticProfile" to s.hapticProfile.name,
     )
 
     fun decode(raw: Map<String, *>): ProfileStore {
@@ -298,6 +390,8 @@ object ProfileCodec {
             mode = Mode.byId(raw[MODE_KEY]?.toString()) ?: Mode.NONE,
             clip = clip(raw),
             autoUpdateCheck = flag(raw, UPDATE_AUTO_KEY, true),
+            // r14 (FS1): only an empty store (a fresh install, or after «Restablecer») follows the system by default
+            followSystem = flag(raw, FOLLOW_KEY, fresh(raw)),
         )
     }
 
@@ -333,6 +427,11 @@ object ProfileCodec {
             clip = clip(raw),
             autoUpdateCheck = flag(raw, UPDATE_AUTO_KEY, true),
         )
+    }
+
+    /** A store nobody has written yet: no version, no tema, no phone key (other subsystems' keys do not count). */
+    fun fresh(raw: Map<String, *>): Boolean = raw.keys.none { k ->
+        k is String && (k == "v" || k == ACTIVE_KEY || k == "order" || k.startsWith(TEMA) || k.startsWith(PHONE) || isLegacyKey(k))
     }
 
     private const val LEGACY_GAME = "juego"
@@ -379,7 +478,7 @@ object ProfileCodec {
         fun float(name: String, dv: Float, lo: Float, hi: Float) =
             str(name)?.toFloatOrNull()?.takeIf { !it.isNaN() }?.coerceIn(lo, hi) ?: dv
         fun int(name: String, dv: Int, lo: Int, hi: Int) = str(name)?.toIntOrNull()?.coerceIn(lo, hi) ?: dv
-        fun themeId(v: String?) = v?.takeIf { t -> Themes.ALL.any { it.id == t } }
+        fun themeId(v: String?) = v?.takeIf { t -> Themes.known(t) }
         val accentRaw = str("accent")
         // r1 stored "no top row" as topRow = NONE; r2 keeps the row content + a hide flag.
         val rawTop = enumOr(str("topRow"), d.topRow)
@@ -420,6 +519,14 @@ object ProfileCodec {
             bilingual = bool("bilingual", d.bilingual),
             spaceFlick = bool("spaceFlick", d.spaceFlick),
             region = enumOr(str("region"), d.region),
+            tint = enumOr(str("tint"), d.tint),
+            legendWeight = enumOr(str("legendWeight"), d.legendWeight),
+            legendScale = float("legendScale", d.legendScale, Legend.SCALE_MIN, Legend.SCALE_MAX),
+            upperLegends = bool("upperLegends", d.upperLegends),
+            bubble = enumOr(str("bubble"), d.bubble),
+            barStyle = enumOr(str("barStyle"), d.barStyle),
+            motion = enumOr(str("motion"), d.motion),
+            hapticProfile = enumOr(str("hapticProfile"), d.hapticProfile),
         )
     }
 

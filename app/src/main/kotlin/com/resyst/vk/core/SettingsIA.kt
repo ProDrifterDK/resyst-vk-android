@@ -22,18 +22,33 @@ enum class Ctl(
     // which tema / mode is in use
     TEMA(ProfileCodec.ACTIVE_KEY, Scope.DEVICE, "Tema"),
     MODE(ProfileCodec.MODE_KEY, Scope.DEVICE, "Modo"),
+    /** r14 (FS1): the active tema follows the system's dark mode (device-wide; fresh installs on, upgrades off). */
+    FOLLOW_SYSTEM(ProfileCodec.FOLLOW_KEY, Scope.DEVICE, "Seguir el modo oscuro del sistema"),
+    /** r14 (PS3): create a tema from the one in use, rename it, delete one. */
+    TEMA_MANAGE(null, Scope.DEVICE, "Crear y editar temas"),
 
     // appearance (the active tema)
+    /** r14 (PS2): curated looks, one tap on the active tema, with «Deshacer». */
+    STYLES(null, Scope.TEMA, "Estilos"),
     THEME("theme", Scope.TEMA, "Colores"),
     /** r8: "Modo día / noche" — one tap flips to the remembered light/dark partner. */
     DAY_NIGHT("altTheme", Scope.TEMA, "Día / noche"),
     ACCENT("accent", Scope.TEMA, "Acento"),
+    /** r14 (LG2): the accent's hue in the surfaces. */
+    TINT("tint", Scope.TEMA, "Tinte"),
     SHAPE("shape", Scope.TEMA, "Forma"),
     CAP("cap", Scope.TEMA, "Tecla"),
     FONT("font", Scope.TEMA, "Fuente"),
     DENSITY("density", Scope.TEMA, "Densidad"),
     HEIGHT("heightScale", Scope.TEMA, "Altura"),
     SUB_LEGENDS("subLegends", Scope.TEMA, "Leyendas secundarias"),
+    /** r14: the legends' weight, size and case. */
+    LEGEND_WEIGHT("legendWeight", Scope.TEMA, "Grosor de letra"),
+    LEGEND_SCALE("legendScale", Scope.TEMA, "Tamaño de letra"),
+    UPPER_LEGENDS("upperLegends", Scope.TEMA, "Letras en mayúscula"),
+    /** r14: the key preview's shape and the bar's style. */
+    BUBBLE("bubble", Scope.TEMA, "Burbuja de tecla"),
+    BAR_STYLE("barStyle", Scope.TEMA, "Estilo de la barra"),
 
     // keys & language (phone)
     LANG("phone.lang", Scope.DEVICE, "Idioma"),
@@ -69,9 +84,13 @@ enum class Ctl(
     // feedback (phone)
     HAPTICS("phone.haptics", Scope.DEVICE, "Vibración"),
     HAPTIC_STRENGTH("phone.hapticStrength", Scope.DEVICE, "Intensidad", dependsOn = HAPTICS),
+    /** r14 (HS1): haptics by key kind (default) or one pulse for every key (0.13.0). */
+    HAPTIC_PROFILE("phone.hapticProfile", Scope.DEVICE, "Vibración por tecla", dependsOn = HAPTICS),
     SOUND("phone.sound", Scope.DEVICE, "Sonido de tecla"),
     SOUND_PACK("phone.soundPack", Scope.DEVICE, "Pack", dependsOn = SOUND),
     VOLUME("phone.volume", Scope.DEVICE, "Volumen", dependsOn = SOUND),
+    /** r14 (MO2): Completas / Sutiles / Ninguna; Android's "Quitar animaciones" forces Ninguna. */
+    MOTION("phone.motion", Scope.DEVICE, "Animaciones"),
 
     // clipboard + learned data
     CLIP_HISTORY("clip.history", Scope.DEVICE, "Historial del portapapeles"),
@@ -116,6 +135,8 @@ data class SettingsPage(
     val preview: Boolean = false,
     /** One line under the title on home, saying what the page holds. */
     val summary: String = "",
+    /** r14: a group heading drawn before these controls (the long «Apariencia» page reads in sections). */
+    val groups: Map<Ctl, String> = emptyMap(),
 )
 
 /**
@@ -134,11 +155,16 @@ object SettingsIA {
 
     val PAGES: List<SettingsPage> = listOf(
         SettingsPage("modos", "Temas y modos", Scope.DEVICE, listOf(
-            Ctl.TEMA, Ctl.MODE,
-        ), summary = "Qué tema usas y si hay un modo encendido (Código, Juego)"),
+            Ctl.TEMA, Ctl.FOLLOW_SYSTEM, Ctl.TEMA_MANAGE, Ctl.MODE,
+        ), summary = "Qué tema usas, crear uno nuevo, seguir el modo oscuro del sistema y los modos (Código, Juego)"),
         SettingsPage("apariencia", "Apariencia del tema", Scope.TEMA, listOf(
-            Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.SHAPE, Ctl.CAP, Ctl.FONT, Ctl.DENSITY, Ctl.HEIGHT, Ctl.SUB_LEGENDS,
-        ), preview = true, summary = "Colores, acento, forma, fuente y altura del tema activo"),
+            Ctl.STYLES,
+            Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.TINT,
+            Ctl.SHAPE, Ctl.CAP, Ctl.DENSITY, Ctl.HEIGHT,
+            Ctl.FONT, Ctl.LEGEND_WEIGHT, Ctl.LEGEND_SCALE, Ctl.UPPER_LEGENDS, Ctl.SUB_LEGENDS,
+            Ctl.BUBBLE, Ctl.BAR_STYLE,
+        ), preview = true, summary = "Estilos, colores, tinte, forma y tipo de tecla, letra, burbuja y barra del tema activo",
+            groups = mapOf(Ctl.STYLES to "Estilos", Ctl.THEME to "Colores", Ctl.SHAPE to "Teclas", Ctl.FONT to "Letra", Ctl.BUBBLE to "Detalles")),
         SettingsPage("teclas", "Teclas e idioma", Scope.DEVICE, listOf(
             Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.BILINGUAL, Ctl.SPACE_FLICK, Ctl.REGION, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
         ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
@@ -146,8 +172,8 @@ object SettingsIA {
             Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.CONTEXT_OFFERS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE, Ctl.AUTO_OPENERS,
         ), summary = "Sugerencias, corrección, sugerencias por contexto, filtro de groserías, mayúsculas, ¿ ¡"),
         SettingsPage("respuesta", "Sonido y vibración", Scope.DEVICE, listOf(
-            Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME,
-        ), summary = "Vibración, intensidad, sonido y volumen"),
+            Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.HAPTIC_PROFILE, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME, Ctl.MOTION,
+        ), summary = "Vibración por tecla, intensidad, sonido, volumen y animaciones"),
         SettingsPage("privacidad", "Portapapeles y privacidad", Scope.DEVICE, listOf(
             Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.GIF_SEARCH, Ctl.GIF_NEW_ID, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
         ), summary = "Historial del portapapeles, búsqueda de GIF y lo que el teclado aprendió"),

@@ -18,6 +18,7 @@ object Fonts {
                 }.getOrNull() ?: Typeface.DEFAULT
                 KeyFont.TECH -> Typeface.create(Typeface.MONOSPACE, if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
                 KeyFont.HUMAN -> Typeface.create("serif", if (weight >= 600) Typeface.BOLD else Typeface.NORMAL)
+                KeyFont.LEGIBLE, KeyFont.ROUNDED -> get(context, KeyFont.BRAND, weight)
             }
         }
     }

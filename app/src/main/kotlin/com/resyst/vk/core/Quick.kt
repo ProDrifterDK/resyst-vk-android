@@ -76,8 +76,16 @@ object Quick {
 
     fun nextMode(m: Mode): Mode = Mode.values()[(m.ordinal + 1) % Mode.values().size]
 
-    fun apply(st: ProfileStore, a: QuickAction): ProfileStore = when (a) {
-        QuickAction.DAY_NIGHT -> st.updateLook(st.activeTema.id) { DayNight.toggle(it) }
+    /**
+     * r14 (FS2): [systemDark] = the phone's dark mode when known. While the tema follows the system, Día / noche
+     * stops following and shows the opposite of what is on screen (the explicit choice wins); with no system answer
+     * (tests, previews) it flips the stored look as in 0.13.0.
+     */
+    fun apply(st: ProfileStore, a: QuickAction, systemDark: Boolean? = null): ProfileStore = when (a) {
+        QuickAction.DAY_NIGHT -> if (st.followSystem && systemDark != null) {
+            val shown = st.lookFor(systemDark)
+            st.copy(followSystem = false).updateLook(st.activeTema.id) { DayNight.toggle(shown) }
+        } else st.updateLook(st.activeTema.id) { DayNight.toggle(it) }
         QuickAction.TEMA -> st.withTema(st.nextTemaId())
         QuickAction.MODE -> st.withMode(nextMode(st.mode))
         QuickAction.HEIGHT -> st.updateLook(st.activeTema.id) { it.copy(heightScale = nextHeight(it.heightScale)) }
@@ -89,12 +97,13 @@ object Quick {
      * The tiles for [st] in a field with [policy]. [editPanel] = the editing panel exists in
      * this build (bet 5); until then the tile says so instead of doing nothing.
      */
-    fun tiles(st: ProfileStore, policy: FieldPolicy, editPanel: Boolean = true): List<Tile> {
-        val s = st.settings
+    fun tiles(st: ProfileStore, policy: FieldPolicy, editPanel: Boolean = true, systemDark: Boolean? = null): List<Tile> {
+        val s = st.settingsFor(systemDark)
+        val auto = st.followSystem && systemDark != null
         val clipOk = ClipRules.mayShowHistory(policy, st.clip)
         return QuickAction.values().map { a ->
             when (a) {
-                QuickAction.DAY_NIGHT -> Tile(a, a.label, if (Themes.byId(s.theme).dark) "Oscuro" else "Claro", true)
+                QuickAction.DAY_NIGHT -> Tile(a, a.label, (if (auto) "Auto · " else "") + if (Themes.byId(s.theme).dark) "Oscuro" else "Claro", true)
                 QuickAction.TEMA -> Tile(a, a.label, st.activeTema.name, st.temas.size > 1)
                 QuickAction.MODE -> Tile(a, a.label, st.mode.label, true)
                 QuickAction.CLIPBOARD -> Tile(a, a.label, when {
