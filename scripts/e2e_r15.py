@@ -100,7 +100,18 @@ def tap_desc(prefix, wait=0.6, k=None):
     time.sleep(wait)
 
 
+APP_LOG = []  # the app process's log lines, kept before every clear (P reads them all)
+
+
+def app_log_lines():
+    out = []
+    for pid in sh(f'pidof {PKG}', check=False).split():
+        out += e2e.adb('logcat', '-d', f'--pid={pid}', check=False).splitlines()
+    return out
+
+
 def logcat_clear():
+    APP_LOG.extend(app_log_lines())
     sh('logcat -c', check=False)
 
 
@@ -525,12 +536,11 @@ def section_p():
     check('P', 'no query in any file of the app', not found, found or f'{len(files.split())} files searched')
     # every line the app's own process logged (the keyboard and the E2E host share it); adbd's record of this script's
     # own grep commands is another process and is not the app's
-    pids = sh(f'pidof {PKG}', check=False).split()
-    lines = []
-    for pid in pids:
-        lines += e2e.adb('logcat', '-d', f'--pid={pid}', check=False).splitlines()
+    lines = APP_LOG + app_log_lines()
     leaks = [l for l in lines if any(m in l for m in marks)]
-    check('P', 'no query in the app process\'s log', bool(pids) and not leaks, leaks[:3] or f'{len(lines)} lines of pid {pids} searched')
+    searches = sum(1 for l in lines if 'emoji-search: len=' in l)
+    check('P', 'no query in the app process\'s log (the whole search session)', searches > 0 and not leaks,
+          leaks[:3] or f'{len(lines)} lines searched, {searches} search keystroke lines among them')
 
 
 # ── M: measurements ──────────────────────────────────────────────────────
