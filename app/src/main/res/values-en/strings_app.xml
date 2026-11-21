@@ -183,7 +183,7 @@
     <string name="s_preview_title">Keyboard preview</string>
     <string name="s_preview_caption">Preview · %1$s (%2$s)</string>
     <string name="s_preview_mode">%1$s mode</string>
-    <string name="s_credits_data">✦ Resyst · DM Sans (OFL) · word list from FrequencyWords (CC BY-SA 4.0) · RLA-ES Spanish dictionary from Hunspell (used under the GPL; offered under the GPL, LGPL or MPL) and SCOWL (en_US)</string>
+    <string name="s_credits_data">✦ Resyst · DM Sans (OFL) · word list from FrequencyWords (CC BY-SA 4.0) · RLA-ES Spanish dictionary from Hunspell (used under the GPL; offered under the GPL, LGPL or MPL) and SCOWL (en_US) · emoji and their names: Unicode and Unicode CLDR 49 (Unicode License v3)</string>
     <string name="s_credits_context">Context suggestions: model built from texts by Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0) and by Tatoeba contributors (CC BY 2.0 FR); the model is distributed under the GPL 3 (version 3 only)</string>
     <string name="s_source">Resyst VK is free software under the GPL 3 · source code on GitHub (opens in the browser)</string>
     <string name="s_source_desc">Resyst VK is free software under the GPL 3. Source code on GitHub. Opens the browser</string>

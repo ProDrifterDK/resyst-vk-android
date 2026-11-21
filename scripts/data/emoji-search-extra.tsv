@@ -1,0 +1,7 @@
+# Resyst VK — keywords the emoji search adds to CLDR (r15, ES5 in docs/failure-modes.md). Resyst's own data, GPL-3.0-or-later.
+# Read by scripts/gen_emoji_search.py. It only ADDS keywords; CLDR's names and keywords are never changed or removed.
+# One line per emoji and language: <emoji> TAB <es|en> TAB <keyword> | <keyword> ... TAB <why>
+# Each line needs a reason: a common word a person types for this emoji that CLDR 49 has nowhere (checked with grep over
+# annotations/ and annotationsDerived/ of es, es_419 and en).
+🦅	en	hawk | falcon	CLDR 49 has no «hawk» or «falcon» at all; 🦅 is the only bird of prey (owner's example: «hawk» must reach 🦅)
+🦅	es	halcón	CLDR 49 has no «halcón»; 🦅 is the only bird of prey
