@@ -704,8 +704,11 @@ def main():
         if os.path.exists(path) and set(a.only.split(',')) != set('A,Q,R,S,P,M,U'.split(',')):
             old = json.load(open(path, encoding='utf-8'))
             # a re-run section replaces that section's old rows for that language (renamed checks do not linger)
-            redone = {(r['section'], r['lang']) for r in rows}
-            out['rows'] = [r for r in old.get('rows', []) if (r['section'], r['lang']) not in redone] + rows
+            # (the L rows come from several sections, so they are replaced one by one, by name)
+            redone = {(r['section'], r['lang']) for r in rows if r['section'] != 'L'}
+            renamed = {(r['section'], r['lang'], r['check']) for r in rows if r['section'] == 'L'}
+            out['rows'] = [r for r in old.get('rows', []) if (r['section'], r['lang']) not in redone
+                           and (r['section'], r['lang'], r['check']) not in renamed] + rows
             got = {(s['scene'], s['lang']) for s in scenes}
             out['scenes'] = [s for s in old.get('scenes', []) if (s['scene'], s['lang']) not in got] + scenes
             mm = old.get('metrics', {})
