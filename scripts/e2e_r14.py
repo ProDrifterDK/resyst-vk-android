@@ -665,7 +665,8 @@ def quick_temas():
         time.sleep(1.4)
         M.shot('N-quick-tema-arcade')
     M.check('N', 'a tap on «Arcade» puts that tema in use', pref('active') == 'arcade', f'active={pref("active")}')
-    pers = M.find('Personalizar') or M.find('Customise')
+    k = M.km()
+    pers = next((k[d] for d in k if d in ('Personalizar', 'Customize')), None)
     if pers is not None:
         e2e.tap(pers)
         time.sleep(2.0)
