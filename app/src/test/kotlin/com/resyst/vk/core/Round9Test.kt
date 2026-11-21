@@ -85,23 +85,23 @@ class Round9Test {
 
     @Test fun chipLabelsNeverCutTheVersion() { // N3
         val v = "0.12.3-alpha.2"
-        for (l in UpdateNotice.labels(v)) assertTrue(l.toString(), l.title.contains(v))
+        for (l in UpdateNotice.labels(TestTxt.ES, v)) assertTrue(l.toString(), l.title.contains(v))
         // a fake 7 px/char font, 0.85× for the stacked lines
         fun w(t: String, two: Boolean) = t.length * if (two) 6f else 7f
-        val wide = UpdateNotice.fit("0.5.0", 2000f, ::w, ::w)!!
+        val wide = UpdateNotice.fit(TestTxt.ES, "0.5.0", 2000f, ::w, ::w)!!
         assertEquals("Resyst VK 0.5.0 disponible", wide.title)
         assertEquals(" · Toca para actualizar", wide.action)
         assertFalse(wide.twoLine)
         // shrinking room walks down the tiers, always keeping the version whole
         var last = Int.MAX_VALUE
         for (room in 400 downTo 10 step 5) {
-            val l = UpdateNotice.fit("0.5.0", room.toFloat(), ::w, ::w) ?: continue
-            val i = UpdateNotice.labels("0.5.0").indexOf(l)
+            val l = UpdateNotice.fit(TestTxt.ES, "0.5.0", room.toFloat(), ::w, ::w) ?: continue
+            val i = UpdateNotice.labels(TestTxt.ES, "0.5.0").indexOf(l)
             assertTrue("tiers only shrink as room shrinks", i >= 0 && (last == Int.MAX_VALUE || i >= last))
             last = i
             assertTrue(l.title.contains("0.5.0"))
         }
-        assertNull("no room → no chip (⚙ dot instead)", UpdateNotice.fit("0.5.0", 20f, ::w, ::w))
+        assertNull("no room → no chip (⚙ dot instead)", UpdateNotice.fit(TestTxt.ES, "0.5.0", 20f, ::w, ::w))
     }
 
     @Test fun chipStepsAsideForTypingAndPaste() { // N4
@@ -140,11 +140,11 @@ class Round9Test {
     }
 
     @Test fun privacyCopyMatchesTheToggle() { // S2
-        val on = UpdateNotice.promise(true)
+        val on = UpdateNotice.promise(TestTxt.ES, true)
         assertFalse(on.contains("por sí solo"))
         assertTrue(on.contains("al abrir el teclado") && on.contains("una vez")) // r11c (OC14)
         assertTrue(on.contains("solo cuando tú se lo pides"))
-        val off = UpdateNotice.promise(false)
+        val off = UpdateNotice.promise(TestTxt.ES, false)
         assertTrue(off.contains("No busca actualizaciones por sí solo") && off.contains("solo cuando tú se lo pides"))
     }
 }

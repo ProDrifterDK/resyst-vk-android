@@ -333,10 +333,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
     }
 
+    /** r14b: the service's own words (announcements, toasts) in the phone's language, read when said. */
+    private val tx: com.resyst.vk.core.Txt by lazy { ResTxt(this) }
+
     override fun onCreateInputView(): View {
         val v = KeyboardView(this)
         v.listener = this
-        gifPanel = GifPanel(this, resources.displayMetrics.density).also { p -> p.thumb = { gifFeed.thumb(it) } }
+        gifPanel = GifPanel(this, resources.displayMetrics.density, tx).also { p -> p.thumb = { gifFeed.thumb(it) } }
         v.reserveNavBar = true
         view = v
         hideSystemImeSwitcher()
@@ -604,7 +607,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         trail(key.type, outs, near)
         if (ends) engine.undoOffer(Edits.apply(before.toString(), outs))?.let {
             // UX-5: TalkBack hears the correction (the bar now offers "↶ typed")
-            view?.announceForAccessibility("Corregido. Toca deshacer para volver a $it")
+            view?.announceForAccessibility(tx.get(R.string.say_corrected, it))
         }
         if (sends.isNotEmpty()) rememberValue()
         // r13f (offers): VK's Enter sent the field: the sentence moved on with its words (ST1/ST5); any other word end
@@ -776,7 +779,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         applySettings()
         refreshContext()
         pulse(HapticEvent.LONG_PRESS)
-        view?.announceForAccessibility(if (next == com.resyst.vk.core.Lang.EN) "English" else "Español")
+        view?.announceForAccessibility(getString(if (next == com.resyst.vk.core.Lang.EN) R.string.lang_name_en else R.string.lang_name_es))
     }
 
     // ── quick panel (r10, UX-3) ─────────────────────────────────────────
@@ -791,8 +794,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val v = view ?: return
         val announced = runCatching { Updater.announced(this) }.getOrNull()
         // the strip chip already shows the update on a fresh field; the panel line is for after typing (QP5)
-        val line = if (announced != null && UpdateNotice.surface(true, typedForUpdate, offer != null, policy.secret) != UpdateSurface.CHIP) Quick.updateLine(announced.version) else null
-        v.showQuick(Quick.tiles(store, policy, editPanel = EDIT_PANEL, systemDark = SystemLook.dark(this)), line, store.mode, temaChips())
+        val line = if (announced != null && UpdateNotice.surface(true, typedForUpdate, offer != null, policy.secret) != UpdateSurface.CHIP) Quick.updateLine(tx, announced.version) else null
+        v.showQuick(Quick.tiles(tx, store, policy, editPanel = EDIT_PANEL, systemDark = SystemLook.dark(this)), line, store.mode, temaChips())
     }
 
     /** r14 (PS4): the quick panel's tema row — every tema in its own colours (as it would be drawn now), the active one marked. */
@@ -803,8 +806,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             val look = if (store.followSystem) DayNight.resolve(t.look, dark) else t.look
             val ks = look.applyTo(store.phone)
             val active = t.id == store.active
-            val desc = getString(R.string.quick_tema_desc, t.name) + if (active) getString(R.string.quick_tema_active) else ""
-            QuickPanel.TemaChip(t.id, t.name, t.icon, Palette.of(ks, hc, if (ks.theme in Themes.DYNAMIC) SystemLook.colors(this) else null), active, desc)
+            val name = com.resyst.vk.core.SeedNames.display(tx, t)
+            val desc = getString(R.string.quick_tema_desc, name) + if (active) getString(R.string.quick_tema_active) else ""
+            QuickPanel.TemaChip(t.id, name, t.icon, Palette.of(ks, hc, if (ks.theme in Themes.DYNAMIC) SystemLook.colors(this) else null), active, desc)
         }
     }
 
@@ -848,15 +852,15 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     private fun refreshMemory() {
         noMemory = com.resyst.vk.core.MemoryNotice.reason(policy, s, store.base)
-        view?.setNoMemory(noMemory?.label)
+        view?.setNoMemory(noMemory?.label(tx))
     }
 
     /** A tap on the mark says why, in words, and where to change it when it is a setting (V9). */
     override fun onNoMemory() {
         val r = noMemory ?: return
         feedback(null)
-        Toast.makeText(this, r.detail, Toast.LENGTH_LONG).show()
-        view?.announceForAccessibility(r.detail)
+        Toast.makeText(this, r.detail(tx), Toast.LENGTH_LONG).show()
+        view?.announceForAccessibility(r.detail(tx))
     }
 
     /** r10 (bet 5): the quick panel's «Edición» opens the edit panel. */
@@ -948,7 +952,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         offer = o
         when (o) {
             is ClipOffer.Text -> v.setPasteOffer(o.label, image = false)
-            is ClipOffer.Image -> v.setPasteOffer("Pegar imagen", image = true)
+            is ClipOffer.Image -> v.setPasteOffer(tx.get(R.string.strip_paste_image), image = true)
             null -> v.setPasteOffer(null, image = false)
         }
         refreshUpdate()
@@ -986,7 +990,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     /** WN6: a tap hands the page to the browser (ACTION_VIEW). The keyboard makes no request itself. */
     private fun openNews() {
-        val i = Intent(Intent.ACTION_VIEW, Uri.parse(WhatsNew.URL))
+        val i = Intent(Intent.ACTION_VIEW, Uri.parse(WhatsNew.url(tx)))
             .addCategory(Intent.CATEGORY_BROWSABLE)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val ok = runCatching { startActivity(i) }.onFailure { Log.w(TAG, "whats new: no browser (${it.javaClass.simpleName})") }.isSuccess
@@ -1062,7 +1066,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                     InputConnectionCompat.commitContent(ic, info, content, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
                 }.getOrDefault(false)
                 Log.i(TAG, "clipboard: commitContent ${o.mime} → $ok")
-                if (!ok) Toast.makeText(this, "El campo no acepta imágenes", Toast.LENGTH_SHORT).show()
+                if (!ok) Toast.makeText(this, tx.get(R.string.say_no_images), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -1115,7 +1119,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             ClipboardPanel.Act.PIN -> {
                 val e = h?.get(id) ?: return
                 if (h.setPinned(id, !e.pinned)) ClipStore.changed()
-                else Toast.makeText(this, "Puedes fijar hasta ${ClipboardHistory.MAX_PINS}", Toast.LENGTH_SHORT).show()
+                else Toast.makeText(this, tx.get(R.string.say_pin_max, ClipboardHistory.MAX_PINS), Toast.LENGTH_SHORT).show()
             }
             ClipboardPanel.Act.DELETE -> if (h?.delete(id) == true) ClipStore.changed()
             ClipboardPanel.Act.CLEAR_YES -> ClipStore.clear(this)
@@ -1214,7 +1218,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private var gifShown = false
 
     /** The field's own Enter icon + name (restored when the GIF box closes). */
-    private var fieldEnter: Pair<Icon, String> = Icon.ENTER to "Intro"
+    private var fieldEnter: Pair<Icon, String> = Icon.ENTER to ""
 
     /** A key is built in and this field may show the GIF tab (never secret / incognito, GO5). */
     private val gifAllowed get() = KlipyClient.available && !policy.secret && !policy.incognito
@@ -1266,7 +1270,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             GifPanel.Act.ENABLE -> {
                 p.face = GifPanel.Face.DISCLOSURE
                 p.reset()
-                view?.announceForAccessibility(GifCopy.TITLE + ". " + GifCopy.DISCLOSURE.joinToString(" "))
+                view?.announceForAccessibility(GifCopy.title(tx) + ". " + GifCopy.disclosure(tx).joinToString(" "))
             }
             GifPanel.Act.CANCEL -> p.face = GifPanel.Face.OFF
             GifPanel.Act.ACCEPT -> {
@@ -1299,9 +1303,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         p.retry = f.fail != null
         p.loadingMore = f.loading && !f.empty
         p.status = when {
-            f.fail != null -> f.fail?.line
-            f.loading && f.empty -> GifCopy.LOADING
-            f.answered && f.empty -> GifCopy.EMPTY
+            f.fail != null -> f.fail?.line(tx)
+            f.loading && f.empty -> GifCopy.loading(tx)
+            f.answered && f.empty -> GifCopy.empty(tx)
             else -> null
         }
         view?.gifChanged()
@@ -1325,9 +1329,9 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         engine.updateAutoCap(false) // the app field's auto-capital never applies to the GIF query
         rebuildLayout()
         v.setShift(engine.shift)
-        v.setEnter(Icon.SEARCH, "Buscar GIF")
+        v.setEnter(Icon.SEARCH, tx.get(R.string.strip_gif_search))
         v.setGifSearch(gifQuery.text)
-        v.announceForAccessibility("Escribe tu búsqueda de GIF. Solo esto se envía a KLIPY")
+        v.announceForAccessibility(tx.get(R.string.say_gif_search))
     }
 
     private fun endGifSearch(rebuild: Boolean) {
@@ -1398,8 +1402,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val g = gifFeed.items.getOrNull(index) ?: return
         val info = currentInputEditorInfo ?: return
         val accept = EditorInfoCompat.getContentMimeTypes(info).toList()
-        if (!KlipyParse.fieldTakesGifs(accept)) { gifNotice(GifCopy.NOT_ACCEPTED); return }
-        val m = KlipyParse.insert(g, accept) ?: run { gifNotice(GifCopy.TOO_BIG); return }
+        if (!KlipyParse.fieldTakesGifs(accept)) { gifNotice(GifCopy.notAccepted(tx)); return }
+        val m = KlipyParse.insert(g, accept) ?: run { gifNotice(GifCopy.tooBig(tx)); return }
         val params = gifParams() ?: return
         val query = gifFeed.query
         val token = currentInputConnection
@@ -1407,7 +1411,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val dest = gifFile(if (m.format == "webp") "webp" else "gif")
         KlipyClient.file(this, m.url, KlipyParse.INSERT_CAP, dest) { f, fail ->
             val ic = currentInputConnection
-            if (f == null) { gifNotice(fail?.line ?: GifCopy.Fail.HTTP.line); return@file }
+            if (f == null) { gifNotice((fail ?: GifCopy.Fail.HTTP).line(tx)); return@file }
             if (ic == null || ic !== token) { f.delete(); return@file } // the field changed meanwhile
             val uri = FileProvider.getUriForFile(this, "$packageName.updates", f)
             val content = InputContentInfoCompat(uri, ClipDescription(g.title.ifEmpty { "GIF" }, arrayOf(m.mime)), null)
@@ -1415,7 +1419,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 InputConnectionCompat.commitContent(ic, info, content, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
             }.getOrDefault(false)
             Log.i(TAG, "gif: commitContent ${m.mime} ${f.length()}B → $ok")
-            if (!ok) { f.delete(); gifNotice(GifCopy.NOT_ACCEPTED); return@file }
+            if (!ok) { f.delete(); gifNotice(GifCopy.notAccepted(tx)); return@file }
             KlipyClient.share(this, g.slug, params.customerId, query)
         }
     }
@@ -1827,13 +1831,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         ImeAction.NONE -> Icon.ENTER
     }
 
-    private fun enterDesc(a: ImeAction, multiLine: Boolean) = if (multiLine) "Nueva línea" else when (a) {
-        ImeAction.SEARCH -> "Buscar"
-        ImeAction.SEND -> "Enviar"
-        ImeAction.GO -> "Ir"
-        ImeAction.NEXT -> "Siguiente"
-        ImeAction.PREVIOUS -> "Anterior"
-        ImeAction.DONE -> "Listo"
-        ImeAction.NONE -> "Intro"
-    }
+    private fun enterDesc(a: ImeAction, multiLine: Boolean) = tx.get(if (multiLine) R.string.enter_newline else when (a) {
+        ImeAction.SEARCH -> R.string.enter_search
+        ImeAction.SEND -> R.string.enter_send
+        ImeAction.GO -> R.string.enter_go
+        ImeAction.NEXT -> R.string.enter_next
+        ImeAction.PREVIOUS -> R.string.enter_previous
+        ImeAction.DONE -> R.string.enter_done
+        ImeAction.NONE -> R.string.enter_default
+    })
 }

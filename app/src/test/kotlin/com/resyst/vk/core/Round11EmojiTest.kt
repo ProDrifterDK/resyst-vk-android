@@ -48,7 +48,7 @@ class Round11EmojiTest {
             "Activities", "Objects", "Symbols", "Flags")
         assertEquals(EmojiCatalog.GROUPS.map { it.first }, cat.groups.map { it.id })
         assertEquals(listOf("Caras y emociones", "Personas y cuerpo", "Animales y naturaleza", "Comida y bebida",
-            "Viajes y lugares", "Actividades", "Objetos", "Símbolos", "Banderas"), cat.groups.map { it.label })
+            "Viajes y lugares", "Actividades", "Objetos", "Símbolos", "Banderas"), cat.groups.map { it.label(TestTxt.ES) })
         names.forEachIndexed { i, n ->
             val bases = pinned.filter { it.first == n && !toned(it.second) }.map { it.second }
             assertEquals(n, bases, cat.groups[i].cells.map { it.base })

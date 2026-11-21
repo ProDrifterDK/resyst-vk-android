@@ -139,7 +139,7 @@ class Round13dLearnedTest {
     @Test fun theChipSaysWhatTheFieldDoes() { // OR6
         val n = MemoryNotice.reason(FieldPolicy.of(keep, 0), on, on)
         assertEquals(NoMemory.OPTED_OUT, n)
-        val d = n!!.label + " " + n.detail
+        val d = n!!.label(TestTxt.ES) + " " + n.detail(TestTxt.ES)
         assertTrue(d, d.contains("no guarda", ignoreCase = true) && d.contains("aprendió"))
         assertFalse(d, d.contains("no aprende de este campo"))
         assertNull(MemoryNotice.reason(FieldPolicy.of(text, 0), on, on))

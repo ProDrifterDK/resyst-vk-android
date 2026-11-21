@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -101,14 +103,24 @@ class Round14GeometryTest {
 
     /** r14 VO1b: the names TalkBack reads for the keys and the bar are the E2E contract: byte-identical to 0.13.0. */
     @Test fun vo1bTheKeyNamesAreThe0130Ones() {
+        // r14b: the names are resources now; in Spanish they are still byte-identical to 0.13.0 (the E2E runs in Spanish)
+        val es = TestTxt.ES
+        val keys = listOf(R.string.key_comma, R.string.key_period, R.string.key_at, R.string.key_slash, R.string.key_hyphen, R.string.key_shift,
+            R.string.key_shift_locked, R.string.key_shift_on, R.string.key_backspace, R.string.key_space_hint, R.string.key_space, R.string.key_symbols,
+            R.string.key_symbols_more, R.string.key_letters, R.string.key_emoji)
+        assertEquals(listOf("coma", "punto", "arroba", "barra", "guion", "Mayúsculas", "Mayúsculas, bloqueadas", "Mayúsculas, activadas",
+            "Borrar", "Espacio. Mantén pulsado para cambiar de teclado", "Espacio", "Símbolos", "Más símbolos", "Letras", "Emojis"), keys.map { es.get(it) })
+        assertEquals("Ajustes de Resyst VK", es.get(R.string.strip_settings))
+        assertEquals("Sugerencia: hola", es.get(R.string.strip_suggestion, "hola"))
+        assertEquals("Pegar del portapapeles: hola", es.get(R.string.strip_paste_desc, "hola"))
+        assertEquals(listOf("Mover el teclado a la izquierda", "Mover el teclado a la derecha", "Teclado a todo el ancho", "Cambiar de teclado"),
+            listOf(R.string.rail_left, R.string.rail_right, R.string.rail_full, R.string.key_switch_keyboard).map { es.get(it) })
+        // and the view says them through those resources
         val view = File("src/main/kotlin/com/resyst/vk/ime/KeyboardView.kt").readText()
         val describe = view.substringAfter("private fun describe(k: Key): String = when (k.type) {").substringBefore("private inner class KeyA11y")
-        for (n in listOf("\"coma\"", "\"punto\"", "\"arroba\"", "\"barra\"", "\"guion\"", "\"Mayúsculas\"", "\"Mayúsculas, bloqueadas\"", "\"Mayúsculas, activadas\"",
-            "\"Borrar\"", "\"Espacio. Mantén pulsado para cambiar de teclado\"", "\"Espacio\"", "\"Símbolos\"", "\"Más símbolos\"", "\"Letras\"", "\"Emojis\""))
-            assertTrue("describe() lost $n", describe.contains(n))
-        for (n in listOf("\"Ajustes de Resyst VK\"", "\"Sugerencia: \${s.text}\"", "\"Pegar del portapapeles: \${s.text}\"", "\"Mover el teclado a la izquierda\"",
-            "\"Mover el teclado a la derecha\"", "\"Teclado a todo el ancho\"", "\"Cambiar de teclado\""))
-            assertTrue("the bar / rail lost $n", view.contains(n))
+        for (k in keys.take(7)) assertTrue("describe() lost ${es.get(k)}", describe.contains("R.string." + Res.stringName(k)))
+        for (n in listOf("strip_settings", "strip_suggestion", "strip_paste_desc", "rail_left", "rail_right", "rail_full", "key_switch_keyboard"))
+            assertTrue("the bar / rail lost $n", view.contains("R.string.$n"))
     }
 
     private companion object {

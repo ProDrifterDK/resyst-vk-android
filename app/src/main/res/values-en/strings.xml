@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- r13f (offers): English for the context offer chip and its switch (the rest of the app is Spanish). -->
+    <!-- r13f (offers): English for the context offer chip and its switch (r14b: the whole interface is translated). -->
     <string name="context_offers_title">Context suggestions</string>
     <string name="context_offers_summary">When a word looks wrong for its sentence (caza instead of casa), the bar offers the other one · one tap swaps it · the keyboard never changes it on its own · offline</string>
     <string name="context_offer_desc">Replace %1$s with %2$s</string>
@@ -11,7 +11,7 @@
     <string name="context_offers_and">" and "</string>
     <string name="context_offers_undone">Undone: %1$s</string>
     <string name="space_flick_title">Switch language by swiping the space bar</string>
-    <string name="space_flick_summary">Swipe the space bar up or down to switch between Spanish and English · off by default because it collides with Android\'s home gesture · without it: hold the space bar or use «Idioma»</string>
+    <string name="space_flick_summary">Swipe the space bar up or down to switch between Spanish and English · off by default because it collides with Android\'s home gesture · without it: hold the space bar or use «Language»</string>
     <!-- r13i (KN1, KN2): the pair memory in «Lo que sé de ti». -->
     <string name="know_pairs_title">Word pairs you use often</string>
     <string name="know_pairs_empty">None yet. It learns them from the sentences you send or keep in normal fields: never in passwords, incognito mode or where the app asked for no suggestions. They only help the context suggestions get it right.</string>
@@ -28,7 +28,7 @@
     <string name="know_pairs_clear_ok">Delete</string>
     <string name="know_pairs_cancel">Cancel</string>
     <string name="pair_memory_title">Learn word pairs</string>
-    <string name="pair_memory_summary">Remembers which words you write together so the context suggestions get it right more often · needs «Sugerencias personales» and «Sugerencias por contexto» · nothing leaves the phone</string>
+    <string name="pair_memory_summary">Remembers which words you write together so the context suggestions get it right more often · needs «Personal suggestions» and «Context suggestions» · nothing leaves the phone</string>
     <!-- r14 (0.14.0): English for the visual overhaul and personalisation. -->
     <string name="quick_title">✦ QUICK SETTINGS</string>
     <string name="quick_back">Keyboard</string>
@@ -147,27 +147,4 @@
     <string name="know_dash_clip">on the clipboard</string>
     <string name="know_dash_desc">%1$s %2$s. Go to the section</string>
     <string name="credits_fonts">Atkinson Hyperlegible Next (Braille Institute) and Nunito fonts, both under the SIL Open Font License 1.1</string>
-    <string name="q_daynight">Day / night</string>
-    <string name="q_tema">Theme</string>
-    <string name="q_mode">Mode</string>
-    <string name="q_clipboard">Clipboard</string>
-    <string name="q_onehand">One hand</string>
-    <string name="q_height">Height</string>
-    <string name="q_edit">Editing</string>
-    <string name="q_settings">Settings</string>
-    <string name="q_dark">Dark</string>
-    <string name="q_light">Light</string>
-    <string name="q_auto">Auto</string>
-    <string name="q_mode_none">None</string>
-    <string name="q_mode_code">Code</string>
-    <string name="q_mode_game">Game</string>
-    <string name="q_clip_on">History</string>
-    <string name="q_clip_secret">Not in passwords</string>
-    <string name="q_clip_off">History off</string>
-    <string name="q_off">Off</string>
-    <string name="q_right">Right</string>
-    <string name="q_left">Left</string>
-    <string name="q_edit_state">Cursor and selection</string>
-    <string name="q_soon">Coming soon</string>
-    <string name="q_all_settings">All settings</string>
 </resources>

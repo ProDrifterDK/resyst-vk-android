@@ -130,7 +130,7 @@ object KlipyClient {
                 if (gen != generation) GifCopy.Fail.CANCELLED else fail(e)
             }
             ConnectionBook.add(app, ConnectionLog.What.GIF_FILE, ConnectionLog.Why.USER,
-                if (fail == null) "${dest.length() / 1024} KB" else fail.log + if (fail == GifCopy.Fail.HTTP && status > 0) " $status" else "",
+                if (fail == null) ConnectionLog.Outcome.of("kb", dest.length() / 1024) else ConnectionLog.Outcome.of("fail", fail.name.lowercase(), status),
                 media = if (status > 0) 1 else 0)
             main.post {
                 if (gen != generation) { dest.delete(); return@post } // cancelled: the field is gone, nothing to commit
@@ -149,9 +149,9 @@ object KlipyClient {
             var status = 0
             val outcome = try {
                 post(url, body) { status = it }
-                "Enviado · $slug"
+                ConnectionLog.Outcome.of("sent", slug)
             } catch (e: Exception) {
-                fail(e).log + if (status > 0) " ($status)" else ""
+                ConnectionLog.Outcome.of("fail", fail(e).name.lowercase(), status)
             }
             ConnectionBook.add(app, ConnectionLog.What.GIF_SHARE, ConnectionLog.Why.USER, outcome.take(ConnectionLog.OUTCOME_MAX))
         }

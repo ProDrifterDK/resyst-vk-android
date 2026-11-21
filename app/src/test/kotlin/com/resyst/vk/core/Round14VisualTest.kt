@@ -130,7 +130,7 @@ class Round14VisualTest {
             assertTrue("${t.id} textMod/keyMod", ColorMath.contrast(t.textMod, t.keyMod) >= 4.5)
             assertTrue("${t.id} muted/bg", ColorMath.contrast(t.muted, t.bg) >= 4.5)
             assertNotEquals("${t.id} twin", t.dark, Themes.byId(Themes.twin(t.id)).dark)
-            assertTrue(t.label.isNotBlank())
+            assertTrue(t.id, listOf(TestTxt.ES, TestTxt.EN).all { Names.palette(it, t.id) != "palette_" + t.id })
         }
         assertTrue(Themes.MORE.count { it.dark } >= 4 && Themes.MORE.count { !it.dark } >= 4)
     }
@@ -213,7 +213,7 @@ class Round14VisualTest {
         assertFalse(flipped.followSystem)
         assertTrue("the opposite of what was on screen", Themes.byId(flipped.settingsFor(false).theme).dark)
         // the tile says it follows
-        val tile = Quick.tiles(st, FieldPolicy(FieldKind.TEXT, suggestions = true, incognito = false), systemDark = true).first { it.action == QuickAction.DAY_NIGHT }
+        val tile = Quick.tiles(TestTxt.ES, st, FieldPolicy(FieldKind.TEXT, suggestions = true, incognito = false), systemDark = true).first { it.action == QuickAction.DAY_NIGHT }
         assertTrue(tile.state, tile.state.startsWith("Auto"))
         // without a system answer the 0.13.0 behaviour (tests, previews)
         assertEquals(Quick.apply(st.copy(followSystem = false), QuickAction.DAY_NIGHT).temas, Quick.apply(st, QuickAction.DAY_NIGHT).temas)

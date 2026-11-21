@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /**
  * r10 (F-5, V5–V6): the "Libro de conexiones". Every request the app makes is one [Entry] here —
  * when, what, to whom ([What.host]), why (the user's tap or the keyboard opening) and how it
@@ -22,24 +24,76 @@ data class ConnectionLog(
     /** Time of the first request ever logged, or null. */
     val firstAt: Long? = null,
 ) {
-    enum class What(val id: String, val label: String, val host: String) {
-        CHECK("check", "Consulta de versión", "kv.resyst.cl"),
-        DOWNLOAD("download", "Descarga de actualización", "kv.resyst.cl"),
-        GIF_TRENDING("gif_trending", "GIF en tendencia", "KLIPY"),
-        GIF_SEARCH("gif_search", "Búsqueda de GIF", "KLIPY"),
-        GIF_FILE("gif_file", "Descarga del GIF elegido", "KLIPY"),
-        GIF_SHARE("gif_share", "Aviso de GIF enviado", "KLIPY"),
+    enum class What(val id: String, val host: String) {
+        CHECK("check", "kv.resyst.cl"),
+        DOWNLOAD("download", "kv.resyst.cl"),
+        GIF_TRENDING("gif_trending", "KLIPY"),
+        GIF_SEARCH("gif_search", "KLIPY"),
+        GIF_FILE("gif_file", "KLIPY"),
+        GIF_SHARE("gif_share", "KLIPY"),
         ;
+        /** What was asked (`conn_what_<id>`). */
+        fun label(t: Txt): String = t.need("conn_what_$id")
         val gif: Boolean get() = host == "KLIPY"
     }
     /**
      * [STARTUP] is what 0.6–0.7.0 stored for their once-per-process check; it stays so those
      * entries still decode and render (an unknown id is dropped, OC15). New automatic checks are [OPEN].
      */
-    enum class Why(val id: String, val label: String) {
-        USER("user", "tú lo pediste"),
-        STARTUP("startup", "al iniciar el teclado"),
-        OPEN("open", "al abrir el teclado"),
+    enum class Why(val id: String) {
+        USER("user"),
+        STARTUP("startup"),
+        OPEN("open"),
+        ;
+        /** Why it was asked (`conn_why_<id>`). */
+        fun label(t: Txt): String = t.need("conn_why_$id")
+    }
+
+    /**
+     * An outcome is stored as a language-neutral token, `~key|arg|…` ([Outcome.of]), and written in the language of the
+     * phone when it is shown ([Outcome.text]); entries stored by older versions are plain Spanish text and show as is.
+     */
+    object Outcome {
+        const val MARK = '~'
+
+        fun of(key: String, vararg args: Any): String = (listOf(MARK + key) + args.map { it.toString() }).joinToString("|")
+
+        fun text(t: Txt, raw: String): String {
+            if (!raw.startsWith(MARK)) return raw
+            val parts = raw.substring(1).split("|", limit = 6)
+            val key = parts[0]
+            val a = parts.drop(1)
+            return when (key) {
+                "new" -> t.get(R.string.co_new, a.getOrElse(0) { "" })
+                "current" -> t.get(R.string.co_current, a.getOrElse(0) { "" })
+                "incompatible" -> t.get(R.string.co_incompatible, a.getOrElse(0) { "" })
+                "none" -> t.get(R.string.co_none)
+                "unreadable" -> t.get(R.string.co_unreadable)
+                "sent" -> t.get(R.string.co_sent, a.getOrElse(0) { "" }) + (a.getOrNull(1)?.toIntOrNull()?.let { " (" + it + ")" } ?: "")
+                "gifpage" -> page(t, a)
+                "kb" -> t.get(R.string.co_kb, a.getOrElse(0) { "0" }.toIntOrNull() ?: 0)
+                "fail" -> t.need("gif_faillog_" + a.getOrElse(0) { "http" }) + (a.getOrNull(1)?.toIntOrNull()?.takeIf { it > 0 }?.let { " ($it)" } ?: "")
+                else -> (t.named("co_$key", *a.toTypedArray()) ?: t.need(key, *a.toTypedArray())).let { if (key.startsWith("u_err_")) it.removeSuffix(".") else it }
+            }
+        }
+
+        /** `gifpage|page|count|status|fail|query`: the query comes last, so it may hold any character. */
+        private fun page(t: Txt, a: List<String>): String {
+            val pageNo = a.getOrNull(0)?.toIntOrNull() ?: 1
+            val count = a.getOrNull(1)?.toIntOrNull() ?: 0
+            val status = a.getOrNull(2)?.toIntOrNull() ?: 0
+            val fail = a.getOrNull(3)?.takeIf { it.isNotEmpty() }
+            val query = a.getOrNull(4)?.takeIf { it.isNotEmpty() }
+            val what = (if (query != null) "«$query»" else t.get(R.string.co_trending)) +
+                if (pageNo > 1) " · " + t.get(R.string.co_page, pageNo) else ""
+            val res = when {
+                fail == "http" && status > 0 -> t.get(R.string.co_http, status)
+                fail != null -> t.need("gif_faillog_$fail")
+                else -> t.plural(R.plurals.co_gifs, count)
+            }
+            return "$what · $res"
+        }
+
     }
 
     /** [media] = media files fetched for this request (GIF thumbnails of a page, the chosen GIF). [n] = sequence number, 1-based. */

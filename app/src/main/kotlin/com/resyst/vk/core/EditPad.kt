@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 import kotlin.math.abs
 
 /**
@@ -14,19 +16,12 @@ object EditPad {
 
     data class Button(val op: EditOp, val label: String, val col: Int, val row: Int)
 
-    private fun label(op: EditOp): String = when (op) {
+    private fun label(t: Txt, op: EditOp): String = when (op) {
         EditOp.LEFT -> "←"
         EditOp.RIGHT -> "→"
         EditOp.UP -> "↑"
         EditOp.DOWN -> "↓"
-        EditOp.HOME -> "Inicio"
-        EditOp.END -> "Fin"
-        EditOp.SELECT -> "Seleccionar"
-        EditOp.ALL -> "Todo"
-        EditOp.COPY -> "Copiar"
-        EditOp.CUT -> "Cortar"
-        EditOp.PASTE -> "Pegar"
-        EditOp.DELETE_WORD -> "Borrar palabra"
+        else -> t.need("edit_" + op.name.lowercase())
     }
 
     /** Portrait: a d-pad around Seleccionar + a clipboard column. */
@@ -45,8 +40,8 @@ object EditPad {
     /** Three rows while each keeps ≥ [MIN_BUTTON_DP], else two (QE5). */
     fun rowsFor(gridHeightDp: Float): Int = if (gridHeightDp / 3 >= MIN_BUTTON_DP) 3 else 2
 
-    fun grid(rows: Int): List<Button> = (if (rows >= 3) TALL else WIDE).flatMapIndexed { r, row ->
-        row.mapIndexed { c, op -> Button(op, label(op), c, r) }
+    fun grid(t: Txt, rows: Int): List<Button> = (if (rows >= 3) TALL else WIDE).flatMapIndexed { r, row ->
+        row.mapIndexed { c, op -> Button(op, label(t, op), c, r) }
     }
 
     /** Copiar / Cortar never run in a secret field (QE2). */
@@ -56,25 +51,12 @@ object EditPad {
     fun repeats(op: EditOp): Boolean = op == EditOp.LEFT || op == EditOp.RIGHT || op == EditOp.UP || op == EditOp.DOWN || op == EditOp.DELETE_WORD
 
     /** TalkBack: name, selection state, why it is off (QE4, QE5). */
-    fun desc(op: EditOp, selecting: Boolean, secret: Boolean): String {
-        val name = when (op) {
-            EditOp.LEFT -> "Izquierda"
-            EditOp.RIGHT -> "Derecha"
-            EditOp.UP -> "Arriba"
-            EditOp.DOWN -> "Abajo"
-            EditOp.HOME -> "Inicio de línea"
-            EditOp.END -> "Fin de línea"
-            EditOp.SELECT -> "Seleccionar"
-            EditOp.ALL -> "Seleccionar todo"
-            EditOp.COPY -> "Copiar"
-            EditOp.CUT -> "Cortar"
-            EditOp.PASTE -> "Pegar"
-            EditOp.DELETE_WORD -> "Borrar palabra"
-        }
+    fun desc(t: Txt, op: EditOp, selecting: Boolean, secret: Boolean): String {
+        val name = t.need("editd_" + op.name.lowercase())
         return when {
-            !enabled(op, secret) -> "$name, no disponible en contraseñas"
-            op == EditOp.SELECT -> "$name, " + if (selecting) "activado" else "desactivado"
-            selecting && op in MOVES -> "$name, extiende la selección"
+            !enabled(op, secret) -> t.get(R.string.edit_desc_secret, name)
+            op == EditOp.SELECT -> t.get(if (selecting) R.string.edit_desc_on else R.string.edit_desc_off, name)
+            selecting && op in MOVES -> t.get(R.string.edit_desc_extends, name)
             else -> name
         }
     }

@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /**
  * r12 (UR1–UR3, docs/failure-modes.md): who asked for the update answer the settings card shows,
  * and how that survives a process restart. Pure; JVM-tested in Round12UpdateOriginTest.
@@ -27,7 +29,7 @@ object UpdateOrigin {
     }
 
     /** The settings card's first words (UR1): only a keyboard-open answer says so. */
-    fun checkedLabel(o: Origin): String = if (o == Origin.OPEN) "Comprobado al abrir el teclado" else "Comprobado"
+    fun checkedLabel(t: Txt, o: Origin): String = t.get(if (o == Origin.OPEN) R.string.un_checked_open else R.string.un_checked)
 
     /** Of [stored] (the updater prefs' keys), the ones to remove: the orphans only, nothing else (UR3). */
     fun cleanup(stored: Set<String>): List<String> = ORPHANS.filter { it in stored }

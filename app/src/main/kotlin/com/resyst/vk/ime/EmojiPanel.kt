@@ -1,5 +1,7 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.R
+import com.resyst.vk.core.Txt
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -40,7 +42,7 @@ import kotlin.math.min
  * is neither secret nor incognito), a last "GIF" tab hands its grid area to [GifPanel] — a
  * dedicated tab, never mixed with the emoji (KLIPY rule 5).
  */
-class EmojiPanel(private val dp: Float) {
+class EmojiPanel(private val dp: Float, private val tx: Txt) {
     enum class Act { TAB, EMOJI, ABC, SPACE, DELETE, TONE, CLOSE_TONES, GIF }
     /** [cell] = the catalog cell behind an EMOJI / TONE hit (null in recents for unknown emoji); [gif] = a GIF-tab target. */
     class Hit(val act: Act, val text: String, val index: Int, val rect: RectF, val desc: String, val cell: EmojiCatalog.Cell? = null,
@@ -248,10 +250,10 @@ class EmojiPanel(private val dp: Float) {
         val tw = bounds.width() / n
         for (i in 0 until n) {
             val isGif = i > catalog.groups.size
-            val label = if (i == 0) "Recientes" else if (isGif) "GIF (KLIPY)" else catalog.groups[i - 1].label
+            val label = if (i == 0) tx.get(R.string.emoji_recents) else if (isGif) tx.get(R.string.emoji_tab_gif_desc) else catalog.groups[i - 1].label(tx)
             hits += Hit(Act.TAB, if (i == 0) "" else if (isGif) "GIF" else catalog.groups[i - 1].icon, i,
                 RectF(bounds.left + i * tw, bounds.top, bounds.left + (i + 1) * tw, bounds.top + tabH),
-                label + if (i == tab) ", seleccionada" else "")
+                if (i == tab) tx.get(R.string.emoji_tab_selected, label) else label)
         }
         val g = gif
         if (g != null && onGif) {
@@ -283,9 +285,9 @@ class EmojiPanel(private val dp: Float) {
         val by = gridBottom + 4 * dp
         val bb = bounds.bottom - 4 * dp
         val side = 76 * dp
-        hits += Hit(Act.ABC, "ABC", 0, RectF(bounds.left + pad, by, bounds.left + pad + side, bb), "Volver al teclado")
-        hits += Hit(Act.SPACE, "", 0, RectF(bounds.left + 2 * pad + side, by, bounds.right - 2 * pad - side, bb), "Espacio")
-        hits += Hit(Act.DELETE, "⌫", 0, RectF(bounds.right - pad - side, by, bounds.right - pad, bb), "Borrar")
+        hits += Hit(Act.ABC, "ABC", 0, RectF(bounds.left + pad, by, bounds.left + pad + side, bb), tx.get(R.string.quick_back_desc))
+        hits += Hit(Act.SPACE, "", 0, RectF(bounds.left + 2 * pad + side, by, bounds.right - 2 * pad - side, bb), tx.get(R.string.key_space))
+        hits += Hit(Act.DELETE, "⌫", 0, RectF(bounds.right - pad - side, by, bounds.right - pad, bb), tx.get(R.string.key_backspace))
     }
 
     /** The tones popup: base + its variants, rows of up to [cols] cells, above the pressed cell when it fits. */
@@ -306,10 +308,10 @@ class EmojiPanel(private val dp: Float) {
             val l = left + 4 * dp + (i % perRow) * w
             val t = top + 4 * dp + (i / perRow) * h
             val sel = e == tones.shown(c.base)
-            hits += Hit(Act.TONE, e, i, RectF(l, t, l + w, t + h), if (sel) "$e, elegido" else e, c)
+            hits += Hit(Act.TONE, e, i, RectF(l, t, l + w, t + h), if (sel) tx.get(R.string.emoji_tone_picked, e) else e, c)
         }
         // anything else closes the tones without picking (TalkBack: one last node)
-        hits += Hit(Act.CLOSE_TONES, "", 0, RectF(bounds), "Cerrar tonos de piel")
+        hits += Hit(Act.CLOSE_TONES, "", 0, RectF(bounds), tx.get(R.string.emoji_tones_close))
     }
 
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
@@ -401,7 +403,7 @@ class EmojiPanel(private val dp: Float) {
             text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
             text.textSize = 13 * dp
             text.typeface = typeface(500)
-            drawCentered(c, if (tab == 0) "Aquí aparecen los emojis que uses" else "Sin emojis disponibles", bounds.centerX(), (gridTop + gridBottom) / 2)
+            drawCentered(c, tx.get(if (tab == 0) R.string.emoji_empty_recents else R.string.emoji_empty), bounds.centerX(), (gridTop + gridBottom) / 2)
         }
         val ms = maxScroll()
         if (ms > 0f) {

@@ -89,15 +89,15 @@ class SettingsIATest {
 
     @Test fun pagesAreWellFormed() { // I8
         assertEquals(pages.size, pages.map { it.id }.toSet().size)
-        assertEquals(pages.size, pages.map { it.title }.toSet().size)
+        for (t in listOf(TestTxt.ES, TestTxt.EN)) assertEquals(pages.size, pages.map { it.title(t) }.toSet().size)
         for (p in pages) {
             assertTrue(p.id, p.controls.isNotEmpty())
-            assertTrue("${p.id} summary", p.summary.isNotBlank())
+            assertTrue("${p.id} summary", listOf(TestTxt.ES, TestTxt.EN).all { p.summary(it).isNotBlank() })
         }
         assertEquals(pages.first(), SettingsIA.page(pages.first().id))
         assertEquals(null, SettingsIA.page("nope"))
         assertEquals(null, SettingsIA.page(null))
-        assertEquals(Ctl.values().size, Ctl.values().map { it.label }.toSet().size)
+        for (t in listOf(TestTxt.ES, TestTxt.EN)) assertEquals(Ctl.values().size, Ctl.values().map { it.label(t) }.toSet().size)
     }
 
     @Test fun destructiveActionsStayOffHome() { // I9

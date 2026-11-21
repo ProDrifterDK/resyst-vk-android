@@ -195,7 +195,7 @@ class Round10PrivacyTest {
         // a mode turned learning off, not the user's setting
         assertEquals(NoMemory.MODE, MemoryNotice.reason(plain, Mode.CODE.apply(s), s))
         assertEquals(NoMemory.MODE, MemoryNotice.reason(plain, Mode.GAME.apply(s), s))
-        for (r in NoMemory.values()) assertTrue(r.name, r.label.isNotBlank() && r.detail.isNotBlank())
+        for (r in NoMemory.values()) assertTrue(r.name, listOf(TestTxt.ES, TestTxt.EN).all { r.label(it).isNotBlank() && r.detail(it).isNotBlank() })
     }
 
     @Test fun reasonMatchesWhatTheGateDoes() { // V8: the dot is exactly "personal data closed"

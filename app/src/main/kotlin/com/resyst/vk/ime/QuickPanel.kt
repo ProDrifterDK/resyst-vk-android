@@ -1,5 +1,7 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.R
+import com.resyst.vk.core.Txt
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -26,23 +28,21 @@ import kotlin.math.min
  * Settings › Apariencia — where the look is shaped, one tap from the keyboard. The row yields to the tiles when the
  * keyboard is too short to keep them 48 dp.
  */
-class QuickPanel(private val dp: Float) {
+class QuickPanel(private val dp: Float, private val tx: Txt) {
     enum class Act { CLOSE, UPDATE, TILE, TEMA, PERSONALIZE }
     class Hit(val act: Act, val action: QuickAction?, val rect: RectF, val desc: String, val enabled: Boolean = true, val tema: String? = null)
 
     /** A tema as the row shows it: [palette] as it would be drawn now, [desc] = its TalkBack name. */
-    class TemaChip(val id: String, val name: String, val icon: String, val palette: Palette, val active: Boolean, val desc: String = "Tema $name" + if (active) ", en uso" else "")
+    class TemaChip(val id: String, val name: String, val icon: String, val palette: Palette, val active: Boolean, val desc: String)
 
     val bounds = RectF()
     val hits = ArrayList<Hit>()
     private var tiles: List<Quick.Tile> = emptyList()
     private var update: String? = null
     private var temas: List<TemaChip> = emptyList()
-    private var personalize = "Personalizar"
-    private var title = "✦ AJUSTES RÁPIDOS"
-    private var back = "Teclado"
-    /** r14 (PS6): the drawn label and state of a tile in the phone's language (the TalkBack name stays the tile's). */
-    var localize: (String, String) -> Pair<String, String> = { l, st -> l to st }
+    private var personalize = tx.get(R.string.quick_personalize)
+    private val title get() = tx.get(R.string.quick_title)
+    private val back get() = tx.get(R.string.quick_back)
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -66,8 +66,6 @@ class QuickPanel(private val dp: Float) {
         relayout()
     }
 
-    /** r14 (PS6): the panel's own words from the string resources (Spanish / English). */
-    fun labels(title: String, back: String) { this.title = title; this.back = back }
 
     fun setBounds(r: RectF) { bounds.set(r); relayout() }
 
@@ -77,7 +75,7 @@ class QuickPanel(private val dp: Float) {
         hits.clear()
         if (bounds.width() <= 0f) return
         val pad = 6 * dp
-        hits += Hit(Act.CLOSE, null, RectF(bounds.left, bounds.top, bounds.left + 112 * dp, bounds.top + headH), "Volver al teclado")
+        hits += Hit(Act.CLOSE, null, RectF(bounds.left, bounds.top, bounds.left + 112 * dp, bounds.top + headH), tx.get(R.string.quick_back_desc))
         var top = bounds.top + headH
         update?.let { u ->
             hits += Hit(Act.UPDATE, null, RectF(bounds.left + pad, top, bounds.right - pad, top + updH - 4 * dp), u)
@@ -99,7 +97,7 @@ class QuickPanel(private val dp: Float) {
             val c = i % cols
             val l = bounds.left + pad + c * cw
             val tp = top + r * ch
-            hits += Hit(Act.TILE, t.action, RectF(l + 3 * dp, tp + 3 * dp, l + cw - 3 * dp, tp + ch - 3 * dp), t.desc, t.enabled)
+            hits += Hit(Act.TILE, t.action, RectF(l + 3 * dp, tp + 3 * dp, l + cw - 3 * dp, tp + ch - 3 * dp), t.desc(tx), t.enabled)
         }
     }
 
@@ -223,7 +221,8 @@ class QuickPanel(private val dp: Float) {
             text.color = ink
             text.textSize = min(13 * dp, h.rect.width() * 0.16f)
             text.typeface = typeface(600)
-            val (shownLabel, shownState) = localize(tile.label, tile.state)
+            val shownLabel = tile.label
+            val shownState = tile.state
             baseline(c, ellipsize(shownLabel, h.rect.width() - 8 * dp), h.rect.centerX(), h.rect.top + h.rect.height() * 0.68f)
             text.color = if (!h.enabled) Drawn.disabled(p) else if (down) Drawn.ink(p, Surface.PRESSED, Ink.MUTED) else Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
             text.textSize = min(11 * dp, h.rect.width() * 0.14f)
@@ -270,12 +269,12 @@ class QuickPanel(private val dp: Float) {
     /** Tiles whose state is "on" get the accent (a mode is on, one-hand is on). */
     private fun isActive(t: Quick.Tile, mode: Mode): Boolean = when (t.action) {
         QuickAction.MODE -> mode != Mode.NONE
-        QuickAction.ONE_HAND -> t.state != "Apagado"
+        QuickAction.ONE_HAND -> t.mark != Quick.MARK_OFF
         else -> false
     }
 
     private fun iconFor(t: Quick.Tile): com.resyst.vk.ime.Icon = when (t.action) {
-        QuickAction.DAY_NIGHT -> if (t.state.endsWith("Oscuro")) Icon.SUN else Icon.MOON
+        QuickAction.DAY_NIGHT -> if (t.mark == Quick.MARK_DARK) Icon.SUN else Icon.MOON
         QuickAction.TEMA -> Icon.PALETTE
         QuickAction.MODE -> Icon.MODE
         QuickAction.CLIPBOARD -> Icon.CLIPBOARD

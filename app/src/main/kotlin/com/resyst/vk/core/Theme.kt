@@ -61,7 +61,6 @@ object ColorMath {
 
 data class Theme(
     val id: String,
-    val label: String,
     val dark: Boolean,
     val bg: Int, val bg2: Int,
     val key: Int, val keyTop: Int, val keyHi: Int, val keyMod: Int, val keyNum: Int,
@@ -76,40 +75,40 @@ object Themes {
     private fun h(s: String) = ColorMath.parseHex(s)!!
 
     private fun t(
-        id: String, label: String, dark: Boolean,
+        id: String, dark: Boolean,
         bg: String, bg2: String, key: String, keyTop: String, keyHi: String, keyMod: String, keyNum: String,
         edge: String, edgeHi: String, accent: String, text: String, textMod: String, muted: String,
         ok: String, bad: String,
-    ) = Theme(id, label, dark, h(bg), h(bg2), h(key), h(keyTop), h(keyHi), h(keyMod), h(keyNum),
+    ) = Theme(id, dark, h(bg), h(bg2), h(key), h(keyTop), h(keyHi), h(keyMod), h(keyNum),
         h(edge), h(edgeHi), h(accent), h(text), h(textMod), h(muted), h(ok), h(bad))
 
     /** The eight classic palettes (r1-r8), unchanged: a 0.13.0 tema keeps its colours byte for byte. */
     val ALL: List<Theme> = listOf(
-        t("lab", "Midnight Laboratory", true,
+        t("lab", true,
             "#08080f", "#0b0b14", "#15151f", "#1a1a26", "#21212f", "#0f0f18", "#171724",
             "#2c2c3c", "#46465e", "#c9a84c", "#e9e4d6", "#b8b2a2", "#8f8a7a", "#5cbf6a", "#d0605a"),
-        t("slate", "Pizarra", true,
+        t("slate", true,
             "#0d1015", "#12161d", "#1a2029", "#202733", "#28303d", "#151a22", "#1d242e",
             "#2e3745", "#4a5669", "#7fb0ff", "#e3e8f0", "#b3bccb", "#8a94a6", "#5cc58a", "#e0706a"),
-        t("arcade", "Noche de juego", true,
+        t("arcade", true,
             "#07060e", "#0c0a18", "#14112a", "#1a1636", "#231d46", "#0f0c20", "#17132f",
             "#2c2650", "#4b4185", "#3ee0cf", "#ece8ff", "#bdb6e0", "#8f88b5", "#4fd88a", "#ff5c7a"),
-        t("paper", "Papiro", false,
+        t("paper", false,
             "#efe9dc", "#e7e0d0", "#faf6ee", "#fffdf8", "#f1ebdf", "#e3dcc9", "#f3eee1",
             "#c9c0ab", "#a89e85", "#8a6d1f", "#3a352a", "#5d5748", "#6e6754", "#3e7d4c", "#a8433d"),
-        t("hc", "Alto contraste", true,
+        t("hc", true,
             "#000000", "#0a0a0a", "#000000", "#000000", "#262626", "#000000", "#0d0d0d",
             "#bdbdbd", "#ffffff", "#ffd60a", "#ffffff", "#ffffff", "#d6d6d6", "#3ee07a", "#ff6b6b"),
         // r8: warm daylight paper — sepia keys, umber ink, terracotta accent; easy on the eyes outdoors
-        t("sepia", "Sepia", false,
+        t("sepia", false,
             "#e8dcc4", "#ded0b4", "#f6eedc", "#fbf5e8", "#ece0c8", "#dccfb3", "#efe5d0",
             "#c2b08c", "#a08c64", "#9a4a22", "#3b2a18", "#5a4630", "#6e5a40", "#4a7a3a", "#a83a2a"),
         // r8: AMOLED — true #000 everywhere a pixel can switch off, keys barely lifted, mint accent
-        t("amoled", "AMOLED negro", true,
+        t("amoled", true,
             "#000000", "#000000", "#0b0b0b", "#101010", "#1c1c1c", "#000000", "#070707",
             "#1a1a1a", "#3a3a3a", "#5ee0a8", "#ededed", "#bdbdbd", "#8c8c8c", "#5ee0a8", "#ff6b6b"),
         // r8: e-ink — paper white, pure black ink and outlines, no gradients' worth of grey
-        t("eink", "Tinta electrónica", false,
+        t("eink", false,
             "#ffffff", "#f2f2f2", "#ffffff", "#ffffff", "#e6e6e6", "#f0f0f0", "#f7f7f7",
             "#000000", "#000000", "#000000", "#000000", "#000000", "#3a3a3a", "#1d6b2f", "#b00020"),
     )
@@ -120,34 +119,34 @@ object Themes {
      * runtime ([dynamic]); these entries are their stand-ins when there is none (older Android, previews, tests).
      */
     val MORE: List<Theme> = listOf(
-        t("forest", "Bosque", true,
+        t("forest", true,
             "#0a110d", "#0e1712", "#16221b", "#1b2a21", "#233529", "#101a14", "#18261e",
             "#26382d", "#3d5747", "#7fd18b", "#e3efe6", "#b4c7b9", "#86a08f", "#6fd38a", "#e37b6e"),
-        t("sage", "Salvia", false,
+        t("sage", false,
             "#e6ece4", "#dde5da", "#f6f9f4", "#fcfefb", "#e9efe6", "#d9e2d5", "#eef3ec",
             "#b9c7b6", "#94a891", "#2f6b3e", "#1f2a22", "#3f5244", "#56695a", "#2f7a45", "#a8433d"),
-        t("ocean", "Océano", true,
+        t("ocean", true,
             "#060b16", "#0a1120", "#111b30", "#16223a", "#1e2c48", "#0c1527", "#142038",
             "#22324f", "#3a5078", "#5cc8ff", "#e4ecfa", "#b2c0da", "#8696b4", "#5cd39a", "#ff7a7a"),
-        t("mist", "Niebla", false,
+        t("mist", false,
             "#e4e9f0", "#dae1ea", "#f7f9fc", "#ffffff", "#e8edf4", "#d6dee8", "#eef2f7",
             "#b8c3d2", "#93a2b8", "#1f5fae", "#1b2433", "#3c4a60", "#55637a", "#2a7a52", "#b0383a"),
-        t("plum", "Ciruela", true,
+        t("plum", true,
             "#0e0812", "#140c1a", "#1f1428", "#261930", "#30203d", "#170f1f", "#22172c",
             "#352543", "#553c6b", "#e08ad8", "#f0e6f4", "#c8b6d0", "#9c88a8", "#6fd38a", "#ff7a8a"),
-        t("lavender", "Lavanda", false,
+        t("lavender", false,
             "#ebe6f2", "#e2dcec", "#faf8fd", "#ffffff", "#eee9f5", "#ddd5e9", "#f2eef8",
             "#c3b8d4", "#9f91b6", "#6a3d9a", "#251d30", "#463a57", "#5e526f", "#2f7a45", "#a8433d"),
-        t("graphite", "Grafito", true,
+        t("graphite", true,
             "#121314", "#17181a", "#2a2b2e", "#303135", "#3a3b3f", "#202124", "#2d2e31",
             "#1b1c1e", "#4a4b50", "#8ab4f8", "#e8eaed", "#bdc1c6", "#9aa0a6", "#81c995", "#f28b82"),
-        t("cloud", "Nube", false,
+        t("cloud", false,
             "#e8eaed", "#dfe1e5", "#ffffff", "#ffffff", "#f1f3f4", "#d2d5da", "#f6f7f8",
             "#c4c7cc", "#9aa0a6", "#1a5fd0", "#202124", "#3c4043", "#5f6368", "#188038", "#c5221f"),
-        t("you", "Tu fondo (oscuro)", true,
+        t("you", true,
             "#111416", "#161a1d", "#22282c", "#283035", "#313a40", "#1a1f23", "#252c31",
             "#1c2226", "#46525a", "#7fd0d6", "#e3eaee", "#b9c5cc", "#93a1a9", "#7fd18b", "#f28b82"),
-        t("youlight", "Tu fondo (claro)", false,
+        t("youlight", false,
             "#e9eef1", "#e0e7eb", "#fbfdfe", "#ffffff", "#eef3f6", "#d5dfe5", "#f2f6f8",
             "#c1ccd3", "#9aa8b1", "#00686e", "#161d21", "#37464e", "#4e5e67", "#2f7a45", "#b3261e"),
     )
@@ -176,10 +175,10 @@ object Themes {
     fun twin(id: String): String = TWIN[byId(id).id]?.takeIf { t -> byId(t).dark != byId(id).dark }
         ?: if (byId(id).dark) "paper" else "lab"
 
-    /** Curated accents (contrast-corrected against the active theme's key color). */
+    /** Curated accents (contrast-corrected against the active theme's key color): colour and id; the name is `accent_<id>` (Names.accent). */
     val ACCENTS: List<Pair<Int, String>> = listOf(
-        "#c9a84c" to "Ámbar Resyst", "#e2735a" to "Coral", "#e06c9f" to "Rosa", "#9b7bea" to "Violeta",
-        "#5b9cf0" to "Azul", "#3cc8d8" to "Cian", "#4fc58f" to "Menta", "#a8c94c" to "Lima", "#e8e2d0" to "Marfil",
+        "#c9a84c" to "amber", "#e2735a" to "coral", "#e06c9f" to "pink", "#9b7bea" to "violet",
+        "#5b9cf0" to "blue", "#3cc8d8" to "cyan", "#4fc58f" to "mint", "#a8c94c" to "lime", "#e8e2d0" to "ivory",
     ).map { h(it.first) to it.second }
 
     /**

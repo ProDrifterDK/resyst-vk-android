@@ -6,10 +6,14 @@ package com.resyst.vk.core
  * list of re-rank rules applied when the lexicon loads — curated in the repo, never learned from
  * users. [ES_CL] = Latin American rules + Chilean ones on top; [ES_ES] = the r8 list untouched.
  */
-enum class Region(val label: String, val rules: List<String>) {
-    ES_CL("Chile", listOf("es-419", "es-CL")),
-    ES_419("Latinoamérica", listOf("es-419")),
-    ES_ES("España", emptyList()),
+enum class Region(val rules: List<String>) {
+    ES_CL(listOf("es-419", "es-CL")),
+    ES_419(listOf("es-419")),
+    ES_ES(emptyList()),
+    ;
+
+    /** The region's name (`region_<name>`). */
+    fun label(t: Txt): String = t.need("region_" + name.lowercase())
 }
 
 object Regional {

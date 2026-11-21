@@ -352,8 +352,8 @@ class Round11bGifTest {
         assertEquals(20, back.recent()[1].media)
         assertEquals(6, back.total)
         assertEquals(1000L, back.firstAt)
-        assertEquals("al abrir el teclado", back.recent()[0].why.label)
-        assertEquals("al iniciar el teclado", back.recent().last().why.label)
+        assertEquals("al abrir el teclado", back.recent()[0].why.label(TestTxt.ES))
+        assertEquals("al iniciar el teclado", back.recent().last().why.label(TestTxt.ES))
         val upd = File("src/main/kotlin/com/resyst/vk/settings/Updater.kt").readText()
         val logFn = upd.substringAfter("private fun logConnection(").substringBefore("\n    }\n")
         assertTrue("the updater logs OPEN through the shared book", logFn.contains("ConnectionLog.Why.OPEN") && logFn.contains("ConnectionBook.add("))
@@ -373,38 +373,65 @@ class Round11bGifTest {
 
     @Test fun errorsMapToOneCalmLineAndAreLogged() { // GE1
         assertEquals(GifCopy.Fail.RATE_LIMIT, GifCopy.Fail.ofStatus(429))
-        assertEquals("Demasiadas búsquedas, intenta en un rato", GifCopy.Fail.RATE_LIMIT.line)
+        assertEquals("Demasiadas búsquedas, intenta en un rato", GifCopy.Fail.RATE_LIMIT.line(TestTxt.ES))
         assertEquals(GifCopy.Fail.REDIRECT, GifCopy.Fail.ofStatus(302))
         assertEquals(GifCopy.Fail.HTTP, GifCopy.Fail.ofStatus(500))
         assertNull(GifCopy.Fail.ofStatus(200))
-        assertEquals("Sin conexión", GifCopy.Fail.OFFLINE.line)
-        assertEquals("«gato» · Límite de KLIPY (HTTP 429)", GifCopy.pageOutcome("gato", 1, 0, GifCopy.Fail.RATE_LIMIT))
-        assertEquals("tendencias · pág. 2 · 24 GIF", GifCopy.pageOutcome(null, 2, 24, null))
-        assertEquals("«x» · Error HTTP 503", GifCopy.pageOutcome("x", 1, 0, GifCopy.Fail.HTTP, 503))
+        assertEquals("Sin conexión", GifCopy.Fail.OFFLINE.line(TestTxt.ES))
+        // the book stores a language-neutral token and writes it in the phone's language when shown (TR1)
+        fun shown(t: Txt, raw: String) = ConnectionLog.Outcome.text(t, raw)
+        val limited = GifCopy.pageOutcome("gato", 1, 0, GifCopy.Fail.RATE_LIMIT)
+        assertEquals("«gato» · Límite de KLIPY (HTTP 429)", shown(TestTxt.ES, limited))
+        assertEquals("«gato» · KLIPY limit (HTTP 429)", shown(TestTxt.EN, limited))
+        val trending = GifCopy.pageOutcome(null, 2, 24, null)
+        assertEquals("tendencias · pág. 2 · 24 GIF", shown(TestTxt.ES, trending))
+        assertEquals("trending · page 2 · 24 GIFs", shown(TestTxt.EN, trending))
+        val http = GifCopy.pageOutcome("x", 1, 0, GifCopy.Fail.HTTP, 503)
+        assertEquals("«x» · Error HTTP 503", shown(TestTxt.ES, http))
+        assertEquals("«x» · HTTP error 503", shown(TestTxt.EN, http))
+        assertEquals("«a|b» · 1 GIF", shown(TestTxt.ES, GifCopy.pageOutcome("a|b", 1, 1, null))) // the query may hold any character
+        // an entry stored by 0.14.0 is plain Spanish text and shows as it was written
+        assertEquals("Ya al día (0.14.0)", shown(TestTxt.EN, "Ya al día (0.14.0)"))
+        assertEquals("Up to date (0.14.0)", shown(TestTxt.EN, ConnectionLog.Outcome.of("current", "0.14.0")))
         assertTrue(GifCopy.pageOutcome("q".repeat(50), 9, 24, null).length <= 80 + 20) // stored outcome is capped by the log
     }
 
+    private fun gifWords(t: Txt): List<String> = listOf(
+        GifCopy.title(t), GifCopy.setting(t), GifCopy.placeholder(t), GifCopy.attribution(t), GifCopy.offLine1(t), GifCopy.offLine2(t),
+        GifCopy.offButton(t), GifCopy.accept(t), GifCopy.cancel(t), GifCopy.loading(t), GifCopy.empty(t), GifCopy.notAccepted(t), GifCopy.tooBig(t),
+    ) + GifCopy.disclosure(t) + GifCopy.Fail.values().flatMap { listOf(it.line(t), it.log(t)) }
+
     @Test fun noCopyClaimsAnOnlyConnectionOrConnectingToNobody() { // r11b-copy: two clients exist, each line talks about its own
-        val updates = listOf(UpdateNotice.promise(true), UpdateNotice.promise(false), UpdateNotice.autoSubtitle()) +
-            (listOf("1.2.3", "10.20.30").flatMap { v -> UpdateNotice.labels(v).flatMap { listOf(it.title, it.action) } })
-        val gif = listOf(
-            GifCopy.TITLE, GifCopy.SETTING, GifCopy.PLACEHOLDER, GifCopy.ATTRIBUTION, GifCopy.OFF_LINE1, GifCopy.OFF_LINE2,
-            GifCopy.OFF_BUTTON, GifCopy.ACCEPT, GifCopy.CANCEL, GifCopy.LOADING, GifCopy.EMPTY, GifCopy.NOT_ACCEPTED, GifCopy.TOO_BIG,
-        ) + GifCopy.DISCLOSURE + GifCopy.Fail.values().flatMap { listOf(it.line, it.log) }
+        val es = TestTxt.ES
+        val updates = listOf(UpdateNotice.promise(es, true), UpdateNotice.promise(es, false), UpdateNotice.autoSubtitle(es)) +
+            (listOf("1.2.3", "10.20.30").flatMap { v -> UpdateNotice.labels(es, v).flatMap { listOf(it.title, it.action) } })
         val bad = Regex("""\bún(ica|ico)s?\b|\bunic[ao]s?\b|\bunicamente\b|únicamente|\bnadie\b|\bninguna otra\b|no se conecta a internet|nunca se conecta""", RegexOption.IGNORE_CASE)
-        for (s in updates + gif) assertFalse("claims an only connection or no connection at all: $s", bad.containsMatchIn(s))
+        for (s in updates + gifWords(es)) assertFalse("claims an only connection or no connection at all: $s", bad.containsMatchIn(s))
         // the OFF line names what it is about (KLIPY), never the whole keyboard's connections
-        assertTrue(GifCopy.OFF_LINE2, GifCopy.OFF_LINE2.contains("no se conecta a KLIPY"))
+        assertTrue(GifCopy.offLine2(es), GifCopy.offLine2(es).contains("no se conecta a KLIPY"))
         // the updates line names its host and says it is about updates, GIF on or off
-        assertTrue(UpdateNotice.promise(true).contains("kv.resyst.cl"))
-        assertTrue(UpdateNotice.promise(false).contains("actualizaciones"))
+        assertTrue(UpdateNotice.promise(es, true).contains("kv.resyst.cl"))
+        assertTrue(UpdateNotice.promise(es, false).contains("actualizaciones"))
+    }
+
+    @Test fun theEnglishCopyMakesTheSameClaims() { // TR1: the same promises, in English
+        val en = TestTxt.EN
+        val bad = Regex("""\bonly (connection|one)\b|\bnever connects\b|\bno connection at all\b|doesn't connect to the internet""", RegexOption.IGNORE_CASE)
+        for (s in gifWords(en) + listOf(UpdateNotice.promise(en, true), UpdateNotice.promise(en, false), UpdateNotice.autoSubtitle(en)))
+            assertFalse("claims an only connection: $s", bad.containsMatchIn(s))
+        assertTrue(GifCopy.offLine2(en), GifCopy.offLine2(en).contains("doesn't connect to KLIPY"))
+        assertTrue(UpdateNotice.promise(en, true).contains("kv.resyst.cl"))
+        assertTrue(UpdateNotice.promise(en, false).contains("updates"))
+        val d = GifCopy.disclosure(en).joinToString(" ")
+        for (must in listOf("GIF search", "anonymous ID", "country", "filter", "never sent", "KLIPY", "another company", "Connection log", "Turn it off", "ID is deleted"))
+            assertTrue("English disclosure must say: $must", d.contains(must))
     }
 
     @Test fun disclosureSaysWhatWhoNeverWhereAndHowToStop() { // GO2 (the words are the contract)
-        val d = GifCopy.DISCLOSURE.joinToString(" ")
+        val d = GifCopy.disclosure(TestTxt.ES).joinToString(" ")
         for (must in listOf("buscador de GIF", "ID anónimo", "país", "filtro", "nunca se envía", "KLIPY", "otra empresa", "Libro de conexiones", "Apágalo", "se borra el ID"))
             assertTrue("disclosure must say: $must", d.contains(must))
-        assertEquals("Buscar en KLIPY", GifCopy.PLACEHOLDER) // GT1: KLIPY's required placeholder
+        assertEquals("Buscar en KLIPY", GifCopy.placeholder(TestTxt.ES)) // GT1: KLIPY's required placeholder
     }
 
     // ── V7 → r11b: exactly two network clients, both logged, both allowlisted ──

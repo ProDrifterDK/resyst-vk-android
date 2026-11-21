@@ -68,7 +68,8 @@ object Updater {
         data class Downloading(val release: Release) : State()
         data class Verifying(val release: Release) : State()
         data class Ready(val release: Release, val file: File) : State()
-        data class Failed(val message: String) : State()
+        /** [key] is a string resource name (`u_err_*`), written in the phone's language when it is shown. */
+        data class Failed(val key: String, val args: List<Any> = emptyList()) : State()
     }
 
     var state: State = State.Idle
@@ -247,7 +248,7 @@ object Updater {
                     Log.i(TAG, "update open-check: " + (kept?.let { it::class.simpleName } ?: "silent (${error?.javaClass?.simpleName ?: "bad manifest"})"))
                     kept?.let { State.Checked(it) }
                 } else {
-                    decision?.let { State.Checked(it) } ?: State.Failed(networkMessage(error ?: IOException()))
+                    decision?.let { State.Checked(it) } ?: networkError(error ?: IOException()).let { (k, a) -> State.Failed(k, a) }
                 }
                 // the user may have started a download meanwhile: never clobber it (OC7)
                 if (next != null && (state is State.Idle || state is State.Checked || state is State.Failed || state is State.Checking)) {
@@ -274,12 +275,12 @@ object Updater {
     }
 
     private fun checkOutcome(d: UpdateDecision?, e: Exception?): String = when (d) {
-        null -> networkMessage(e ?: IOException()).removeSuffix(".")
-        is UpdateDecision.Available -> "Hay versión nueva: ${d.release.version}"
-        is UpdateDecision.UpToDate -> "Ya al día (${d.latest})"
-        is UpdateDecision.Incompatible -> "Versión ${d.release.version}, no compatible"
-        UpdateDecision.NotPublished -> "Sin versión publicada"
-        is UpdateDecision.Error -> "Respuesta ilegible"
+        null -> networkError(e ?: IOException()).let { (k, a) -> ConnectionLog.Outcome.of(k, *a.toTypedArray()) }
+        is UpdateDecision.Available -> ConnectionLog.Outcome.of("new", d.release.version)
+        is UpdateDecision.UpToDate -> ConnectionLog.Outcome.of("current", d.latest)
+        is UpdateDecision.Incompatible -> ConnectionLog.Outcome.of("incompatible", d.release.version)
+        UpdateDecision.NotPublished -> ConnectionLog.Outcome.of("none")
+        is UpdateDecision.Error -> ConnectionLog.Outcome.of("unreadable")
     }
 
     // ── r9: the keyboard's update chip ──────────────────────────────────
@@ -330,12 +331,13 @@ object Updater {
 
     private class HttpStatus(val code: Int) : IOException("HTTP $code")
 
-    private fun networkMessage(e: Exception): String = when (e) {
-        is UnknownHostException -> "Sin conexión a internet."
-        is SocketTimeoutException -> "El servidor no respondió a tiempo."
-        is HttpStatus -> "El servidor respondió con un error (HTTP ${e.code})."
-        is javax.net.ssl.SSLException -> "No se pudo establecer una conexión segura."
-        else -> "No se pudo conectar."
+    /** The resource name (`u_err_*`) and arguments that say why a request failed. */
+    private fun networkError(e: Exception): Pair<String, List<Any>> = when (e) {
+        is UnknownHostException -> "u_err_offline" to emptyList()
+        is SocketTimeoutException -> "u_err_timeout" to emptyList()
+        is HttpStatus -> "u_err_http" to listOf<Any>(e.code)
+        is javax.net.ssl.SSLException -> "u_err_tls" to emptyList()
+        else -> "u_err_connect" to emptyList()
     }
 
     // ── download ────────────────────────────────────────────────────────
@@ -347,8 +349,8 @@ object Updater {
         val dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         File(dir, DL_NAME).delete() // DownloadManager would otherwise write "-1" next to a stale file
         val req = DownloadManager.Request(Uri.parse(release.url))
-            .setTitle("Resyst VK ${release.version}")
-            .setDescription("Actualización")
+            .setTitle(app.getString(com.resyst.vk.R.string.u_notif_title, release.version))
+            .setDescription(app.getString(com.resyst.vk.R.string.u_notif_desc))
             .setMimeType(APK_MIME)
             .addRequestHeader("User-Agent", USER_AGENT)
             // progress while running only: a "completed" notification would let a tap open the
@@ -358,7 +360,7 @@ object Updater {
         val id = try {
             dm.enqueue(req)
         } catch (e: Exception) {
-            state = State.Failed("No se pudo iniciar la descarga.")
+            state = State.Failed("u_err_start")
             return
         }
         prefs(app).edit().putLong("id", id).putString("manifest", manifest).apply()
@@ -406,11 +408,11 @@ object Updater {
             else null
         }
         when (status?.first) {
-            null -> { clearPending(app); state = State.Failed("La descarga se canceló.") }
+            null -> { clearPending(app); state = State.Failed("u_err_cancelled") }
             DownloadManager.STATUS_SUCCESSFUL -> if (state !is State.Verifying) verify(app, dm, id, release)
             DownloadManager.STATUS_FAILED -> {
                 dm.remove(id); clearPending(app)
-                state = State.Failed("La descarga falló (código ${status.second}).")
+                state = State.Failed("u_err_failed", listOf(status.second))
             }
             else -> if (state !is State.Downloading) state = State.Downloading(release)
         }
@@ -428,13 +430,13 @@ object Updater {
                 when {
                     !UpdateChecker.matches(hashed, release.sha256, release.sizeBytes) -> {
                         Log.w(TAG, "update sha256 mismatch: got ${hashed.sha256} (${hashed.bytes} B)")
-                        State.Failed("El archivo descargado no coincide con la huella publicada (SHA-256). No se instaló.")
+                        State.Failed("u_err_mismatch")
                     }
-                    else -> archiveProblem(app, out, release)?.let { State.Failed(it) } ?: State.Ready(release, out)
+                    else -> archiveProblem(app, out, release) ?: State.Ready(release, out)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "update verify failed: ${e.javaClass.simpleName}")
-                State.Failed("No se pudo leer el archivo descargado.")
+                State.Failed("u_err_unreadable")
             }
             if (next !is State.Ready) out.delete()
             dm.remove(id) // drops the unverified copy in external storage
@@ -444,22 +446,22 @@ object Updater {
     }
 
     /** Defense in depth on top of the hash: right package, the promised version, same signer. */
-    private fun archiveProblem(app: Context, apk: File, release: Release): String? {
+    private fun archiveProblem(app: Context, apk: File, release: Release): State.Failed? {
         val pm = app.packageManager
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
-        val info = pm.getPackageArchiveInfo(apk.path, flags) ?: return "El archivo descargado no es un APK válido."
+        val info = pm.getPackageArchiveInfo(apk.path, flags) ?: return State.Failed("u_err_not_apk")
         if (info.packageName != app.packageName) {
-            return "La actualización es para ${info.packageName}; esta instalación es ${app.packageName} (compilación de desarrollo)."
+            return State.Failed("u_err_package", listOf(info.packageName, app.packageName))
         }
         @Suppress("DEPRECATION")
         val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else info.versionCode
-        if (release.versionCode != null && code != release.versionCode) return "El APK no es la versión anunciada."
-        if (code <= installed(app).versionCode) return "El APK no es más nuevo que la versión instalada."
+        if (release.versionCode != null && code != release.versionCode) return State.Failed("u_err_not_announced")
+        if (code <= installed(app).versionCode) return State.Failed("u_err_not_newer")
         if (Build.VERSION.SDK_INT >= 28) {
             val theirs = info.signingInfo?.apkContentsSigners?.toSet()
             val mine = pm.getPackageInfo(app.packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners?.toSet()
-            if (theirs != null && mine != null && theirs != mine) return "El APK no está firmado por Resyst. No se instaló."
+            if (theirs != null && mine != null && theirs != mine) return State.Failed("u_err_signature")
         }
         return null
     }

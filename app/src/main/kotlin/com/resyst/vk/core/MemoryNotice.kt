@@ -1,13 +1,18 @@
 package com.resyst.vk.core
 
 /** r10 (F-6): why the keyboard is not learning in this field. Most specific first (V9). */
-enum class NoMemory(val label: String, val detail: String) {
-    SECRET("Sin memoria · contraseña", "Campo de contraseña: el teclado no aprende, no sugiere y no guarda nada de lo que escribes aquí."),
-    INCOGNITO("Sin memoria · incógnito", "La app pidió modo incógnito: nada de lo que escribes aquí se aprende ni se recuerda."),
+enum class NoMemory {
+    SECRET,
+    INCOGNITO,
     // r13d (OR6): an opted-out field still READS what was learned elsewhere; it only never stores
-    OPTED_OUT("No guarda lo que escribes aquí", "La app pidió no recibir sugerencias en este campo: el teclado usa lo que ya aprendió de ti (tus palabras, mayúsculas y correcciones), pero no guarda nada de lo que escribes aquí."),
-    MODE("Sin memoria · modo", "El modo encendido no aprende lo que escribes. Al apagarlo vuelve tu ajuste."),
-    SETTING_OFF("Sin memoria", "«Sugerencias personales» está apagado: el teclado no aprende de ti en ningún campo."),
+    OPTED_OUT,
+    MODE,
+    SETTING_OFF,
+    ;
+
+    /** The dot's short line (`nomem_<name>`) and its longer explanation (`nomem_<name>_detail`). */
+    fun label(t: Txt): String = t.need("nomem_" + name.lowercase())
+    fun detail(t: Txt): String = t.need("nomem_" + name.lowercase() + "_detail")
 }
 
 /**

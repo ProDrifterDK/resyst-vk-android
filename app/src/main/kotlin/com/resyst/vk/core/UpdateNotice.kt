@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /** Where the keyboard strip shows an announced update (N4). */
 enum class UpdateSurface { CHIP, BADGE, NONE }
 
@@ -46,13 +48,16 @@ object UpdateNotice {
     data class Label(val title: String, val action: String, val twoLine: Boolean)
 
     /** Longest first. Every tier carries the whole version (N3). */
-    fun labels(version: String): List<Label> = listOf(
-        Label("Resyst VK $version disponible", " · Toca para actualizar", twoLine = false),
-        Label("Resyst VK $version disponible", "Toca para actualizar", twoLine = true),
-        Label("VK $version disponible", "Toca para actualizar", twoLine = true),
-        Label("$version disponible", "Toca para actualizar", twoLine = true),
-        Label(version, "Actualizar", twoLine = true),
-    )
+    fun labels(t: Txt, version: String): List<Label> {
+        val tap = t.get(R.string.un_tap)
+        return listOf(
+            Label(t.get(R.string.un_full, version), " · $tap", twoLine = false),
+            Label(t.get(R.string.un_full, version), tap, twoLine = true),
+            Label(t.get(R.string.un_vk, version), tap, twoLine = true),
+            Label(t.get(R.string.un_version, version), tap, twoLine = true),
+            Label(version, t.get(R.string.un_short), twoLine = true),
+        )
+    }
 
     /**
      * The longest label that fits [room] px. [title] / [action] measure a text with the paint of
@@ -60,10 +65,10 @@ object UpdateNotice {
      * the strip then shows only the ⚙ dot, never a cut version.
      */
     fun fit(
-        version: String, room: Float,
+        t: Txt, version: String, room: Float,
         title: (text: String, twoLine: Boolean) -> Float,
         action: (text: String, twoLine: Boolean) -> Float,
-    ): Label? = fitOf(labels(version), room, title, action)
+    ): Label? = fitOf(labels(t, version), room, title, action)
 
     /** [fit] over any ordered tiers (the "Novedades" chip, [WhatsNew.labels], shares the chip). */
     fun fitOf(
@@ -77,15 +82,9 @@ object UpdateNotice {
     }
 
     /** The subtitle of "Buscar actualizaciones automáticamente" (OC14). */
-    fun autoSubtitle(): String =
-        "Al abrir el teclado, como mucho una vez cada ${OpenCheck.OK_HOURS} horas. Nunca envía lo que escribes."
+    fun autoSubtitle(t: Txt): String = t.get(R.string.un_auto_subtitle, OpenCheck.OK_HOURS)
 
     /** The privacy line under "Versión instalada", true to what the app does (S2, OC14). */
-    fun promise(autoCheck: Boolean): String = if (autoCheck) {
-        "Para las actualizaciones, al abrir el teclado consulta en kv.resyst.cl si hay una versión nueva, " +
-            "como mucho una vez cada ${OpenCheck.OK_HOURS} horas, sin enviar nada de lo que escribes. " +
-            "Descarga actualizaciones solo cuando tú se lo pides."
-    } else {
-        "No busca actualizaciones por sí solo. Descarga actualizaciones solo cuando tú se lo pides."
-    }
+    fun promise(t: Txt, autoCheck: Boolean): String =
+        if (autoCheck) t.get(R.string.un_promise_auto, OpenCheck.OK_HOURS) else t.get(R.string.un_promise_manual)
 }

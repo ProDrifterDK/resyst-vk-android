@@ -173,14 +173,35 @@ data class Look(
 data class Tema(val id: String, val name: String, val icon: String, val look: Look)
 
 /**
+ * r14b (TR3): the temas an install starts with (and the r1–r9 ones a migration keeps) are stored under these
+ * Spanish names, byte for byte as before. While the stored name is still the seed's, the screens show the
+ * translated one (`tema_seed_<id>`); a tema the user renamed shows what they typed.
+ */
+object SeedNames {
+    private val STORED = mapOf(
+        "resyst" to "Resyst", "arcade" to "Arcade", "pizarra" to "Pizarra",
+        "noche" to "Noche", "dia" to "Día", "juego" to "Juego", "escritura" to "Escritura",
+    )
+
+    fun stored(id: String): String = STORED.getValue(id)
+
+    /** The tema's name as shown, in the language of [t]. */
+    fun display(t: Txt, tema: Tema): String = if (STORED[tema.id] == tema.name) t.need("tema_seed_${tema.id}") else tema.name
+}
+
+/**
  * r10: an explicit, named override on top of the phone settings and the tema (UX-2). Off by
  * default; the user turns it on from the quick panel or the Modos page. Its effect is fixed
  * and spelled out in [summary], so a mode is never an opaque bag of settings.
  */
-enum class Mode(val id: String, val label: String, val icon: String, val summary: String) {
-    NONE("none", "Ninguno", "✦", "El teclado usa tus ajustes tal cual."),
-    CODE("code", "Código", "⌘", "Sin sugerencias ni corrección, sin mayúscula automática ni doble espacio, fila de números y fuente mono. No aprende lo que escribes."),
-    GAME("game", "Juego", "◆", "Compacto: sin fila superior, sin sugerencias ni burbujas, teclas más juntas y bajas.");
+enum class Mode(val id: String, val icon: String) {
+    NONE("none", "✦"),
+    CODE("code", "⌘"),
+    GAME("game", "◆");
+
+    /** The mode's name (`mode_<id>`) and its fixed effect, spelled out (`mode_<id>_summary`). */
+    fun label(t: Txt): String = t.need("mode_$id")
+    fun summary(t: Txt): String = t.need("mode_${id}_summary")
 
     fun apply(s: KbSettings): KbSettings = when (this) {
         NONE -> s
@@ -296,9 +317,9 @@ object ProfileCodec {
         val base = Look()
         return ProfileStore(
             temas = listOf(
-                Tema("resyst", "Resyst", "✦", base),
-                Tema("arcade", "Arcade", "◆", base.copy(theme = "arcade", cap = KeyCap.FLAT, density = Density.TIGHT, heightScale = 0.9f)),
-                Tema("pizarra", "Pizarra", "✎", base.copy(theme = "slate", font = KeyFont.HUMAN, subLegends = false, heightScale = 1.1f)),
+                Tema("resyst", SeedNames.stored("resyst"), "✦", base),
+                Tema("arcade", SeedNames.stored("arcade"), "◆", base.copy(theme = "arcade", cap = KeyCap.FLAT, density = Density.TIGHT, heightScale = 0.9f)),
+                Tema("pizarra", SeedNames.stored("pizarra"), "✎", base.copy(theme = "slate", font = KeyFont.HUMAN, subLegends = false, heightScale = 1.1f)),
             ),
             active = "resyst",
             followSystem = true, // r14 (FS1): a fresh install follows the system; an upgraded store does not
@@ -440,14 +461,14 @@ object ProfileCodec {
     private fun legacySeed(): List<Triple<String, String, KbSettings>> {
         val base = KbSettings()
         return listOf(
-            Triple("noche", "Noche", base),
-            Triple("dia", "Día", base.copy(theme = "paper")),
-            Triple("juego", "Juego", base.copy(
+            Triple("noche", SeedNames.stored("noche"), base),
+            Triple("dia", SeedNames.stored("dia"), base.copy(theme = "paper")),
+            Triple("juego", SeedNames.stored("juego"), base.copy(
                 theme = "arcade", hideTopRow = true, suggest = false, sound = false,
                 cap = KeyCap.FLAT, heightScale = 0.9f, density = Density.TIGHT, popups = false,
                 autoCap = false, doubleSpace = false,
             )),
-            Triple("escritura", "Escritura", base.copy(
+            Triple("escritura", SeedNames.stored("escritura"), base.copy(
                 theme = "slate", font = KeyFont.HUMAN, suggest = true, topRow = TopRow.ACCENTS,
                 sound = true, soundPack = SoundPack.THOCK, subLegends = false, heightScale = 1.1f,
             )),

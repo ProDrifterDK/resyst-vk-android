@@ -10,134 +10,140 @@ enum class Scope { TEMA, DEVICE }
  * Every control of the settings screen. [key] is the stored field it edits: the tema
  * field name for [Scope.TEMA], the full stored key for [Scope.DEVICE]; null for actions (links,
  * buttons, screens). [dependsOn] is the switch that enables it. Parents are declared before
- * their dependents (enum init order). [label] is the visible title (also the TalkBack name).
+ * their dependents (enum init order). [label] is the visible title (also the TalkBack name), a resource.
  */
 enum class Ctl(
     val key: String?,
     val scope: Scope,
-    val label: String,
     val dependsOn: Ctl? = null,
     val destructive: Boolean = false,
 ) {
     // which tema / mode is in use
-    TEMA(ProfileCodec.ACTIVE_KEY, Scope.DEVICE, "Tema"),
-    MODE(ProfileCodec.MODE_KEY, Scope.DEVICE, "Modo"),
+    TEMA(ProfileCodec.ACTIVE_KEY, Scope.DEVICE),
+    MODE(ProfileCodec.MODE_KEY, Scope.DEVICE),
     /** r14 (FS1): the active tema follows the system's dark mode (device-wide; fresh installs on, upgrades off). */
-    FOLLOW_SYSTEM(ProfileCodec.FOLLOW_KEY, Scope.DEVICE, "Seguir el modo oscuro del sistema"),
+    FOLLOW_SYSTEM(ProfileCodec.FOLLOW_KEY, Scope.DEVICE),
     /** r14 (PS3): create a tema from the one in use, rename it, delete one. */
-    TEMA_MANAGE(null, Scope.DEVICE, "Crear y editar temas"),
+    TEMA_MANAGE(null, Scope.DEVICE),
 
     // appearance (the active tema)
     /** r14 (PS2): curated looks, one tap on the active tema, with «Deshacer». */
-    STYLES(null, Scope.TEMA, "Estilos"),
-    THEME("theme", Scope.TEMA, "Colores"),
+    STYLES(null, Scope.TEMA),
+    THEME("theme", Scope.TEMA),
     /** r8: "Modo día / noche" — one tap flips to the remembered light/dark partner. */
-    DAY_NIGHT("altTheme", Scope.TEMA, "Día / noche"),
-    ACCENT("accent", Scope.TEMA, "Acento"),
+    DAY_NIGHT("altTheme", Scope.TEMA),
+    ACCENT("accent", Scope.TEMA),
     /** r14 (LG2): the accent's hue in the surfaces. */
-    TINT("tint", Scope.TEMA, "Tinte"),
-    SHAPE("shape", Scope.TEMA, "Forma"),
-    CAP("cap", Scope.TEMA, "Tecla"),
-    FONT("font", Scope.TEMA, "Fuente"),
-    DENSITY("density", Scope.TEMA, "Densidad"),
-    HEIGHT("heightScale", Scope.TEMA, "Altura"),
-    SUB_LEGENDS("subLegends", Scope.TEMA, "Leyendas secundarias"),
+    TINT("tint", Scope.TEMA),
+    SHAPE("shape", Scope.TEMA),
+    CAP("cap", Scope.TEMA),
+    FONT("font", Scope.TEMA),
+    DENSITY("density", Scope.TEMA),
+    HEIGHT("heightScale", Scope.TEMA),
+    SUB_LEGENDS("subLegends", Scope.TEMA),
     /** r14: the legends' weight, size and case. */
-    LEGEND_WEIGHT("legendWeight", Scope.TEMA, "Grosor de letra"),
-    LEGEND_SCALE("legendScale", Scope.TEMA, "Tamaño de letra"),
-    UPPER_LEGENDS("upperLegends", Scope.TEMA, "Letras en mayúscula"),
+    LEGEND_WEIGHT("legendWeight", Scope.TEMA),
+    LEGEND_SCALE("legendScale", Scope.TEMA),
+    UPPER_LEGENDS("upperLegends", Scope.TEMA),
     /** r14: the key preview's shape and the bar's style. */
-    BUBBLE("bubble", Scope.TEMA, "Burbuja de tecla"),
-    BAR_STYLE("barStyle", Scope.TEMA, "Estilo de la barra"),
+    BUBBLE("bubble", Scope.TEMA),
+    BAR_STYLE("barStyle", Scope.TEMA),
 
     // keys & language (phone)
-    LANG("phone.lang", Scope.DEVICE, "Idioma"),
-    SYSTEM_LANGS(null, Scope.DEVICE, "Idiomas que ofrece Android"),
+    LANG("phone.lang", Scope.DEVICE),
+    SYSTEM_LANGS(null, Scope.DEVICE),
     /** r10 (bet 4): ES ⇄ EN by the last words typed (suggestions; the layout stays). */
-    BILINGUAL("phone.bilingual", Scope.DEVICE, "Sugerencias en dos idiomas"),
+    BILINGUAL("phone.bilingual", Scope.DEVICE),
     /** r13h (LF1): a vertical swipe on the space bar switches ES ⇄ EN; off by default. */
-    SPACE_FLICK("phone.spaceFlick", Scope.DEVICE, "Cambiar idioma deslizando la barra espaciadora"),
+    SPACE_FLICK("phone.spaceFlick", Scope.DEVICE),
     /** r10 (bet 4): Chile / Latinoamérica / España ranking of the Spanish lexicon. */
-    REGION("phone.region", Scope.DEVICE, "Variante del español"),
-    HIDE_TOP_ROW("phone.hideTopRow", Scope.DEVICE, "Ocultar fila de caracteres especiales"),
-    TOP_ROW("phone.topRow", Scope.DEVICE, "Fila superior", dependsOn = HIDE_TOP_ROW),
-    EMOJI_KEY("phone.emojiKey", Scope.DEVICE, "Tecla de emojis"),
-    DAY_NIGHT_CHIP("phone.dayNightChip", Scope.DEVICE, "Botón día / noche en el teclado"),
+    REGION("phone.region", Scope.DEVICE),
+    HIDE_TOP_ROW("phone.hideTopRow", Scope.DEVICE),
+    TOP_ROW("phone.topRow", Scope.DEVICE, dependsOn = HIDE_TOP_ROW),
+    EMOJI_KEY("phone.emojiKey", Scope.DEVICE),
+    DAY_NIGHT_CHIP("phone.dayNightChip", Scope.DEVICE),
     /** r10 (UX-13): keys narrowed to one side; also a tile in the quick panel. */
-    ONE_HANDED("phone.oneHanded", Scope.DEVICE, "Modo una mano"),
-    POPUPS("phone.popups", Scope.DEVICE, "Vista previa de tecla"),
-    LONG_PRESS("phone.longPressMs", Scope.DEVICE, "Pulsación larga"),
+    ONE_HANDED("phone.oneHanded", Scope.DEVICE),
+    POPUPS("phone.popups", Scope.DEVICE),
+    LONG_PRESS("phone.longPressMs", Scope.DEVICE),
 
     // writing (phone)
-    SUGGEST("phone.suggest", Scope.DEVICE, "Sugerencias"),
-    SPACE_CORRECTS("phone.spaceCorrects", Scope.DEVICE, "El espacio aplica la corrección", dependsOn = SUGGEST),
-    PERSONAL("phone.personal", Scope.DEVICE, "Sugerencias personales", dependsOn = SUGGEST),
-    AUTO_CAP("phone.autoCap", Scope.DEVICE, "Mayúscula automática"),
-    DOUBLE_SPACE("phone.doubleSpace", Scope.DEVICE, "Doble espacio = punto"),
+    SUGGEST("phone.suggest", Scope.DEVICE),
+    SPACE_CORRECTS("phone.spaceCorrects", Scope.DEVICE, dependsOn = SUGGEST),
+    PERSONAL("phone.personal", Scope.DEVICE, dependsOn = SUGGEST),
+    AUTO_CAP("phone.autoCap", Scope.DEVICE),
+    DOUBLE_SPACE("phone.doubleSpace", Scope.DEVICE),
     /** r10 (F-3): the keyboard never proposes offensive words (default on). */
-    PROFANITY_FILTER("phone.profanityFilter", Scope.DEVICE, "Filtrar palabras ofensivas", dependsOn = SUGGEST),
+    PROFANITY_FILTER("phone.profanityFilter", Scope.DEVICE, dependsOn = SUGGEST),
     /** r10 (UX-8): "¿…?" offer when a Spanish sentence closes without its opener. */
-    AUTO_OPENERS("phone.autoOpeners", Scope.DEVICE, "Signos de apertura ¿ ¡"),
+    AUTO_OPENERS("phone.autoOpeners", Scope.DEVICE),
     /** r13f (offers, PV4): the bar offers the likely word for its context (caza → casa); a tap replaces it. */
-    CONTEXT_OFFERS("phone.contextOffers", Scope.DEVICE, "Sugerencias por contexto", dependsOn = SUGGEST),
+    CONTEXT_OFFERS("phone.contextOffers", Scope.DEVICE, dependsOn = SUGGEST),
 
     // feedback (phone)
-    HAPTICS("phone.haptics", Scope.DEVICE, "Vibración"),
-    HAPTIC_STRENGTH("phone.hapticStrength", Scope.DEVICE, "Intensidad", dependsOn = HAPTICS),
+    HAPTICS("phone.haptics", Scope.DEVICE),
+    HAPTIC_STRENGTH("phone.hapticStrength", Scope.DEVICE, dependsOn = HAPTICS),
     /** r14 (HS1): haptics by key kind (default) or one pulse for every key (0.13.0). */
-    HAPTIC_PROFILE("phone.hapticProfile", Scope.DEVICE, "Vibración por tecla", dependsOn = HAPTICS),
-    SOUND("phone.sound", Scope.DEVICE, "Sonido de tecla"),
-    SOUND_PACK("phone.soundPack", Scope.DEVICE, "Pack", dependsOn = SOUND),
-    VOLUME("phone.volume", Scope.DEVICE, "Volumen", dependsOn = SOUND),
+    HAPTIC_PROFILE("phone.hapticProfile", Scope.DEVICE, dependsOn = HAPTICS),
+    SOUND("phone.sound", Scope.DEVICE),
+    SOUND_PACK("phone.soundPack", Scope.DEVICE, dependsOn = SOUND),
+    VOLUME("phone.volume", Scope.DEVICE, dependsOn = SOUND),
     /** r14 (MO2): Completas / Sutiles / Ninguna; Android's "Quitar animaciones" forces Ninguna. */
-    MOTION("phone.motion", Scope.DEVICE, "Animaciones"),
+    MOTION("phone.motion", Scope.DEVICE),
 
     // clipboard + learned data
-    CLIP_HISTORY("clip.history", Scope.DEVICE, "Historial del portapapeles"),
-    CLIP_PURGE("clip.purge", Scope.DEVICE, "Purgar tras 1 hora", dependsOn = CLIP_HISTORY),
-    CLEAR_CLIP(null, Scope.DEVICE, "Borrar historial del portapapeles", destructive = true),
-    FORGET_LEARNED(null, Scope.DEVICE, "Borrar lo aprendido", destructive = true),
+    CLIP_HISTORY("clip.history", Scope.DEVICE),
+    CLIP_PURGE("clip.purge", Scope.DEVICE, dependsOn = CLIP_HISTORY),
+    CLEAR_CLIP(null, Scope.DEVICE, destructive = true),
+    FORGET_LEARNED(null, Scope.DEVICE, destructive = true),
     /**
      * r11b: the opt-in GIF search with KLIPY (OFF by default; on only through its disclosure).
      * Stored in its own prefs file (GifStore), not in the profile store: no key here.
      */
-    GIF_SEARCH(null, Scope.DEVICE, "Búsqueda de GIF (KLIPY)"),
+    GIF_SEARCH(null, Scope.DEVICE),
     /** r11b: replace the anonymous id sent to KLIPY (only while the GIF search is on). */
-    GIF_NEW_ID(null, Scope.DEVICE, "Nuevo ID anónimo"),
+    GIF_NEW_ID(null, Scope.DEVICE),
 
     // r10 (F-4): "Lo que sé de ti" — see and delete, one by one, what the keyboard keeps
-    KNOW_WORDS(null, Scope.DEVICE, "Palabras aprendidas"),
+    KNOW_WORDS(null, Scope.DEVICE),
     /** r13i (KN1): the pair memory (files/personal/pairs.bin): size, top pairs, forget one, clear all. */
-    KNOW_PAIRS(null, Scope.DEVICE, "Pares de palabras que usas a menudo"),
+    KNOW_PAIRS(null, Scope.DEVICE),
     /** r13i (KN1): the pair memory's switch (default on). */
-    PAIR_MEMORY("phone.pairMemory", Scope.DEVICE, "Aprender pares de palabras"),
+    PAIR_MEMORY("phone.pairMemory", Scope.DEVICE),
     /** r13 (LR5): the corrections the user undid, never applied again (files/personal/rejections.json). */
-    KNOW_REJECTIONS(null, Scope.DEVICE, "Correcciones que deshiciste"),
-    KNOW_EMAILS(null, Scope.DEVICE, "Correos recordados"),
-    KNOW_EMOJI(null, Scope.DEVICE, "Emojis recientes"),
-    KNOW_CLIP(null, Scope.DEVICE, "Portapapeles guardado"),
+    KNOW_REJECTIONS(null, Scope.DEVICE),
+    KNOW_EMAILS(null, Scope.DEVICE),
+    KNOW_EMOJI(null, Scope.DEVICE),
+    KNOW_CLIP(null, Scope.DEVICE),
 
     // about
-    UPDATES(null, Scope.DEVICE, "Actualización"),
+    UPDATES(null, Scope.DEVICE),
     /** r9/r11c: one release.json check when the keyboard opens, at most every [OpenCheck.OK_HOURS] h. */
-    UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE, "Buscar actualizaciones automáticamente"),
+    UPDATE_AUTO(ProfileCodec.UPDATE_AUTO_KEY, Scope.DEVICE),
     /** r10 (F-5): every request the app ever made to the internet, counted and listed. */
-    CONNECTIONS(null, Scope.DEVICE, "Libro de conexiones"),
-    RESET_ALL(null, Scope.DEVICE, "Restablecer ajustes y temas", destructive = true),
+    CONNECTIONS(null, Scope.DEVICE),
+    RESET_ALL(null, Scope.DEVICE, destructive = true),
+    ;
+
+    /** The visible title (also the TalkBack name), in the language of [t] (`ctl_<name>`). */
+    fun label(t: Txt): String = t.need("ctl_" + name.lowercase())
 }
 
 /** One settings page, one tap away from home. [preview] shows the live keyboard on top. */
 data class SettingsPage(
     val id: String,
-    val title: String,
     val scope: Scope,
     val controls: List<Ctl>,
     val preview: Boolean = false,
-    /** One line under the title on home, saying what the page holds. */
-    val summary: String = "",
     /** r14: a group heading drawn before these controls (the long «Apariencia» page reads in sections). */
-    val groups: Map<Ctl, String> = emptyMap(),
-)
+    val groups: Set<Ctl> = emptySet(),
+) {
+    /** The page title (`page_<id>`). */
+    fun title(t: Txt): String = t.need("page_$id")
+
+    /** One line under the title on home, saying what the page holds (`page_<id>_summary`). */
+    fun summary(t: Txt): String = t.need("page_${id}_summary")
+}
 
 /**
  * Information architecture of the settings screen (r7, rebuilt on temas + modos in r10): a home
@@ -154,35 +160,35 @@ object SettingsIA {
     )
 
     val PAGES: List<SettingsPage> = listOf(
-        SettingsPage("modos", "Temas y modos", Scope.DEVICE, listOf(
+        SettingsPage("modos", Scope.DEVICE, listOf(
             Ctl.TEMA, Ctl.FOLLOW_SYSTEM, Ctl.TEMA_MANAGE, Ctl.MODE,
-        ), summary = "Qué tema usas, crear uno nuevo, seguir el modo oscuro del sistema y los modos (Código, Juego)"),
-        SettingsPage("apariencia", "Apariencia del tema", Scope.TEMA, listOf(
+        )),
+        SettingsPage("apariencia", Scope.TEMA, listOf(
             Ctl.STYLES,
             Ctl.THEME, Ctl.DAY_NIGHT, Ctl.ACCENT, Ctl.TINT,
             Ctl.SHAPE, Ctl.CAP, Ctl.DENSITY, Ctl.HEIGHT,
             Ctl.FONT, Ctl.LEGEND_WEIGHT, Ctl.LEGEND_SCALE, Ctl.UPPER_LEGENDS, Ctl.SUB_LEGENDS,
             Ctl.BUBBLE, Ctl.BAR_STYLE,
-        ), preview = true, summary = "Estilos, colores, tinte, forma y tipo de tecla, letra, burbuja y barra del tema activo",
-            groups = mapOf(Ctl.STYLES to "Estilos", Ctl.THEME to "Colores", Ctl.SHAPE to "Teclas", Ctl.FONT to "Letra", Ctl.BUBBLE to "Detalles")),
-        SettingsPage("teclas", "Teclas e idioma", Scope.DEVICE, listOf(
+        ), preview = true,
+            groups = setOf(Ctl.STYLES, Ctl.THEME, Ctl.SHAPE, Ctl.FONT, Ctl.BUBBLE)),
+        SettingsPage("teclas", Scope.DEVICE, listOf(
             Ctl.LANG, Ctl.SYSTEM_LANGS, Ctl.BILINGUAL, Ctl.SPACE_FLICK, Ctl.REGION, Ctl.HIDE_TOP_ROW, Ctl.TOP_ROW, Ctl.EMOJI_KEY, Ctl.DAY_NIGHT_CHIP, Ctl.ONE_HANDED, Ctl.POPUPS, Ctl.LONG_PRESS,
-        ), preview = true, summary = "Idioma, fila superior, emojis, burbujas, pulsación larga"),
-        SettingsPage("escritura", "Escritura", Scope.DEVICE, listOf(
+        ), preview = true),
+        SettingsPage("escritura", Scope.DEVICE, listOf(
             Ctl.SUGGEST, Ctl.SPACE_CORRECTS, Ctl.CONTEXT_OFFERS, Ctl.PERSONAL, Ctl.PROFANITY_FILTER, Ctl.AUTO_CAP, Ctl.DOUBLE_SPACE, Ctl.AUTO_OPENERS,
-        ), summary = "Sugerencias, corrección, sugerencias por contexto, filtro de groserías, mayúsculas, ¿ ¡"),
-        SettingsPage("respuesta", "Sonido y vibración", Scope.DEVICE, listOf(
+        )),
+        SettingsPage("respuesta", Scope.DEVICE, listOf(
             Ctl.HAPTICS, Ctl.HAPTIC_STRENGTH, Ctl.HAPTIC_PROFILE, Ctl.SOUND, Ctl.SOUND_PACK, Ctl.VOLUME, Ctl.MOTION,
-        ), summary = "Vibración por tecla, intensidad, sonido, volumen y animaciones"),
-        SettingsPage("privacidad", "Portapapeles y privacidad", Scope.DEVICE, listOf(
+        )),
+        SettingsPage("privacidad", Scope.DEVICE, listOf(
             Ctl.CLIP_HISTORY, Ctl.CLIP_PURGE, Ctl.GIF_SEARCH, Ctl.GIF_NEW_ID, Ctl.CLEAR_CLIP, Ctl.FORGET_LEARNED,
-        ), summary = "Historial del portapapeles, búsqueda de GIF y lo que el teclado aprendió"),
-        SettingsPage("datos", "Lo que sé de ti", Scope.DEVICE, listOf(
+        )),
+        SettingsPage("datos", Scope.DEVICE, listOf(
             Ctl.KNOW_WORDS, Ctl.KNOW_PAIRS, Ctl.PAIR_MEMORY, Ctl.KNOW_REJECTIONS, Ctl.KNOW_EMAILS, Ctl.KNOW_EMOJI, Ctl.KNOW_CLIP,
-        ), summary = "Ver y borrar, una a una, las palabras, pares de palabras, correcciones, correos y emojis que guardo · solo en este teléfono"),
-        SettingsPage("acerca", "Acerca de", Scope.DEVICE, listOf(
+        )),
+        SettingsPage("acerca", Scope.DEVICE, listOf(
             Ctl.UPDATES, Ctl.UPDATE_AUTO, Ctl.CONNECTIONS, Ctl.RESET_ALL,
-        ), summary = "Versión, actualizaciones, libro de conexiones, restablecer"),
+        )),
     )
 
     fun page(id: String?): SettingsPage? = PAGES.firstOrNull { it.id == id }

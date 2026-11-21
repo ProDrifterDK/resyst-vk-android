@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /**
  * The system clipboard's primary clip, flattened so the rules stay JVM-pure.
  * [stamp] = ClipDescription.getTimestamp (wall clock, API 26+), 0 when unknown.
@@ -59,14 +61,14 @@ object ClipRules {
     /** May the history panel open (the history be read) in this field? */
     fun mayShowHistory(policy: FieldPolicy, s: ClipSettings): Boolean = s.history && !policy.secret
 
-    /** "ahora", "hace 5 min", "hace 2 h", "hace 3 d" — the panel's age label. */
-    fun ago(now: Long, at: Long): String {
+    /** "now", "5 min ago", "2 h ago", "3 d ago" — the panel's age label. */
+    fun ago(t: Txt, now: Long, at: Long): String {
         val s = ((now - at) / 1000).coerceAtLeast(0)
         return when {
-            s < 60 -> "ahora"
-            s < 3600 -> "hace ${s / 60} min"
-            s < 86_400 -> "hace ${s / 3600} h"
-            else -> "hace ${s / 86_400} d"
+            s < 60 -> t.get(R.string.ago_now)
+            s < 3600 -> t.get(R.string.ago_min, s / 60)
+            s < 86_400 -> t.get(R.string.ago_h, s / 3600)
+            else -> t.get(R.string.ago_d, s / 86_400)
         }
     }
 

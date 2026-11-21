@@ -40,15 +40,25 @@ class Round13PhaseBTest {
             it.contains(offer) && it.contains("uses it under GPL-3+")
         })
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
-        val credits = settings.substringAfter("private fun footer()").substringBefore("companion object")
+        // r14b: the credits are resources, the same facts in both languages
+        val es = Res.parse(File(Res.resDir(), "values")).strings
+        val en = Res.parse(File(Res.resDir(), "values-en")).strings
+        val footer = settings.substringAfter("private fun footer()").substringBefore("companion object")
+        for (k in listOf("s_credits_data", "s_credits_context", "s_source")) assertTrue("the footer shows $k", footer.contains("R.string.$k"))
+        val esCredits = es.getValue("s_credits_data") + es.getValue("s_source")
+        val enCredits = en.getValue("s_credits_data") + en.getValue("s_source")
         assertTrue("settings: dictionary used under the GPL, offered as GPL/LGPL/MPL",
-            credits.contains("RLA-ES") && credits.contains("se usa bajo la GPL") && credits.contains("GPL, LGPL o MPL"))
+            esCredits.contains("RLA-ES") && esCredits.contains("se usa bajo la GPL") && esCredits.contains("GPL, LGPL o MPL"))
+        assertTrue("settings (English): dictionary used under the GPL, offered as GPL/LGPL/MPL",
+            enCredits.contains("RLA-ES") && enCredits.contains("used under the GPL") && enCredits.contains("GPL, LGPL or MPL"))
         assertTrue("settings: the app is free software under GPL 3, source on GitHub",
-            credits.contains("software libre bajo la GPL 3") && credits.contains("código fuente en GitHub"))
+            esCredits.contains("software libre bajo la GPL 3") && esCredits.contains("código fuente en GitHub"))
+        assertTrue("settings (English): the app is free software under GPL 3, source on GitHub",
+            enCredits.contains("free software under the GPL 3") && enCredits.contains("source code on GitHub"))
         assertTrue(settings.contains("https://github.com/ProDrifterDK/resyst-vk-android\""))
-        assertFalse(credits.contains("RLA-ES (MPL)"))
+        assertFalse(esCredits.contains("RLA-ES (MPL)") || enCredits.contains("RLA-ES (MPL)"))
         // the other credits stay true to the README list
-        for (c in listOf("FrequencyWords (CC BY-SA 4.0)", "DM Sans (OFL)", "SCOWL")) assertTrue(c, credits.contains(c))
+        for (c in listOf("FrequencyWords (CC BY-SA 4.0)", "DM Sans (OFL)", "SCOWL")) { assertTrue(c, esCredits.contains(c)); assertTrue(c, enCredits.contains(c)) }
     }
 
     // ── LI5: the browser link is not a keyboard request: no connection-book entry, no network class ──
@@ -109,7 +119,7 @@ class Round13PhaseBTest {
     @Test fun everyLabelTierCarriesTheWholeVersion() {
         for (name in listOf("0.10.0", "0.10.0-debug", "1.2.3")) {
             val shown = name.removeSuffix("-debug")
-            val tiers = WhatsNew.labels(name)
+            val tiers = WhatsNew.labels(TestTxt.ES, name)
             assertEquals("Novedades de la $shown", tiers.first().title)
             for (l in tiers) {
                 assertTrue("$l carries $shown", (l.title + l.action).contains(shown))
@@ -119,16 +129,16 @@ class Round13PhaseBTest {
         }
         // the fit picks the longest tier that fits and never cuts the version: null when not even the bare one fits
         val w = { t: String, _: Boolean -> t.length * 10f }
-        assertEquals("Novedades de la 0.10.0", UpdateNotice.fitOf(WhatsNew.labels("0.10.0"), 1000f, w, w)!!.title)
-        assertEquals("0.10.0", UpdateNotice.fitOf(WhatsNew.labels("0.10.0"), 95f, w, w)!!.title)
-        assertNull(UpdateNotice.fitOf(WhatsNew.labels("0.10.0"), 40f, w, w))
+        assertEquals("Novedades de la 0.10.0", UpdateNotice.fitOf(WhatsNew.labels(TestTxt.ES, "0.10.0"), 1000f, w, w)!!.title)
+        assertEquals("0.10.0", UpdateNotice.fitOf(WhatsNew.labels(TestTxt.ES, "0.10.0"), 95f, w, w)!!.title)
+        assertNull(UpdateNotice.fitOf(WhatsNew.labels(TestTxt.ES, "0.10.0"), 40f, w, w))
         // the update chip's tiers are unchanged by the refactor behind fitOf
-        assertEquals(UpdateNotice.labels("0.10.0").first(), UpdateNotice.fit("0.10.0", 10_000f, w, w))
+        assertEquals(UpdateNotice.labels(TestTxt.ES, "0.10.0").first(), UpdateNotice.fit(TestTxt.ES, "0.10.0", 10_000f, w, w))
     }
 
     @Test fun talkBackSaysWhatATapDoes() {
-        assertTrue(WhatsNew.describe("0.10.0-debug").let { it.contains("0.10.0") && it.contains("navegador") && !it.contains("debug") })
-        assertTrue(WhatsNew.dismissDescription("0.10.0").contains("Descartar"))
+        assertTrue(WhatsNew.describe(TestTxt.ES, "0.10.0-debug").let { it.contains("0.10.0") && it.contains("navegador") && !it.contains("debug") })
+        assertTrue(WhatsNew.dismissDescription(TestTxt.ES, "0.10.0").contains("Descartar"))
     }
 
     // ── WN3 / WN4 wiring pins (the transitions live in the service; the device run exercises them) ──

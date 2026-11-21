@@ -1,5 +1,7 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.R
+import com.resyst.vk.core.Txt
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -24,7 +26,7 @@ import kotlin.math.min
  * "¿Borrar todo?" confirmation in the header. Layout and hit areas are recomputed by [relayout]
  * after every state change; the view routes touches and accessibility through [hits].
  */
-class ClipboardPanel(private val dp: Float) {
+class ClipboardPanel(private val dp: Float, private val tx: Txt) {
     enum class Act { CLOSE, CLEAR_ASK, CLEAR_YES, CLEAR_NO, ROW, BACK, PASTE, PIN, DELETE }
     class Hit(val act: Act, val id: Long, val rect: RectF, val desc: String)
 
@@ -81,24 +83,24 @@ class ClipboardPanel(private val dp: Float) {
         val hBot = bounds.top + headerH - 4 * dp
         val d = detail?.let { id -> items.firstOrNull { it.id == id } }
         if (d != null) {
-            hits += Hit(Act.BACK, 0, RectF(bounds.left + pad, hTop, bounds.left + pad + 96 * dp, hBot), "Volver a la lista")
+            hits += Hit(Act.BACK, 0, RectF(bounds.left + pad, hTop, bounds.left + pad + 96 * dp, hBot), tx.get(R.string.clip_back_list))
             val bw = (bounds.width() - 4 * pad) / 3
             val by = bounds.bottom - 50 * dp
-            hits += Hit(Act.PASTE, d.id, RectF(bounds.left + pad, by, bounds.left + pad + bw, by + 42 * dp), "Pegar")
+            hits += Hit(Act.PASTE, d.id, RectF(bounds.left + pad, by, bounds.left + pad + bw, by + 42 * dp), tx.get(R.string.clip_paste))
             hits += Hit(Act.PIN, d.id, RectF(bounds.left + 2 * pad + bw, by, bounds.left + 2 * pad + 2 * bw, by + 42 * dp),
-                if (d.pinned) "Soltar" else "Fijar")
-            hits += Hit(Act.DELETE, d.id, RectF(bounds.left + 3 * pad + 2 * bw, by, bounds.right - pad, by + 42 * dp), "Borrar")
+                tx.get(if (d.pinned) R.string.clip_unpin else R.string.clip_pin))
+            hits += Hit(Act.DELETE, d.id, RectF(bounds.left + 3 * pad + 2 * bw, by, bounds.right - pad, by + 42 * dp), tx.get(R.string.clip_delete))
             return
         }
         val closeW = 64 * dp
-        hits += Hit(Act.CLOSE, 0, RectF(bounds.right - pad - closeW, hTop, bounds.right - pad, hBot), "Cerrar portapapeles, volver al teclado")
+        hits += Hit(Act.CLOSE, 0, RectF(bounds.right - pad - closeW, hTop, bounds.right - pad, hBot), tx.get(R.string.clip_close_desc))
         if (confirmClear) {
             val x = bounds.right - pad - closeW - 8 * dp
-            hits += Hit(Act.CLEAR_NO, 0, RectF(x - 84 * dp, hTop, x, hBot), "No borrar")
-            hits += Hit(Act.CLEAR_YES, 0, RectF(x - 84 * dp - 8 * dp - 104 * dp, hTop, x - 84 * dp - 8 * dp, hBot), "Sí, borrar todo el historial")
+            hits += Hit(Act.CLEAR_NO, 0, RectF(x - 84 * dp, hTop, x, hBot), tx.get(R.string.clip_clear_no_desc))
+            hits += Hit(Act.CLEAR_YES, 0, RectF(x - 84 * dp - 8 * dp - 104 * dp, hTop, x - 84 * dp - 8 * dp, hBot), tx.get(R.string.clip_clear_yes_desc))
         } else if (items.isNotEmpty()) {
             val x = bounds.right - pad - closeW - 8 * dp
-            hits += Hit(Act.CLEAR_ASK, 0, RectF(x - 110 * dp, hTop, x, hBot), "Borrar todo el historial")
+            hits += Hit(Act.CLEAR_ASK, 0, RectF(x - 110 * dp, hTop, x, hBot), tx.get(R.string.clip_clear_ask_desc))
         }
         val bottom = bounds.bottom - 6 * dp
         items.forEachIndexed { i, e ->
@@ -106,9 +108,9 @@ class ClipboardPanel(private val dp: Float) {
             if (top + rowH > listTop && top < bottom) {
                 val r = RectF(bounds.left + pad, max(top + 2 * dp, listTop), bounds.right - pad, min(top + rowH - 2 * dp, bottom))
                 if (r.height() > 8 * dp) {
-                    val pin = if (e.pinned) "Fijado. " else ""
-                    val times = if (e.count > 1) ", copiado ${e.count} veces" else ""
-                    hits += Hit(Act.ROW, e.id, r, "${pin}Pegar: ${ClipRules.label(e.text, false)}. ${ClipRules.ago(now, e.at)}$times. Mantén para ver, fijar o borrar")
+                    val pin = if (e.pinned) tx.get(R.string.clip_pinned_cap) + " " else ""
+                    val times = if (e.count > 1) ", " + tx.get(R.string.clip_copied_times, e.count) else ""
+                    hits += Hit(Act.ROW, e.id, r, tx.get(R.string.clip_row_desc, pin, ClipRules.label(e.text, false), ClipRules.ago(tx, now, e.at), times))
                 }
             }
         }
@@ -138,23 +140,23 @@ class ClipboardPanel(private val dp: Float) {
         }
         if (confirmClear) {
             text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.BAD)
-            drawLeft(c, "¿Borrar todo?", bounds.left + 14 * dp, hy)
+            drawLeft(c, tx.get(R.string.clip_clear_title), bounds.left + 14 * dp, hy)
         } else {
             drawClipIcon(c, bounds.left + 22 * dp, hy, 16 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT))
             text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT)
-            drawLeft(c, "Portapapeles", bounds.left + 38 * dp, hy)
+            drawLeft(c, tx.get(R.string.clip_title), bounds.left + 38 * dp, hy)
             if (items.isNotEmpty()) {
                 text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.typeface = typeface(500)
                 text.textSize = 12 * dp
-                drawLeft(c, "${items.size}", bounds.left + 38 * dp + measure("Portapapeles", 15 * dp, typeface(650)) + 8 * dp, hy)
+                drawLeft(c, "${items.size}", bounds.left + 38 * dp + measure(tx.get(R.string.clip_title), 15 * dp, typeface(650)) + 8 * dp, hy)
             }
         }
         for (h in hits) when (h.act) {
             Act.CLOSE -> button(c, h, "ABC", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
-            Act.CLEAR_ASK -> button(c, h, "Borrar todo", Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
-            Act.CLEAR_YES -> button(c, h, "Sí, borrar", Surface.BAD_FILL, Ink.BAD_INK, radius, typeface, h === pressed, p)
-            Act.CLEAR_NO -> button(c, h, "No", Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
+            Act.CLEAR_ASK -> button(c, h, tx.get(R.string.clip_clear_ask), Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
+            Act.CLEAR_YES -> button(c, h, tx.get(R.string.clip_clear_yes), Surface.BAD_FILL, Ink.BAD_INK, radius, typeface, h === pressed, p)
+            Act.CLEAR_NO -> button(c, h, tx.get(R.string.clip_clear_no), Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
             else -> Unit
         }
         fill.color = t.edge
@@ -166,11 +168,11 @@ class ClipboardPanel(private val dp: Float) {
             text.typeface = typeface(600)
             text.textSize = 15 * dp
             val cy = (listTop + bounds.bottom) / 2
-            drawCenter(c, "Nada copiado todavía", bounds.centerX(), cy - 12 * dp)
+            drawCenter(c, tx.get(R.string.clip_empty), bounds.centerX(), cy - 12 * dp)
             text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
             text.typeface = typeface(450)
             text.textSize = 12 * dp
-            drawCenter(c, "Lo que copies aparecerá aquí · hasta 25 · solo en este teléfono", bounds.centerX(), cy + 12 * dp)
+            drawCenter(c, tx.get(R.string.clip_empty_hint), bounds.centerX(), cy + 12 * dp)
             return
         }
         c.save()
@@ -187,8 +189,8 @@ class ClipboardPanel(private val dp: Float) {
                 c.drawRoundRect(r.left, r.top + 6 * dp, r.left + 3 * dp, r.bottom - 6 * dp, dp, dp, fill)
             }
             val meta = buildString {
-                if (e.pinned) append("fijado · ")
-                append(ClipRules.ago(now, e.at))
+                if (e.pinned) append(tx.get(R.string.clip_pinned)).append(" · ")
+                append(ClipRules.ago(tx, now, e.at))
                 if (e.count > 1) append(" · ×").append(e.count)
             }
             text.textSize = 11 * dp
@@ -225,7 +227,7 @@ class ClipboardPanel(private val dp: Float) {
         val t = p.theme
         val hy = bounds.top + headerH / 2
         for (h in hits) when (h.act) {
-            Act.BACK -> button(c, h, "‹ Volver", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
+            Act.BACK -> button(c, h, tx.get(R.string.clip_back), Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
             else -> Unit
         }
         text.textAlign = Paint.Align.RIGHT
@@ -233,7 +235,7 @@ class ClipboardPanel(private val dp: Float) {
         text.typeface = typeface(500)
         text.textSize = 12 * dp
         val chars = e.text.length
-        drawBaseline(c, "${ClipRules.ago(now, e.at)} · $chars car." + if (e.pinned) " · fijado" else "", bounds.right - 12 * dp, hy)
+        drawBaseline(c, tx.get(R.string.clip_chars, ClipRules.ago(tx, now, e.at), chars) + if (e.pinned) " · " + tx.get(R.string.clip_pinned) else "", bounds.right - 12 * dp, hy)
         // body: the full text in a card aligned with the buttons, wrapped, cut where they start
         val pad = 8 * dp
         tmp.set(bounds.left + pad, listTop + 2 * dp, bounds.right - pad, bounds.bottom - 58 * dp)
@@ -262,9 +264,9 @@ class ClipboardPanel(private val dp: Float) {
         layout.draw(c)
         c.restore()
         for (h in hits) when (h.act) {
-            Act.PASTE -> button(c, h, "Pegar", Surface.SOLID, Ink.ACCENT_INK, radius, typeface, h === pressed, p)
-            Act.PIN -> button(c, h, if (e.pinned) "Soltar" else "Fijar", Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
-            Act.DELETE -> button(c, h, "Borrar", Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
+            Act.PASTE -> button(c, h, tx.get(R.string.clip_paste), Surface.SOLID, Ink.ACCENT_INK, radius, typeface, h === pressed, p)
+            Act.PIN -> button(c, h, tx.get(if (e.pinned) R.string.clip_unpin else R.string.clip_pin), Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
+            Act.DELETE -> button(c, h, tx.get(R.string.clip_delete), Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
             else -> Unit
         }
     }

@@ -1,5 +1,7 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.R
+import com.resyst.vk.core.Txt
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
@@ -79,6 +81,9 @@ import kotlin.math.min
 @SuppressLint("ViewConstructor")
 class KeyboardView(context: Context) : View(context) {
 
+    /** r14b: every word the view says or draws comes from the resources, asked for when drawn (TR7). */
+    private val tx: Txt = ResTxt(context)
+
     interface Listener {
         fun onKeyDown(key: Key)
         fun onKeyUp(key: Key)
@@ -153,7 +158,7 @@ class KeyboardView(context: Context) : View(context) {
     private var settings = KbSettings()
     private var palette = Palette.of("lab", null)
     private var shift = ShiftState.OFF
-    private var enterDesc = "Intro"
+    private var enterDesc = tx.get(R.string.enter_default)
     private var enterIcon = Icon.ENTER
     private var suggestions: List<String> = emptyList()
     private var pasteLabel: String? = null
@@ -175,12 +180,12 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     /** The clipboard history panel, drawn over the strip + keys while open. */
-    val clipPanel = ClipboardPanel(resources.displayMetrics.density)
+    val clipPanel = ClipboardPanel(resources.displayMetrics.density, tx)
     var clipboardOpen = false
         private set
 
     /** The emoji panel (r8), same overlay pattern as the clipboard. */
-    val emojiPanel = EmojiPanel(resources.displayMetrics.density).apply {
+    val emojiPanel = EmojiPanel(resources.displayMetrics.density, tx).apply {
         // r12 (EG3): a tab measured off the UI thread arrived while it is on screen
         onCellsReady = { if (emojiOpen) { invalidate(); a11y.invalidateRoot() } }
     }
@@ -188,24 +193,12 @@ class KeyboardView(context: Context) : View(context) {
         private set
 
     /** r10: the quick panel under ⚙ (UX-3), same overlay pattern. */
-    val quickPanel = QuickPanel(resources.displayMetrics.density).apply {
-        labels(context.getString(com.resyst.vk.R.string.quick_title), context.getString(com.resyst.vk.R.string.quick_back))
-        localize = { label, state -> quickLabel(label) to quickState(state) }
-    }
-
-    /**
-     * r14 (PS6): the quick panel's drawn words in the phone's language (Spanish / English), from the core tiles'
-     * Spanish; the tiles' TalkBack names stay the core's (the E2E contract, VO1b).
-     */
-    private fun quickLabel(es: String): String = QUICK_WORDS[es]?.let(context::getString) ?: es
-
-    private fun quickState(es: String): String =
-        if (es.startsWith("Auto · ")) context.getString(com.resyst.vk.R.string.q_auto) + " · " + quickState(es.removePrefix("Auto · ")) else quickLabel(es)
+    val quickPanel = QuickPanel(resources.displayMetrics.density, tx)
     var quickOpen = false
         private set
     private var mode = Mode.NONE
     /** r10 (bet 5): the edit panel, opened from the quick panel's «Edición». */
-    val editPanel = EditPanel(resources.displayMetrics.density)
+    val editPanel = EditPanel(resources.displayMetrics.density, tx)
     var editOpen = false
         private set
     private val panelOpen get() = clipboardOpen || emojiOpen || quickOpen || editOpen
@@ -242,7 +235,7 @@ class KeyboardView(context: Context) : View(context) {
         if (!quickOpen) panelAt = SystemClock.uptimeMillis()
         quickOpen = true
         layoutPanel()
-        quickPanel.set(tiles, update, temas, context.getString(com.resyst.vk.R.string.quick_personalize))
+        quickPanel.set(tiles, update, temas, tx.get(R.string.quick_personalize))
         invalidate(); a11y.invalidateRoot()
     }
 
@@ -733,7 +726,7 @@ class KeyboardView(context: Context) : View(context) {
             val back = 48 * dp
             val go = 84 * dp
             stripItems += StripItem(StripKind.GIF_BACK, "", RectF(0f, 0f, back, h))
-            stripItems += StripItem(StripKind.GIF_GO, "Buscar", RectF(width - go, 0f, width.toFloat(), h))
+            stripItems += StripItem(StripKind.GIF_GO, tx.get(R.string.strip_gif_go), RectF(width - go, 0f, width.toFloat(), h))
             stripItems += StripItem(StripKind.GIF_FIELD, q, RectF(back, 5 * dp, width - go - 4 * dp, h - 5 * dp))
             gearDot = false
             return
@@ -760,7 +753,7 @@ class KeyboardView(context: Context) : View(context) {
         if (chipShown && upd != null) {
             val room = r - l - 2 * dp
             val textRoom = room - CHIP_ICON_W * dp - CHIP_X_W * dp - CHIP_TEXT_END * dp
-            val label = UpdateNotice.fitOf(if (chipNews) WhatsNew.labels(upd) else UpdateNotice.labels(upd), textRoom,
+            val label = UpdateNotice.fitOf(if (chipNews) WhatsNew.labels(tx, upd) else UpdateNotice.labels(tx, upd), textRoom,
                 { t, two -> chipTitlePaint(two).measureText(t) }, { t, two -> chipActionPaint(two).measureText(t) })
             if (label != null) {
                 val textW = if (label.twoLine) max(chipTitlePaint(true).measureText(label.title), chipActionPaint(true).measureText(label.action))
@@ -782,7 +775,7 @@ class KeyboardView(context: Context) : View(context) {
         if (paste != null) {
             text.textSize = 14 * dp
             text.typeface = typeface(600)
-            val label = if (pasteImage) "Pegar imagen" else paste
+            val label = if (pasteImage) tx.get(R.string.strip_paste_image) else paste
             val room = r - l
             val want = text.measureText(label) + 44 * dp
             val slot = if (shown.isEmpty()) room else room / (shown.size + 1)
@@ -1511,7 +1504,7 @@ class KeyboardView(context: Context) : View(context) {
                     val empty = s.text.isEmpty()
                     text.color = if (empty) Drawn.ink(palette, Surface.PLAIN, Ink.MUTED) else Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
                     text.typeface = typeface(if (empty) 450 else 550)
-                    val label = ellipsize(if (empty) com.resyst.vk.core.GifCopy.PLACEHOLDER else s.text, r.width() - 34 * dp)
+                    val label = ellipsize(if (empty) com.resyst.vk.core.GifCopy.placeholder(tx) else s.text, r.width() - 34 * dp)
                     val fm = text.fontMetrics
                     val baseline = r.centerY() - (fm.ascent + fm.descent) / 2
                     c.drawText(label, r.left + 14 * dp, baseline, text)
@@ -1995,24 +1988,25 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun describe(k: Key): String = when (k.type) {
         KeyType.CHAR -> when (k.text) {
-            "," -> "coma"; "." -> "punto"; "@" -> "arroba"; "/" -> "barra"; "-" -> "guion"
+            "," -> tx.get(R.string.key_comma); "." -> tx.get(R.string.key_period); "@" -> tx.get(R.string.key_at)
+            "/" -> tx.get(R.string.key_slash); "-" -> tx.get(R.string.key_hyphen)
             else -> if (shift != ShiftState.OFF) Variants.shiftChar(k.text) else k.text
         }
         KeyType.SHIFT -> when (shift) {
-            ShiftState.OFF -> "Mayúsculas"
-            ShiftState.LOCKED -> "Mayúsculas, bloqueadas"
-            else -> "Mayúsculas, activadas"
+            ShiftState.OFF -> tx.get(R.string.key_shift)
+            ShiftState.LOCKED -> tx.get(R.string.key_shift_locked)
+            else -> tx.get(R.string.key_shift_on)
         }
-        KeyType.BACKSPACE -> "Borrar"
+        KeyType.BACKSPACE -> tx.get(R.string.key_backspace)
         KeyType.ENTER -> enterDesc
-        KeyType.SPACE -> if (spaceHint) "Espacio. Mantén pulsado para cambiar de teclado" else "Espacio"
+        KeyType.SPACE -> tx.get(if (spaceHint) R.string.key_space_hint else R.string.key_space)
         KeyType.LAYER -> when (k.target) {
-            Layer.SYMBOLS -> "Símbolos"
-            Layer.SYMBOLS2 -> "Más símbolos"
-            else -> "Letras"
+            Layer.SYMBOLS -> tx.get(R.string.key_symbols)
+            Layer.SYMBOLS2 -> tx.get(R.string.key_symbols_more)
+            else -> tx.get(R.string.key_letters)
         }
         KeyType.SPACER -> ""
-        KeyType.EMOJI -> "Emojis"
+        KeyType.EMOJI -> tx.get(R.string.key_emoji)
     }
 
     private inner class KeyA11y : ExploreByTouchHelper(this) {
@@ -2067,9 +2061,9 @@ class KeyboardView(context: Context) : View(context) {
             } else if (id >= railBase) {
                 val e = rail.getOrNull(id - railBase)
                 desc = when (e?.first) {
-                    OneHand.LEFT -> "Mover el teclado a la izquierda"
-                    OneHand.RIGHT -> "Mover el teclado a la derecha"
-                    OneHand.OFF -> "Teclado a todo el ancho"
+                    OneHand.LEFT -> tx.get(R.string.rail_left)
+                    OneHand.RIGHT -> tx.get(R.string.rail_right)
+                    OneHand.OFF -> tx.get(R.string.rail_full)
                     null -> ""
                 }
                 e?.let { r.set(it.second) }
@@ -2084,7 +2078,7 @@ class KeyboardView(context: Context) : View(context) {
                 h?.let { r.set(it.rect) }
                 // r11 (ET4): TalkBack reaches the skin tones with a long-click action
                 if (h?.act == EmojiPanel.Act.EMOJI && h.cell?.tones?.isNotEmpty() == true) node.addAction(
-                    AccessibilityNodeInfoCompat.AccessibilityActionCompat(AccessibilityNodeInfo.ACTION_LONG_CLICK, "Tonos de piel"))
+                    AccessibilityNodeInfoCompat.AccessibilityActionCompat(AccessibilityNodeInfo.ACTION_LONG_CLICK, tx.get(R.string.key_skin_tones)))
             } else if (id >= panelBase) {
                 val h = clipPanel.hits.getOrNull(id - panelBase)
                 desc = h?.desc ?: ""
@@ -2093,17 +2087,17 @@ class KeyboardView(context: Context) : View(context) {
             } else if (id >= stripBase) {
                 val s = stripItems.getOrNull(id - stripBase)
                 desc = when (s?.kind) {
-                    StripKind.SETTINGS -> if (gearDot) "Ajustes de Resyst VK. Actualización ${updateVersion} disponible" else "Ajustes de Resyst VK"
-                    StripKind.NO_MEMORY -> "Sin memoria: ${s.text}"
-                    StripKind.UPDATE -> if (chipNews) WhatsNew.describe(s.text) else "Resyst VK ${s.text} disponible. Toca para actualizar"
-                    StripKind.UPDATE_X -> if (chipNews) WhatsNew.dismissDescription(s.text) else "Descartar el aviso de la versión ${s.text}"
-                    StripKind.SUGGESTION -> "Sugerencia: ${s.text}"
+                    StripKind.SETTINGS -> if (gearDot) tx.get(R.string.strip_settings_update, updateVersion ?: "") else tx.get(R.string.strip_settings)
+                    StripKind.NO_MEMORY -> tx.get(R.string.nomem_desc, s.text)
+                    StripKind.UPDATE -> if (chipNews) WhatsNew.describe(tx, s.text) else tx.get(R.string.strip_update_desc, s.text)
+                    StripKind.UPDATE_X -> if (chipNews) WhatsNew.dismissDescription(tx, s.text) else tx.get(R.string.strip_update_dismiss, s.text)
+                    StripKind.SUGGESTION -> tx.get(R.string.strip_suggestion, s.text)
                     StripKind.OFFER -> offerDesc.ifEmpty { s.text }
-                    StripKind.PASTE -> if (pasteImage) "Pegar imagen del portapapeles" else "Pegar del portapapeles: ${s.text}"
-                    StripKind.DAYNIGHT -> if (dayNight == true) "Cambiar a tema claro" else "Cambiar a tema oscuro"
-                    StripKind.GIF_BACK -> "Volver a los GIF"
-                    StripKind.GIF_GO -> "Buscar GIF"
-                    StripKind.GIF_FIELD -> "Búsqueda de GIF: " + s.text.ifEmpty { "vacía" }
+                    StripKind.PASTE -> if (pasteImage) tx.get(R.string.strip_paste_image_desc) else tx.get(R.string.strip_paste_desc, s.text)
+                    StripKind.DAYNIGHT -> tx.get(if (dayNight == true) R.string.strip_to_light else R.string.strip_to_dark)
+                    StripKind.GIF_BACK -> tx.get(R.string.strip_gif_back)
+                    StripKind.GIF_GO -> tx.get(R.string.strip_gif_search)
+                    StripKind.GIF_FIELD -> tx.get(R.string.strip_gif_field, s.text.ifEmpty { tx.get(R.string.strip_gif_empty) })
                     null -> ""
                 }
                 s?.let { r.set(it.rect) }
@@ -2113,7 +2107,7 @@ class KeyboardView(context: Context) : View(context) {
                 b?.let { r.set(it.rect) }
                 // G6: long-press space = keyboard picker, also for TalkBack users
                 if (b?.key?.type == KeyType.SPACE) node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat(
-                    AccessibilityNodeInfo.ACTION_LONG_CLICK, "Cambiar de teclado"))
+                    AccessibilityNodeInfo.ACTION_LONG_CLICK, tx.get(R.string.key_switch_keyboard)))
             }
             node.contentDescription = desc
             node.className = "android.widget.Button"
@@ -2173,17 +2167,6 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     companion object {
-        /** r14: the core quick tiles' Spanish words → their string resources. */
-        private val QUICK_WORDS = mapOf(
-            "Día / noche" to com.resyst.vk.R.string.q_daynight, "Tema" to com.resyst.vk.R.string.q_tema, "Modo" to com.resyst.vk.R.string.q_mode,
-            "Portapapeles" to com.resyst.vk.R.string.q_clipboard, "Una mano" to com.resyst.vk.R.string.q_onehand, "Altura" to com.resyst.vk.R.string.q_height,
-            "Edición" to com.resyst.vk.R.string.q_edit, "Ajustes" to com.resyst.vk.R.string.q_settings, "Oscuro" to com.resyst.vk.R.string.q_dark,
-            "Claro" to com.resyst.vk.R.string.q_light, "Ninguno" to com.resyst.vk.R.string.q_mode_none, "Código" to com.resyst.vk.R.string.q_mode_code,
-            "Juego" to com.resyst.vk.R.string.q_mode_game, "Historial" to com.resyst.vk.R.string.q_clip_on, "No en contraseñas" to com.resyst.vk.R.string.q_clip_secret,
-            "Historial apagado" to com.resyst.vk.R.string.q_clip_off, "Apagado" to com.resyst.vk.R.string.q_off, "Derecha" to com.resyst.vk.R.string.q_right,
-            "Izquierda" to com.resyst.vk.R.string.q_left, "Cursor y selección" to com.resyst.vk.R.string.q_edit_state, "Próximamente" to com.resyst.vk.R.string.q_soon,
-            "Todos los ajustes" to com.resyst.vk.R.string.q_all_settings,
-        )
         const val TAG = "ResystVK"
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L

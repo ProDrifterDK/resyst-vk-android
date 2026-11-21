@@ -508,11 +508,11 @@ class Round13iPairsTest {
         val page = SettingsIA.pageOf(Ctl.KNOW_PAIRS)!!
         assertEquals("datos", page.id)
         assertEquals(page, SettingsIA.pageOf(Ctl.PAIR_MEMORY))
-        assertEquals("Pares de palabras que usas a menudo", Ctl.KNOW_PAIRS.label)
+        assertEquals("Pares de palabras que usas a menudo", Ctl.KNOW_PAIRS.label(TestTxt.ES))
         assertTrue("default on", KbSettings().pairMemory)
         val st = ProfileCodec.decode(ProfileCodec.encode(ProfileCodec.seed().let { it.updatePhone { s -> s.copy(pairMemory = false) } }))
         assertFalse(st.settings.pairMemory)
-        assertTrue(PersonalSummary.text(PersonalSummary.Counts(0, 0, 0, 0, pairs = 12)).contains("12 pares de palabras"))
+        assertTrue(PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(0, 0, 0, 0, pairs = 12)).contains("12 pares de palabras"))
         assertFalse(PersonalSummary.Counts(0, 0, 0, 0, pairs = 1).empty)
         val names = listOf("know_pairs_title", "know_pairs_empty", "know_pairs_summary", "know_pairs_learning", "know_pairs_active", "know_pairs_off",
             "know_pairs_forget_desc", "know_pairs_clear", "know_pairs_clear_title", "know_pairs_clear_message", "pair_memory_title", "pair_memory_summary")

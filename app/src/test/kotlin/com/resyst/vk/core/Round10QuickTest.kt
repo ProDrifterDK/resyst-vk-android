@@ -102,23 +102,23 @@ class Round10QuickTest {
     @Test fun clipboardTileIsClosedWhereTheHistoryIs() { // QP3
         val secret = FieldPolicy(FieldKind.PASSWORD, suggestions = false, incognito = false)
         val text = FieldPolicy(FieldKind.TEXT, suggestions = true, incognito = false)
-        fun clipTile(st: ProfileStore, p: FieldPolicy) = Quick.tiles(st, p).first { it.action == QuickAction.CLIPBOARD }
+        fun clipTile(st: ProfileStore, p: FieldPolicy) = Quick.tiles(TestTxt.ES, st, p).first { it.action == QuickAction.CLIPBOARD }
         assertTrue(clipTile(seed, text).enabled)
         val s = clipTile(seed, secret)
         assertFalse(s.enabled)
-        assertTrue(s.desc, s.desc.contains("no disponible"))
+        assertTrue(s.desc(TestTxt.ES), s.desc(TestTxt.ES).contains("no disponible"))
         val off = seed.copy(clip = ClipSettings(history = false))
         assertFalse(clipTile(off, text).enabled)
         assertNotEquals(s.state, clipTile(off, text).state) // says why
     }
 
     @Test fun tilesAreEightNamedAndDescribed() { // QP4
-        val tiles = Quick.tiles(seed, FieldPolicy(FieldKind.TEXT, suggestions = true, incognito = false))
+        val tiles = Quick.tiles(TestTxt.ES, seed, FieldPolicy(FieldKind.TEXT, suggestions = true, incognito = false))
         assertEquals(QuickAction.values().toList(), tiles.map { it.action })
         assertEquals(8, tiles.size)
         for (t in tiles) {
             assertTrue(t.action.name, t.label.isNotBlank() && t.state.isNotBlank())
-            assertTrue(t.desc, t.desc.startsWith(t.label))
+            assertTrue(t.desc(TestTxt.ES), t.desc(TestTxt.ES).startsWith(t.label))
         }
         assertEquals("Ninguno", tiles.first { it.action == QuickAction.MODE }.state)
         assertEquals("100 %", tiles.first { it.action == QuickAction.HEIGHT }.state)
@@ -128,8 +128,8 @@ class Round10QuickTest {
     }
 
     @Test fun anAnnouncedUpdateStaysReachable() { // QP5
-        assertNull(Quick.updateLine(null))
-        val l = Quick.updateLine("0.5.0")!!
+        assertNull(Quick.updateLine(TestTxt.ES, null))
+        val l = Quick.updateLine(TestTxt.ES, "0.5.0")!!
         assertTrue(l, l.contains("0.5.0"))
     }
 

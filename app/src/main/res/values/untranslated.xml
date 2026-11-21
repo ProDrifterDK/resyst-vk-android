@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- r14b: names of the typing languages, written in their own language (the space bar and the language setting
+         show the typing language, not the interface language), so they are the same in every locale. -->
+    <string name="lang_name_es" translatable="false">Español</string>
+    <string name="lang_name_en" translatable="false">English</string>
+</resources>

@@ -131,8 +131,11 @@ class Round13ValidWordsTest {
         for (f in listOf("es.txt", "en.txt", "valid-es.dawg", "valid-en.dawg")) assertTrue(f, readme.contains(f))
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertFalse(settings.contains("FrequencyWords (MIT)"))
-        assertTrue(settings.contains("FrequencyWords (CC BY-SA 4.0)") && settings.contains("RLA-ES") && settings.contains("SCOWL"))
-        assertFalse("r13c (LI1): the credit no longer says the dictionary is MPL-only", settings.contains("RLA-ES (MPL)"))
+        for (lang in listOf("values", "values-en")) {
+            val credits = Res.parse(File(Res.resDir(), lang)).strings.getValue("s_credits_data")
+            assertTrue(lang, credits.contains("FrequencyWords (CC BY-SA 4.0)") && credits.contains("RLA-ES") && credits.contains("SCOWL"))
+            assertFalse("r13c (LI1): the credit no longer says the dictionary is MPL-only ($lang)", credits.contains("RLA-ES (MPL)"))
+        }
     }
 
     // ── VW10/VW12: loaded with the lexicon off the main thread ──

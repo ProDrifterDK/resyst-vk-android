@@ -2045,3 +2045,6 @@ checks, and what the painters actually fill and write) that nothing kept equal. 
 - TR10 Notification, TalkBack and toast text are the easiest to miss (no visible widget). Rule: they go through the same
   resources and the guard covers `contentDescription`, `setTitle` / `setMessage`, `Toast` and notification builders by
   sink, whatever the literal looks like.
+
+### VR8
+- VR8 0.14.1 / versionCode 18 are the build defaults; docs/novedades-0.14.1.md is the site text (plain language, both languages).

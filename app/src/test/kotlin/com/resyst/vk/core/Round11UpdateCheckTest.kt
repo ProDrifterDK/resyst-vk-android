@@ -232,14 +232,14 @@ class Round11UpdateCheckTest {
 
     // ── OC14, OC15: copy and the log ──────────────────────────────────────
     @Test fun copySaysWhenAndHowOften() { // OC14
-        assertEquals("Buscar actualizaciones automáticamente", Ctl.UPDATE_AUTO.label)
-        assertEquals("Al abrir el teclado, como mucho una vez cada 12 horas. Nunca envía lo que escribes.", UpdateNotice.autoSubtitle())
-        val on = UpdateNotice.promise(true)
+        assertEquals("Buscar actualizaciones automáticamente", Ctl.UPDATE_AUTO.label(TestTxt.ES))
+        assertEquals("Al abrir el teclado, como mucho una vez cada 12 horas. Nunca envía lo que escribes.", UpdateNotice.autoSubtitle(TestTxt.ES))
+        val on = UpdateNotice.promise(TestTxt.ES, true)
         assertTrue(on, on.contains("al abrir el teclado") && on.contains("una vez cada 12 horas") && on.contains("sin enviar nada de lo que escribes"))
         assertFalse(on.contains("al iniciar"))
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertFalse("settings card still says 'al iniciar'", settings.contains("Comprobado al iniciar"))
-        assertTrue(settings.contains("UpdateNotice.autoSubtitle()"))
+        assertTrue(settings.contains("UpdateNotice.autoSubtitle(tx)"))
     }
 
     @Test fun oldStartupEntriesStillDecodeNextToNewOpenEntries() { // OC15
@@ -248,11 +248,11 @@ class Round11UpdateCheckTest {
         val old = ConnectionLog.decode(v070)
         assertEquals(3, old.recent().size)
         assertEquals(ConnectionLog.Why.STARTUP, old.recent()[2].why)
-        assertEquals("al iniciar el teclado", old.recent()[2].why.label)
+        assertEquals("al iniciar el teclado", old.recent()[2].why.label(TestTxt.ES))
         val next = old.add(ConnectionLog.Entry(4000, ConnectionLog.What.CHECK, ConnectionLog.Why.OPEN, "Hay versión nueva: 0.7.1"))
         val back = ConnectionLog.decode(next.encode())
         assertEquals(listOf("open", "user", "user", "startup"), back.recent().map { it.why.id })
-        assertEquals("al abrir el teclado", back.recent()[0].why.label)
+        assertEquals("al abrir el teclado", back.recent()[0].why.label(TestTxt.ES))
         assertEquals(4, back.total)
         assertEquals(1000L, back.firstAt)
         val src = File("src/main/kotlin/com/resyst/vk/settings/Updater.kt").readText()

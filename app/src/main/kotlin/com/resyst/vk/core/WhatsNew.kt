@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /**
  * r13c (N6, docs/failure-modes.md WN1–WN8): the "Novedades de la 0.10.0" chip, shown once in the
  * suggestion strip the first time the keyboard opens after an update. Pure and JVM-tested in
@@ -51,19 +53,24 @@ object WhatsNew {
     fun display(versionName: String): String = versionName.removeSuffix("-debug")
 
     /** Longest first, every tier carries the whole version (WN5); the action says it opens the browser. */
-    fun labels(version: String): List<UpdateNotice.Label> {
+    fun labels(t: Txt, version: String): List<UpdateNotice.Label> {
         val v = display(version)
         return listOf(
-            UpdateNotice.Label("Novedades de la $v", " · Toca para ver", twoLine = false),
-            UpdateNotice.Label("Novedades de la $v", "Se abre en el navegador", twoLine = true),
-            UpdateNotice.Label("Novedades $v", "Se abre en el navegador", twoLine = true),
-            UpdateNotice.Label(v, "Novedades", twoLine = true),
+            UpdateNotice.Label(t.get(R.string.wn_title, v), " · " + t.get(R.string.wn_tap), twoLine = false),
+            UpdateNotice.Label(t.get(R.string.wn_title, v), t.get(R.string.wn_browser), twoLine = true),
+            UpdateNotice.Label(t.get(R.string.wn_title_short, v), t.get(R.string.wn_browser), twoLine = true),
+            UpdateNotice.Label(v, t.get(R.string.wn_bare), twoLine = true),
         )
     }
 
-    fun describe(version: String): String =
-        "Novedades de la versión ${display(version)}. Toca para abrir en el navegador"
+    fun describe(t: Txt, version: String): String = t.get(R.string.wn_desc, display(version))
 
-    fun dismissDescription(version: String): String =
-        "Descartar el aviso de novedades de la versión ${display(version)}"
+    fun dismissDescription(t: Txt, version: String): String = t.get(R.string.wn_dismiss, display(version))
+
+    /**
+     * Where "Novedades" and the links to the site open (TR9). The site is one page with both languages in it (the
+     * language is the visitor's saved toggle) and has no English address, so both languages open the same page.
+     * When the site publishes one (`/en/novedades/`), this is the only line to change.
+     */
+    fun url(t: Txt): String = URL
 }

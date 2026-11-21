@@ -13,7 +13,7 @@ class Round10EditPadTest {
 
     @Test fun everyOpHasExactlyOneButtonInBothGrids() { // QE1
         for (rows in listOf(3, 2)) {
-            val g = EditPad.grid(rows)
+            val g = EditPad.grid(TestTxt.ES, rows)
             assertEquals("$rows rows", EditOp.values().toList().sorted(), g.map { it.op }.sorted())
             assertEquals("$rows rows: one cell per button", g.size, g.map { it.col to it.row }.toSet().size)
             val cols = EditOp.values().size / rows
@@ -21,7 +21,7 @@ class Round10EditPadTest {
             for (b in g) assertTrue(b.op.name, b.label.isNotBlank())
         }
         // the arrows sit around Seleccionar like a d-pad in the portrait grid
-        val p = EditPad.grid(3).associateBy { it.op }
+        val p = EditPad.grid(TestTxt.ES, 3).associateBy { it.op }
         assertEquals(p.getValue(EditOp.SELECT).col, p.getValue(EditOp.UP).col)
         assertEquals(p.getValue(EditOp.SELECT).row, p.getValue(EditOp.LEFT).row)
         assertEquals(p.getValue(EditOp.SELECT).row, p.getValue(EditOp.RIGHT).row)
@@ -34,7 +34,7 @@ class Round10EditPadTest {
             assertTrue(op.name, EditPad.enabled(op, secret = false))
             if (op != EditOp.COPY && op != EditOp.CUT) assertTrue(op.name, EditPad.enabled(op, secret = true))
         }
-        assertTrue(EditPad.desc(EditOp.COPY, selecting = false, secret = true).endsWith("no disponible en contraseñas"))
+        assertTrue(EditPad.desc(TestTxt.ES, EditOp.COPY, selecting = false, secret = true).endsWith("no disponible en contraseñas"))
     }
 
     @Test fun onlyMovesAndDeletesRepeat() { // QE3
@@ -42,10 +42,10 @@ class Round10EditPadTest {
     }
 
     @Test fun selectionStateIsShownAndSpoken() { // QE4
-        assertTrue(EditPad.desc(EditOp.SELECT, selecting = true, secret = false).endsWith("activado"))
-        assertTrue(EditPad.desc(EditOp.SELECT, selecting = false, secret = false).endsWith("desactivado"))
-        assertTrue(EditPad.desc(EditOp.LEFT, selecting = true, secret = false).contains("extiende la selección"))
-        assertFalse(EditPad.desc(EditOp.LEFT, selecting = false, secret = false).contains("selección"))
+        assertTrue(EditPad.desc(TestTxt.ES, EditOp.SELECT, selecting = true, secret = false).endsWith("activado"))
+        assertTrue(EditPad.desc(TestTxt.ES, EditOp.SELECT, selecting = false, secret = false).endsWith("desactivado"))
+        assertTrue(EditPad.desc(TestTxt.ES, EditOp.LEFT, selecting = true, secret = false).contains("extiende la selección"))
+        assertFalse(EditPad.desc(TestTxt.ES, EditOp.LEFT, selecting = false, secret = false).contains("selección"))
     }
 
     @Test fun buttonsStayTouchTargets() { // QE5
@@ -58,7 +58,7 @@ class Round10EditPadTest {
         // smallest landscape keyboard (40 dp rows) still gets ≥ 48 dp buttons in 2 rows
         val land = 4 * 40f * ProfileCodec.HEIGHT_MIN + 42f + 4f - EditPad.HEADER_DP
         assertTrue(land / EditPad.rowsFor(land) >= 48f)
-        for (op in EditOp.values()) assertTrue(op.name, EditPad.desc(op, false, false).isNotBlank())
+        for (op in EditOp.values()) assertTrue(op.name, EditPad.desc(TestTxt.ES, op, false, false).isNotBlank())
         assertTrue(view.contains("editBase"))
     }
 

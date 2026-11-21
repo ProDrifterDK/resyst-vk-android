@@ -524,8 +524,13 @@ class Round13fOffersTest {
         // HP5: the key path only posts
         assertTrue(ime.substringAfter("private fun scheduleOffer()").substringBefore("\n    }").contains("mainHandler.post"))
         // LC1: credits next to the dictionaries, README, strings in Spanish and English
-        val credits = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText().substringAfter("private fun footer()").substringBefore("companion object")
-        for (c in listOf("Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0)", "Tatoeba contributors (CC BY 2.0 FR)", "FrequencyWords (CC BY-SA 4.0)")) assertTrue(c, credits.contains(c))
+        // r14b: the credits are resources (the same names and licences in both languages), shown by the footer
+        assertTrue(File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText().substringAfter("private fun footer()").substringBefore("companion object").contains("R.string.s_credits_context"))
+        for (lang in listOf("values", "values-en")) {
+            val r = Res.parse(File(Res.resDir(), lang)).strings
+            val credits = r.getValue("s_credits_context") + r.getValue("s_credits_data")
+            for (c in listOf("Wikipedia contributors, Wikipedia, la enciclopedia libre (CC BY-SA 4.0)", "Tatoeba contributors (CC BY 2.0 FR)", "FrequencyWords (CC BY-SA 4.0)")) assertTrue("$lang: $c", credits.contains(c))
+        }
         val readme = File("../README.md").readText()
         assertTrue(readme.contains("GPL-3.0-only") && readme.contains("Tatoeba contributors") && readme.contains("Wikipedia contributors"))
         val es = File("src/main/res/values/strings.xml").readText()

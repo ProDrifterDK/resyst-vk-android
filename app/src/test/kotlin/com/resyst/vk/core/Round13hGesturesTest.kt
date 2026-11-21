@@ -69,10 +69,12 @@ class Round13hGesturesTest {
     }
 
     @Test fun lf4AManualWayToSwitchStaysDocumented() {
-        val ui = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
-        val bilingual = ui.substringAfter("Ctl.BILINGUAL -> toggle(").substringBefore("\n")
+        // r14b: the summary is a resource, written in both languages
+        val bilingual = Res.parse(File(Res.resDir(), "values")).strings.getValue("s_bilingual_summary")
         assertFalse("the flick is no longer how the bilingual summary says to switch", bilingual.contains("desliza el espacio"))
         assertTrue(bilingual.contains("manteniendo pulsado el espacio") && bilingual.contains("«Idioma»"))
+        val bilingualEn = Res.parse(File(Res.resDir(), "values-en")).strings.getValue("s_bilingual_summary")
+        assertTrue(bilingualEn.contains("holding the space bar") && bilingualEn.contains("«Language»") && !bilingualEn.contains("swipe"))
         val es = File("src/main/res/values/strings.xml").readText()
         assertTrue(es.substringAfter("name=\"space_flick_summary\">").substringBefore("<").contains("mantén pulsado el espacio"))
         // the long press still opens Android's keyboard picker (the subtypes Español / English), Idioma is on home

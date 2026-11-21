@@ -116,8 +116,8 @@ class Round13CoreTest {
     // ── LR5: every store under files/personal/ is counted, listed and wiped ──
     @Test fun rejectionsAreOnTheLearnedDataSurfaces() {
         assertFalse(PersonalSummary.Counts(0, 0, 0, 0, rejections = 1).empty)
-        assertEquals("2 correcciones rechazadas · nada sale del teléfono", PersonalSummary.text(PersonalSummary.Counts(0, 0, 0, 0, 2)))
-        assertEquals("1 palabra · 1 corrección rechazada · nada sale del teléfono", PersonalSummary.text(PersonalSummary.Counts(1, 0, 0, 0, 1)))
+        assertEquals("2 correcciones rechazadas · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(0, 0, 0, 0, 2)))
+        assertEquals("1 palabra · 1 corrección rechazada · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(1, 0, 0, 0, 1)))
         val store = File("src/main/kotlin/com/resyst/vk/ime/PersonalStore.kt").readText()
         assertTrue(store.contains("\"rejections.json\"") && store.contains("rejections = Rejections()"))
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
@@ -202,11 +202,11 @@ class Round13CoreTest {
         assertTrue("yeísmo", rows.score("llamar") && rows.cost <= TypoModel.PHON + 0.001f)
     }
 
-    // ── VR1 → r13c VR2 → r13d VR3 → r13f VR4 → r13h VR5 → r13i VR6 → r14 VR7 ──
-    @Test fun versionIs0140() { // r14 VR7
+    // ── VR1 → r13c VR2 → r13d VR3 → r13f VR4 → r13h VR5 → r13i VR6 → r14 VR7 → r14b VR8 ──
+    @Test fun versionIs0141() { // r14b VR8
         val g = File("build.gradle.kts").readText()
-        assertTrue(g.contains("?.toInt() ?: 17"))
-        assertTrue(g.contains("?: \"0.14.0\""))
+        assertTrue(g.contains("?.toInt() ?: 18"))
+        assertTrue(g.contains("?: \"0.14.1\""))
         assertNotNull(Regex("versionCode = \\(findProperty").find(g))
     }
 }

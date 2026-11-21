@@ -1,5 +1,7 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
+
 /**
  * r11a-fix (F1): what "Borrar lo aprendido" says it will erase — everything the keyboard keeps in
  * files/personal/ (learned words, remembered emails, emoji recents, chosen skin tones, and since r13
@@ -7,8 +9,6 @@ package com.resyst.vk.core
  * there; "Nada aprendido todavía" only when all are empty.
  */
 object PersonalSummary {
-    const val LOCAL = "nada sale del teléfono"
-
     /**
      * r12 (SA2): [tones] = null while settings still loads the emoji catalog the tones are decoded
      * against and the tones file has content: some may be kept, so the row is not empty and the
@@ -21,23 +21,20 @@ object PersonalSummary {
     /** The tones count while loading (SA2). */
     const val LOADING = "…"
 
-    /** "12 palabras · 1 correo · 8 emojis recientes · 2 tonos · nada sale del teléfono" (zero parts left out). */
-    fun text(c: Counts): String {
-        if (c.empty) return "Nada aprendido todavía · $LOCAL"
+    /** "12 words · 1 email · 8 recent emoji · 2 skin tones · nothing leaves the phone" (zero parts left out). */
+    fun text(t: Txt, c: Counts): String {
+        val local = t.get(R.string.sum_local)
+        if (c.empty) return t.get(R.string.sum_none) + " · " + local
         val parts = listOfNotNull(
-            part(c.words, "palabra", "palabras"),
-            part(c.emails, "correo", "correos"),
-            part(c.emojiRecents, "emoji reciente", "emojis recientes"),
-            if (c.tones == null) "$LOADING tonos" else part(c.tones, "tono", "tonos"),
-            part(c.rejections, "corrección rechazada", "correcciones rechazadas"),
-            part(c.pairs, "par de palabras", "pares de palabras"), // r13i (PM5): files/personal/pairs.bin
+            part(t, R.plurals.sum_words, c.words),
+            part(t, R.plurals.sum_emails, c.emails),
+            part(t, R.plurals.sum_emoji, c.emojiRecents),
+            if (c.tones == null) t.get(R.string.sum_tones_loading, LOADING) else part(t, R.plurals.sum_tones, c.tones),
+            part(t, R.plurals.sum_rejections, c.rejections),
+            part(t, R.plurals.sum_pairs, c.pairs), // r13i (PM5): files/personal/pairs.bin
         )
-        return (parts + LOCAL).joinToString(" · ")
+        return (parts + local).joinToString(" · ")
     }
 
-    private fun part(n: Int, one: String, many: String): String? = when {
-        n <= 0 -> null
-        n == 1 -> "1 $one"
-        else -> "$n $many"
-    }
+    private fun part(t: Txt, plural: Int, n: Int): String? = if (n <= 0) null else t.plural(plural, n)
 }

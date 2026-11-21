@@ -1,5 +1,7 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.R
+import com.resyst.vk.core.Txt
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -20,7 +22,7 @@ import kotlin.math.min
  * Cortar / Pegar and Borrar palabra. Seleccionar is drawn latched while on (QE4); Copiar / Cortar
  * are drawn disabled in secret fields (QE2).
  */
-class EditPanel(private val dp: Float) {
+class EditPanel(private val dp: Float, private val tx: Txt) {
     enum class Act { CLOSE, OP }
     class Hit(val act: Act, val op: EditOp?, val rect: RectF, val desc: String, val enabled: Boolean = true)
 
@@ -50,11 +52,11 @@ class EditPanel(private val dp: Float) {
         hits.clear()
         if (bounds.width() <= 0f) return
         val pad = 6 * dp
-        hits += Hit(Act.CLOSE, null, RectF(bounds.left, bounds.top, bounds.left + 112 * dp, bounds.top + headH), "Volver al teclado")
+        hits += Hit(Act.CLOSE, null, RectF(bounds.left, bounds.top, bounds.left + 112 * dp, bounds.top + headH), tx.get(R.string.quick_back_desc))
         val top = bounds.top + headH
         val gridH = bounds.bottom - top - pad
         val rows = EditPad.rowsFor(gridH / dp)
-        val grid = EditPad.grid(rows)
+        val grid = EditPad.grid(tx, rows)
         val cols = grid.maxOf { it.col } + 1
         val cw = (bounds.width() - 2 * pad) / cols
         val ch = gridH / rows
@@ -62,11 +64,11 @@ class EditPanel(private val dp: Float) {
             val l = bounds.left + pad + b.col * cw
             val t = top + b.row * ch
             hits += Hit(Act.OP, b.op, RectF(l + 3 * dp, t + 3 * dp, l + cw - 3 * dp, t + ch - 3 * dp),
-                EditPad.desc(b.op, selecting, secret), EditPad.enabled(b.op, secret))
+                EditPad.desc(tx, b.op, selecting, secret), EditPad.enabled(b.op, secret))
         }
     }
 
-    private fun label(op: EditOp) = EditPad.grid(3).first { it.op == op }.label
+    private fun label(op: EditOp) = EditPad.grid(tx, 3).first { it.op == op }.label
 
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
         val t = p.theme
@@ -86,14 +88,14 @@ class EditPanel(private val dp: Float) {
             text.color = back
             text.textSize = 14 * dp
             text.typeface = typeface(600)
-            baseline(c, "Teclado", close.rect.left + 36 * dp, close.rect.centerY())
+            baseline(c, tx.get(R.string.quick_back), close.rect.left + 36 * dp, close.rect.centerY())
         }
         text.textAlign = Paint.Align.RIGHT
         text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT)
         text.textSize = 11 * dp
         text.typeface = typeface(700)
         text.letterSpacing = 0.12f
-        baseline(c, if (selecting) "✦ SELECCIONANDO" else "✦ EDICIÓN", bounds.right - 12 * dp, bounds.top + headH / 2)
+        baseline(c, tx.get(if (selecting) R.string.edit_title_select else R.string.edit_title), bounds.right - 12 * dp, bounds.top + headH / 2)
         text.letterSpacing = 0f
         fill.color = t.edge
         c.drawRect(bounds.left, bounds.top + headH - 1, bounds.right, bounds.top + headH, fill)

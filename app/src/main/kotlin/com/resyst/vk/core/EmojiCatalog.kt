@@ -11,7 +11,10 @@ package com.resyst.vk.core
  */
 class EmojiCatalog private constructor(val groups: List<Group>) {
     data class Cell(val base: String, val tones: List<String>)
-    data class Group(val id: String, val label: String, val icon: String, val cells: List<Cell>)
+    data class Group(val id: String, val icon: String, val cells: List<Cell>) {
+        /** Tab name and TalkBack name (`emoji_cat_<id>`). */
+        fun label(t: Txt): String = t.need("emoji_cat_$id")
+    }
 
     private val byEmoji = HashMap<String, Cell>().also { m ->
         for (g in groups) for (c in g.cells) { m[c.base] = c; for (t in c.tones) m[t] = c }
@@ -24,17 +27,17 @@ class EmojiCatalog private constructor(val groups: List<Group>) {
     val variantCount: Int get() = groups.sumOf { g -> g.cells.sumOf { it.tones.size } }
 
     companion object {
-        /** Tab label (Spanish, also the TalkBack name) and tab icon per generator group id, in Unicode order. */
-        val GROUPS: List<Triple<String, String, String>> = listOf(
-            Triple("caras", "Caras y emociones", "😀"),
-            Triple("personas", "Personas y cuerpo", "👋"),
-            Triple("naturaleza", "Animales y naturaleza", "🐶"),
-            Triple("comida", "Comida y bebida", "🍕"),
-            Triple("viajes", "Viajes y lugares", "🚗"),
-            Triple("actividades", "Actividades", "⚽"),
-            Triple("objetos", "Objetos", "💡"),
-            Triple("simbolos", "Símbolos", "✅"),
-            Triple("banderas", "Banderas", "🏁"),
+        /** Tab icon per generator group id, in Unicode order; the name is a resource (Group.label). */
+        val GROUPS: List<Pair<String, String>> = listOf(
+            Pair("caras", "😀"),
+            Pair("personas", "👋"),
+            Pair("naturaleza", "🐶"),
+            Pair("comida", "🍕"),
+            Pair("viajes", "🚗"),
+            Pair("actividades", "⚽"),
+            Pair("objetos", "💡"),
+            Pair("simbolos", "✅"),
+            Pair("banderas", "🏁"),
         )
 
         val EMPTY = EmojiCatalog(emptyList())
@@ -59,8 +62,8 @@ class EmojiCatalog private constructor(val groups: List<Group>) {
                 val tones = parts.drop(1).filter { EmojiRecents.valid(it) && it != base && seen.add(it) }
                 list += Cell(base, tones)
             }
-            return EmojiCatalog(GROUPS.mapNotNull { (id, label, icon) ->
-                cells[id]?.takeIf { it.isNotEmpty() }?.let { Group(id, label, icon, it) }
+            return EmojiCatalog(GROUPS.mapNotNull { (id, icon) ->
+                cells[id]?.takeIf { it.isNotEmpty() }?.let { Group(id, icon, it) }
             })
         }
     }

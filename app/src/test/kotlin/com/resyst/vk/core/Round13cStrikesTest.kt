@@ -130,7 +130,7 @@ class Round13cStrikesTest {
         assertEquals(Rejections.CAP - 1, r.size)
         r.clear()
         assertTrue(r.isEmpty())
-        assertEquals("1 palabra · 1 corrección rechazada · nada sale del teléfono", PersonalSummary.text(PersonalSummary.Counts(1, 0, 0, 0, Rejections().apply { strike("lentl", "lento") }.size)))
+        assertEquals("1 palabra · 1 corrección rechazada · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(1, 0, 0, 0, Rejections().apply { strike("lentl", "lento") }.size)))
         val settings = java.io.File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertTrue("\"Lo que sé de ti\" lists the strikes with ✕", settings.contains("for (e in once) knowRow(") && settings.contains("r.strikes()"))
     }

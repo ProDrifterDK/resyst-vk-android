@@ -216,11 +216,11 @@ class ClipboardTest {
     }
 
     @Test fun ageLabels() {
-        assertEquals("ahora", ClipRules.ago(t0 + 59_000, t0))
-        assertEquals("hace 5 min", ClipRules.ago(t0 + 5 * 60_000, t0))
-        assertEquals("hace 2 h", ClipRules.ago(t0 + 2 * 3_600_000, t0))
-        assertEquals("hace 3 d", ClipRules.ago(t0 + 3 * 86_400_000L, t0))
-        assertEquals("ahora", ClipRules.ago(t0, t0 + 5000)) // clock went back
+        assertEquals("ahora", ClipRules.ago(TestTxt.ES, t0 + 59_000, t0))
+        assertEquals("hace 5 min", ClipRules.ago(TestTxt.ES, t0 + 5 * 60_000, t0))
+        assertEquals("hace 2 h", ClipRules.ago(TestTxt.ES, t0 + 2 * 3_600_000, t0))
+        assertEquals("hace 3 d", ClipRules.ago(TestTxt.ES, t0 + 3 * 86_400_000L, t0))
+        assertEquals("ahora", ClipRules.ago(TestTxt.ES, t0, t0 + 5000)) // clock went back
     }
 
     @Test fun imagesOnlyWhereTheFieldTakesThem() { // O4

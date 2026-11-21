@@ -1,5 +1,6 @@
 package com.resyst.vk.ime
 
+import com.resyst.vk.core.Txt
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -31,7 +32,7 @@ import kotlin.math.min
  * KLIPY's order, and one calm status line (loading, empty, an error with «Reintentar»).
  * The official "Powered by KLIPY" mark is always visible in this tab (GT1).
  */
-class GifPanel(context: Context, private val dp: Float) {
+class GifPanel(context: Context, private val dp: Float, private val tx: Txt) {
     enum class Face { OFF, DISCLOSURE, ON }
     enum class Act { ENABLE, ACCEPT, CANCEL, SEARCH, RETRY, ITEM, ATTRIBUTION }
     class Target(val act: Act, val index: Int = 0)
@@ -92,7 +93,7 @@ class GifPanel(context: Context, private val dp: Float) {
         val bw = min(area.width() - 2 * pad, 300 * dp)
         val cy = area.top + area.height() * 0.62f
         offButton = RectF(area.centerX() - bw / 2, cy, area.centerX() + bw / 2, cy + 44 * dp)
-        hits += Hit(Target(Act.ENABLE), offButton, GifCopy.OFF_BUTTON)
+        hits += Hit(Target(Act.ENABLE), offButton, GifCopy.offButton(tx))
         attributionHit(RectF(area.centerX() - 70 * dp, area.bottom - 22 * dp, area.centerX() + 70 * dp, area.bottom - 4 * dp))
     }
 
@@ -105,16 +106,16 @@ class GifPanel(context: Context, private val dp: Float) {
         val bw = (area.width() - 3 * pad) / 2
         val by = area.bottom - discButtonsH + 6 * dp
         val bb = area.bottom - 8 * dp
-        hits += Hit(Target(Act.CANCEL), RectF(area.left + pad, by, area.left + pad + bw, bb), GifCopy.CANCEL + ": se queda apagado")
-        hits += Hit(Target(Act.ACCEPT), RectF(area.right - pad - bw, by, area.right - pad, bb), GifCopy.ACCEPT + " la búsqueda de GIF con KLIPY")
+        hits += Hit(Target(Act.CANCEL), RectF(area.left + pad, by, area.left + pad + bw, bb), tx.get(R.string.gif_cancel_desc))
+        hits += Hit(Target(Act.ACCEPT), RectF(area.right - pad - bw, by, area.right - pad, bb), tx.get(R.string.gif_accept_desc))
         // the text itself is one node, so TalkBack reads the whole disclosure (GO2)
         hits += Hit(Target(Act.ATTRIBUTION, 1), RectF(area.left, area.top, area.right, by - 2 * dp),
-            GifCopy.TITLE + ". " + GifCopy.DISCLOSURE.joinToString(" "))
+            GifCopy.title(tx) + ". " + GifCopy.disclosure(tx).joinToString(" "))
     }
 
     private fun disclosureText(width: Int): StaticLayout {
         discLayout?.let { if (discWidth == width) return it }
-        val body = GifCopy.DISCLOSURE.joinToString("\n") { "•  $it" }
+        val body = GifCopy.disclosure(tx).joinToString("\n") { "•  $it" }
         val tp = TextPaint(text).apply { textSize = 12.5f * dp; typeface = Typeface.DEFAULT }
         val l = staticLayout(body, tp, width, 1.06f)
         discLayout = l
@@ -128,10 +129,10 @@ class GifPanel(context: Context, private val dp: Float) {
 
     private fun layoutOn() {
         searchBox = RectF(area.left + pad, area.top + 6 * dp, area.right - pad - logoW - 6 * dp, area.top + rowH - 4 * dp)
-        hits += Hit(Target(Act.SEARCH), searchBox, if (query != null) "Buscar en KLIPY: $query. Toca para cambiar la búsqueda" else GifCopy.PLACEHOLDER)
+        hits += Hit(Target(Act.SEARCH), searchBox, query?.let { tx.get(R.string.gif_search_desc, it) } ?: GifCopy.placeholder(tx))
         attributionHit(RectF(area.right - pad - logoW, area.top + 6 * dp, area.right - pad, area.top + rowH - 4 * dp))
         if (items.isEmpty()) {
-            if (retry) hits += Hit(Target(Act.RETRY), retryRect(), "Reintentar")
+            if (retry) hits += Hit(Target(Act.RETRY), retryRect(), tx.get(R.string.gif_retry))
             return
         }
         val w = area.width() - 2 * pad
@@ -147,9 +148,9 @@ class GifPanel(context: Context, private val dp: Float) {
             if (y + c.height <= top || y >= bottom) continue
             val g = items.getOrNull(c.index) ?: continue
             hits += Hit(Target(Act.ITEM, c.index), RectF(area.left + pad + c.left, max(y, top), area.left + pad + c.right, min(y + c.height, bottom)),
-                "GIF: " + g.title.ifEmpty { g.slug })
+                tx.get(R.string.gif_item_desc, g.title.ifEmpty { g.slug }))
         }
-        if (retry) hits += Hit(Target(Act.RETRY), retryRect(), "Reintentar")
+        if (retry) hits += Hit(Target(Act.RETRY), retryRect(), tx.get(R.string.gif_retry))
     }
 
     private fun retryRect(): RectF {
@@ -157,7 +158,7 @@ class GifPanel(context: Context, private val dp: Float) {
         return RectF(area.centerX() - 70 * dp, y, area.centerX() + 70 * dp, y + 36 * dp)
     }
 
-    private fun attributionHit(r: RectF) { hits += Hit(Target(Act.ATTRIBUTION), r, GifCopy.ATTRIBUTION) }
+    private fun attributionHit(r: RectF) { hits += Hit(Target(Act.ATTRIBUTION), r, GifCopy.attribution(tx)) }
 
     /** Same file as [GifFeed] decodes (review m3), so a cell crops only what it must. */
     private fun previewAspect(g: Gif): Float = KlipyParse.previewAspect(g, animated)
@@ -222,13 +223,13 @@ class GifPanel(context: Context, private val dp: Float) {
         val w = (area.width() - 4 * pad).toInt().coerceAtLeast(1)
         val tf600 = typeface(600)
         val tf450 = typeface(450)
-        val l1 = staticLayout(GifCopy.OFF_LINE1, TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT); textSize = 15 * dp; this.typeface = tf600; textAlign = Paint.Align.LEFT }, w, 1.05f, center = true)
-        val l2 = staticLayout(GifCopy.OFF_LINE2, TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED); textSize = 12.5f * dp; this.typeface = tf450; textAlign = Paint.Align.LEFT }, w, 1.1f, center = true)
+        val l1 = staticLayout(GifCopy.offLine1(tx), TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT); textSize = 15 * dp; this.typeface = tf600; textAlign = Paint.Align.LEFT }, w, 1.05f, center = true)
+        val l2 = staticLayout(GifCopy.offLine2(tx), TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED); textSize = 12.5f * dp; this.typeface = tf450; textAlign = Paint.Align.LEFT }, w, 1.1f, center = true)
         var y = by + 26 * dp
         c.save(); c.translate(area.left + 2 * pad, y); l1.draw(c); c.restore()
         y += l1.height + 6 * dp
         c.save(); c.translate(area.left + 2 * pad, y); l2.draw(c); c.restore()
-        pill(c, offButton, GifCopy.OFF_BUTTON, Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ENABLE, p)
+        pill(c, offButton, GifCopy.offButton(tx), Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ENABLE, p)
         drawLogo(c, area.centerX(), area.bottom - 13 * dp, 12 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED), center = true)
     }
 
@@ -242,7 +243,7 @@ class GifPanel(context: Context, private val dp: Float) {
         text.textSize = 15 * dp
         text.typeface = typeface(650)
         text.textAlign = Paint.Align.LEFT
-        c.drawText(GifCopy.TITLE, area.left + 2 * pad, area.top + 24 * dp, text)
+        c.drawText(GifCopy.title(tx), area.left + 2 * pad, area.top + 24 * dp, text)
         val w = (area.width() - 4 * pad).toInt().coerceAtLeast(1)
         text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT_MOD)
         val l = disclosureText(w)
@@ -260,8 +261,8 @@ class GifPanel(context: Context, private val dp: Float) {
             c.drawRoundRect(area.right - 4 * dp, y, area.right - 2 * dp, y + len, dp, dp, fill)
         }
         for (h in hits) when (h.target.act) {
-            Act.CANCEL -> pill(c, h.rect, GifCopy.CANCEL, Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.CANCEL, p)
-            Act.ACCEPT -> pill(c, h.rect, GifCopy.ACCEPT, Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ACCEPT, p)
+            Act.CANCEL -> pill(c, h.rect, GifCopy.cancel(tx), Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.CANCEL, p)
+            Act.ACCEPT -> pill(c, h.rect, GifCopy.accept(tx), Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ACCEPT, p)
             else -> Unit
         }
     }
@@ -288,7 +289,7 @@ class GifPanel(context: Context, private val dp: Float) {
             else -> Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
         }
         text.typeface = typeface(if (q != null) 550 else 450)
-        val label = ellipsize(q ?: GifCopy.PLACEHOLDER, searchBox.width() - 40 * dp)
+        val label = ellipsize(q ?: GifCopy.placeholder(tx), searchBox.width() - 40 * dp)
         val fm = text.fontMetrics
         c.drawText(label, searchBox.left + 32 * dp, searchBox.centerY() - (fm.ascent + fm.descent) / 2, text)
         drawLogo(c, area.right - pad, area.top + rowH / 2 + 1 * dp, 11 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED), center = false)
@@ -343,7 +344,7 @@ class GifPanel(context: Context, private val dp: Float) {
                 text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.textSize = 12.5f * dp
                 text.typeface = typeface(500)
-                centered(c, st ?: GifCopy.LOADING, area.centerX(), y)
+                centered(c, st ?: GifCopy.loading(tx), area.centerX(), y)
             }
         }
         for (h in hits) if (h.target.act == Act.RETRY) {
@@ -356,7 +357,7 @@ class GifPanel(context: Context, private val dp: Float) {
                 text.typeface = typeface(500)
                 centered(c, st, area.centerX(), h.rect.top - 14 * dp)
             }
-            pill(c, h.rect, "Reintentar", Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.RETRY, p)
+            pill(c, h.rect, tx.get(R.string.gif_retry), Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.RETRY, p)
         }
         // scroll indicator
         val ms = maxScroll()
@@ -377,7 +378,7 @@ class GifPanel(context: Context, private val dp: Float) {
             text.color = color
             text.textSize = h
             text.typeface = Typeface.DEFAULT_BOLD
-            centered(c, GifCopy.ATTRIBUTION, x, cy)
+            centered(c, GifCopy.attribution(tx), x, cy)
             text.textAlign = Paint.Align.CENTER
             return
         }

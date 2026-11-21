@@ -17,24 +17,24 @@ class Round11WipeTest {
     @Test fun anyKeptKindAloneEnablesTheWipe() { // F1: the gate read words + emails only
         val none = PersonalSummary.Counts(0, 0, 0, 0)
         assertTrue(none.empty)
-        assertEquals("Nada aprendido todavía · nada sale del teléfono", PersonalSummary.text(none))
+        assertEquals("Nada aprendido todavía · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, none))
         for (c in listOf(
             PersonalSummary.Counts(1, 0, 0, 0), PersonalSummary.Counts(0, 1, 0, 0),
             PersonalSummary.Counts(0, 0, 1, 0), PersonalSummary.Counts(0, 0, 0, 1),
         )) {
             assertFalse(c.toString(), c.empty)
-            assertFalse(c.toString(), PersonalSummary.text(c).startsWith("Nada aprendido"))
-            assertTrue(c.toString(), PersonalSummary.text(c).endsWith(" · nada sale del teléfono"))
+            assertFalse(c.toString(), PersonalSummary.text(TestTxt.ES, c).startsWith("Nada aprendido"))
+            assertTrue(c.toString(), PersonalSummary.text(TestTxt.ES, c).endsWith(" · nada sale del teléfono"))
         }
     }
 
     @Test fun theSummaryNamesWhatIsKeptInSpanish() { // F1: zero parts left out, singular/plural
         assertEquals("12 palabras · 1 correo · 8 emojis recientes · 2 tonos · nada sale del teléfono",
-            PersonalSummary.text(PersonalSummary.Counts(12, 1, 8, 2)))
+            PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(12, 1, 8, 2)))
         assertEquals("1 palabra · 3 correos · 1 emoji reciente · 1 tono · nada sale del teléfono",
-            PersonalSummary.text(PersonalSummary.Counts(1, 3, 1, 1)))
+            PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(1, 3, 1, 1)))
         assertEquals("2 emojis recientes · 1 tono · nada sale del teléfono",
-            PersonalSummary.text(PersonalSummary.Counts(0, 0, 2, 1)))
+            PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(0, 0, 2, 1)))
     }
 
     @Test fun theTonesListIsWhatTheKeyboardDecodes() { // F3 (review m1)

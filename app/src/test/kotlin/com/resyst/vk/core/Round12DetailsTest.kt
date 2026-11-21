@@ -17,13 +17,13 @@ class Round12DetailsTest {
     @Test fun loadingTonesAreNeitherZeroNorEmpty() {
         val loading = PersonalSummary.Counts(0, 0, 0, null)
         assertFalse("tones file has content, catalog not parsed yet: the wipe row must stay enabled", loading.empty)
-        val text = PersonalSummary.text(loading)
+        val text = PersonalSummary.text(TestTxt.ES, loading)
         assertFalse(text, text.startsWith("Nada aprendido"))
         assertTrue(text, text.startsWith("… tonos"))
         assertFalse(text, text.contains("0 tonos"))
-        assertEquals("12 palabras · … tonos · nada sale del teléfono", PersonalSummary.text(PersonalSummary.Counts(12, 0, 0, null)))
+        assertEquals("12 palabras · … tonos · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(12, 0, 0, null)))
         // once known, the r11a-fix wording is unchanged
-        assertEquals("2 emojis recientes · 1 tono · nada sale del teléfono", PersonalSummary.text(PersonalSummary.Counts(0, 0, 2, 1)))
+        assertEquals("2 emojis recientes · 1 tono · nada sale del teléfono", PersonalSummary.text(TestTxt.ES, PersonalSummary.Counts(0, 0, 2, 1)))
         assertTrue(PersonalSummary.Counts(0, 0, 0, 0).empty)
     }
 
@@ -36,9 +36,9 @@ class Round12DetailsTest {
     // ── UR1/UR2: who asked for the update answer, across a restore ──
     @Test fun aManualAnswerRestoresAsManual() { // UR1: restore() hardcoded checkedAuto = true
         assertEquals(UpdateOrigin.Origin.USER, UpdateOrigin.restored(false))
-        assertEquals("Comprobado", UpdateOrigin.checkedLabel(UpdateOrigin.restored(false)))
+        assertEquals("Comprobado", UpdateOrigin.checkedLabel(TestTxt.ES, UpdateOrigin.restored(false)))
         assertEquals(UpdateOrigin.Origin.OPEN, UpdateOrigin.restored(true))
-        assertEquals("Comprobado al abrir el teclado", UpdateOrigin.checkedLabel(UpdateOrigin.restored(true)))
+        assertEquals("Comprobado al abrir el teclado", UpdateOrigin.checkedLabel(TestTxt.ES, UpdateOrigin.restored(true)))
         assertEquals(UpdateOrigin.Origin.USER, UpdateOrigin.of(auto = false))
         assertEquals(UpdateOrigin.Origin.OPEN, UpdateOrigin.of(auto = true))
     }
@@ -46,7 +46,7 @@ class Round12DetailsTest {
     @Test fun aManifestStoredWithoutTheFlagClaimsNoOrigin() { // UR2: 0.7.1 / 0.8.0 stored it from both paths
         assertEquals(UpdateOrigin.Origin.UNKNOWN, UpdateOrigin.restored(null))
         assertEquals(UpdateOrigin.Origin.UNKNOWN, UpdateOrigin.restored("true")) // not a boolean pref
-        assertEquals("Comprobado", UpdateOrigin.checkedLabel(UpdateOrigin.Origin.UNKNOWN))
+        assertEquals("Comprobado", UpdateOrigin.checkedLabel(TestTxt.ES, UpdateOrigin.Origin.UNKNOWN))
     }
 
     @Test fun theUpdaterStoresAndRestoresTheOrigin() { // UR1 wiring

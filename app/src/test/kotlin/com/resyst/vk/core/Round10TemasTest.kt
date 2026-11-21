@@ -135,7 +135,7 @@ class Round10TemasTest {
             for (i in before.indices) assertTrue("$m widened aid $i", !after[i] || before[i])
         }
         assertFalse("code never learns", Mode.CODE.apply(KbSettings()).personal)
-        assertTrue(Mode.values().all { it.summary.isNotBlank() && it.label.isNotBlank() })
+        assertTrue(Mode.values().all { m -> listOf(TestTxt.ES, TestTxt.EN).all { m.summary(it).isNotBlank() && m.label(it).isNotBlank() } })
         assertEquals(Mode.GAME, Mode.byId("game")); assertEquals(null, Mode.byId("juego"))
         // GAME keeps height within the codec's bounds
         assertTrue(Mode.GAME.apply(KbSettings(heightScale = 0.8f)).heightScale >= ProfileCodec.HEIGHT_MIN)

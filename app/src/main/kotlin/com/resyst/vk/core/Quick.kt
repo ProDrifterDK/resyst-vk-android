@@ -1,5 +1,6 @@
 package com.resyst.vk.core
 
+import com.resyst.vk.R
 import kotlin.math.roundToInt
 
 /**
@@ -42,15 +43,11 @@ enum class OneHand {
 }
 
 /** The eight quick-panel tiles, in the order they are drawn (2 × 4). */
-enum class QuickAction(val label: String) {
-    DAY_NIGHT("Día / noche"),
-    TEMA("Tema"),
-    MODE("Modo"),
-    CLIPBOARD("Portapapeles"),
-    ONE_HAND("Una mano"),
-    HEIGHT("Altura"),
-    EDIT("Edición"),
-    SETTINGS("Ajustes"),
+enum class QuickAction {
+    DAY_NIGHT, TEMA, MODE, CLIPBOARD, ONE_HAND, HEIGHT, EDIT, SETTINGS;
+
+    /** The tile's name (`qa_<name>`). */
+    fun label(t: Txt): String = t.need("qa_" + name.lowercase())
 }
 
 /**
@@ -63,12 +60,16 @@ object Quick {
     /** Altura steps (heightScale). A full turn returns to the start (QP2). */
     val HEIGHTS = listOf(0.9f, 1.0f, 1.1f, 1.2f)
 
+    /** [Tile.mark]: what a tile's look depends on, whatever language its state is written in. */
+    const val MARK_DARK = "dark"
+    const val MARK_OFF = "off"
+
     /** A tile must stay a 48 dp touch target on the smallest keyboard (QP4). */
     const val MIN_TILE_DP = 48f
 
-    data class Tile(val action: QuickAction, val label: String, val state: String, val enabled: Boolean) {
+    data class Tile(val action: QuickAction, val label: String, val state: String, val enabled: Boolean, val mark: String = "") {
         /** TalkBack: label, state, and why it is off. */
-        val desc: String get() = "$label, $state" + if (enabled) "" else ", no disponible"
+        fun desc(t: Txt): String = t.get(R.string.quick_tile_desc, label, state) + if (enabled) "" else t.get(R.string.quick_tile_off)
     }
 
     /** The next Altura step after [h]; an off-step value snaps up, the top wraps to the bottom. */
@@ -97,32 +98,36 @@ object Quick {
      * The tiles for [st] in a field with [policy]. [editPanel] = the editing panel exists in
      * this build (bet 5); until then the tile says so instead of doing nothing.
      */
-    fun tiles(st: ProfileStore, policy: FieldPolicy, editPanel: Boolean = true, systemDark: Boolean? = null): List<Tile> {
+    fun tiles(t: Txt, st: ProfileStore, policy: FieldPolicy, editPanel: Boolean = true, systemDark: Boolean? = null): List<Tile> {
         val s = st.settingsFor(systemDark)
         val auto = st.followSystem && systemDark != null
         val clipOk = ClipRules.mayShowHistory(policy, st.clip)
         return QuickAction.values().map { a ->
+            val label = a.label(t)
             when (a) {
-                QuickAction.DAY_NIGHT -> Tile(a, a.label, (if (auto) "Auto · " else "") + if (Themes.byId(s.theme).dark) "Oscuro" else "Claro", true)
-                QuickAction.TEMA -> Tile(a, a.label, st.activeTema.name, st.temas.size > 1)
-                QuickAction.MODE -> Tile(a, a.label, st.mode.label, true)
-                QuickAction.CLIPBOARD -> Tile(a, a.label, when {
-                    clipOk -> "Historial"
-                    policy.secret -> "No en contraseñas"
-                    else -> "Historial apagado"
-                }, clipOk)
-                QuickAction.ONE_HAND -> Tile(a, a.label, when (s.oneHanded) {
-                    OneHand.OFF -> "Apagado"
-                    OneHand.RIGHT -> "Derecha"
-                    OneHand.LEFT -> "Izquierda"
-                }, true)
-                QuickAction.HEIGHT -> Tile(a, a.label, "${(st.activeTema.look.heightScale * 100).roundToInt()} %", true)
-                QuickAction.EDIT -> Tile(a, a.label, if (editPanel) "Cursor y selección" else "Próximamente", editPanel)
-                QuickAction.SETTINGS -> Tile(a, a.label, "Todos los ajustes", true)
+                QuickAction.DAY_NIGHT -> {
+                    val side = t.get(if (Themes.byId(s.theme).dark) R.string.qs_dark else R.string.qs_light)
+                    Tile(a, label, if (auto) t.get(R.string.qs_auto, side) else side, true, if (Themes.byId(s.theme).dark) MARK_DARK else "light")
+                }
+                QuickAction.TEMA -> Tile(a, label, SeedNames.display(t, st.activeTema), st.temas.size > 1)
+                QuickAction.MODE -> Tile(a, label, st.mode.label(t), true)
+                QuickAction.CLIPBOARD -> Tile(a, label, t.get(when {
+                    clipOk -> R.string.qs_clip_on
+                    policy.secret -> R.string.qs_clip_secret
+                    else -> R.string.qs_clip_off
+                }), clipOk)
+                QuickAction.ONE_HAND -> Tile(a, label, t.get(when (s.oneHanded) {
+                    OneHand.OFF -> R.string.qs_off
+                    OneHand.RIGHT -> R.string.qs_right
+                    OneHand.LEFT -> R.string.qs_left
+                }), true, if (s.oneHanded == OneHand.OFF) MARK_OFF else "on")
+                QuickAction.HEIGHT -> Tile(a, label, t.get(R.string.qs_height, (st.activeTema.look.heightScale * 100).roundToInt()), true)
+                QuickAction.EDIT -> Tile(a, label, t.get(if (editPanel) R.string.qs_edit else R.string.qs_soon), editPanel)
+                QuickAction.SETTINGS -> Tile(a, label, t.get(R.string.qs_all_settings), true)
             }
         }
     }
 
     /** The panel's update line when the strip chip stepped down (QP5); null = nothing announced. */
-    fun updateLine(version: String?): String? = version?.let { "Resyst VK $it disponible · ver" }
+    fun updateLine(t: Txt, version: String?): String? = version?.let { t.get(R.string.quick_update_line, it) }
 }
