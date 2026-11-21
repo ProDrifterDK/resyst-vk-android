@@ -193,7 +193,7 @@ EN_WORDS = r'\b(the|and|for|with|your|you|this|that|only|never|not|from|when|wha
 # text that quotes the other language on purpose: sample words to type, credits that name Wikipedia's Spanish title
 QUOTED = ('ñandú', 'enciclopedia libre', 'Wikipedia contributors', 'Tatoeba', 'FrequencyWords', 'Midnight', 'KLIPY', 'GPL')
 # what the script itself typed or copied: it is the user's text, in Spanish, whatever the interface speaks
-TYPED = ('Ya al día (0.14.0)', 'nos vemos a las 8 en la plaza', 'https://kv.resyst.cl/novedades/', 'dirección: Av. Siempre Viva 742', 'paso por tu caza y esta bien',
+TYPED = ('Ya al día (0.14.0)', 'nos vemos a las 8 en la…', 'nos vemos a las 8 en la plaza', 'https://kv.resyst.cl/novedades/', 'dirección: Av. Siempre Viva 742', 'paso por tu caza y esta bien',
          'paso por tu caza y esta muy bien', 'hola que tal como estas hoy.', 'mañana vamos al cine con la familia.', 'caza', 'casa', 'hola', 'cancio')
 
 
@@ -210,7 +210,7 @@ def texts_of(tree):
 # the phone's own content shows next to the interface: words the keyboard learned, pairs, suggestions and clips
 USER_CONTENT = re.compile(r'^(Delete the word|Forget the pair|Remove the emoji|Forget the chosen tone for|Suggestion|Paste from the clipboard|from the clipboard|'
                           r'Borrar la palabra|Olvidar el par|Borrar el emoji|Olvidar el tono elegido para|Sugerencia|Pegar del portapapeles|del portapapeles|'
-                          r'Borrar la corrección de|Delete the correction from|Delete the email|Borrar el correo)\b.*')
+                          r'Borrar la corrección de|Delete the correction from|Delete the email|Borrar el correo|Delete from the clipboard|Borrar del portapapeles)\b.*')
 CLIP_ROW = re.compile(r'^(Paste|Pegar): .*?\. ')
 
 
@@ -658,6 +658,7 @@ def main():
     ap.add_argument('--no-install', action='store_true')
     ap.add_argument('--only', default='S,D,K,L,A,X')
     ap.add_argument('--langs', default='es,en')
+    ap.add_argument('--merge', action='store_true', help='fold this partial run into the existing r14b.json (rows and scenes by name)')
     a = ap.parse_args()
     if a.serial in FORBIDDEN:
         print(f'refusing: {a.serial} is in VK_E2E_FORBIDDEN_SERIALS')
@@ -725,10 +726,30 @@ def main():
                'passed': sum(r['ok'] for r in rows), 'total': len(rows), 'seconds': round(time.time() - started, 1),
                'rows': rows, 'scenes': scenes, 'a11y_names': {l: sum(len(v) for v in d.values()) for l, d in a11y.items()}}
         os.makedirs(BASE, exist_ok=True)
+        old_path = os.path.join(BASE, 'r14b.json')
+        if a.merge and os.path.exists(old_path):
+            old = json.load(open(old_path))
+            seen_rows = {(r['section'], r['lang'], r['check']) for r in rows}
+            seen_scenes = {(s['scene'], s['lang']) for s in scenes}
+            res['rows'] = [r for r in old['rows'] if (r['section'], r['lang'], r['check']) not in seen_rows] + rows
+            res['scenes'] = [s for s in old['scenes'] if (s['scene'], s['lang']) not in seen_scenes] + scenes
+            res['langs'] = sorted(set(old['langs']) | set(langs), key=['es', 'en'].index)
+            res['passed'] = sum(r['ok'] for r in res['rows'])
+            res['total'] = len(res['rows'])
+            res['seconds'] = round(old.get('seconds', 0) + res['seconds'], 1)
+            for k in ('a11y_names',):
+                res[k] = {**old.get(k, {}), **res.get(k, {})}
+            scenes[:] = res['scenes']
+            for l in list(a11y):
+                p = os.path.join(BASE, f'a11y-{l}.json')
+                if os.path.exists(p):
+                    prev = json.load(open(p))
+                    prev.update(a11y[l])
+                    a11y[l] = prev
         for l, d in a11y.items():
             json.dump(d, open(os.path.join(BASE, f'a11y-{l}.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         json.dump(res, open(os.path.join(BASE, 'r14b.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
-        write_index(langs)
+        write_index(res['langs'])
         print(f'✦ {res["passed"]}/{res["total"]} rows → build/e2e-r14b/r14b.json')
     return 0 if all(r['ok'] for r in rows) else 1
 
