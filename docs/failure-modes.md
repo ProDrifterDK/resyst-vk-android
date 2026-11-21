@@ -2048,3 +2048,9 @@ checks, and what the painters actually fill and write) that nothing kept equal. 
 
 ### VR8
 - VR8 0.14.1 / versionCode 18 are the build defaults; docs/novedades-0.14.1.md is the site text (plain language, both languages).
+- TR11 (found on the phone with the per-app language) Android's per-app language (Settings › Languages › App languages) is
+  applied to activities only: Settings read Spanish while the keyboard's service kept the system's English, a screen pair
+  in two languages. Rule: the keyboard's words and views live on a context in the app's language (`ResLocale.wrap`, Android
+  13+; the service itself when none is chosen), an app-language change rebuilds the views like any configuration change
+  (`ACTION_APPLICATION_LOCALE_CHANGED`), and the download notification asks the same context. E2E (scripts/e2e_r14b.py)
+  drives both languages through `cmd locale set-app-locales` and checks every dumped text for the other language's words.
