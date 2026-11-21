@@ -208,11 +208,14 @@ class Round14FixTest {
         "text.alpha = 255" to "EmojiPanel: resets the alpha above",
         "box.alpha = 0.42f" to "Settings: a disabled control (WCAG 1.4.3 exempts inactive components)",
         "alpha = if (enabled) 1f else 0.45f" to "Settings: the system palettes' cards below Android 12 are disabled",
+        "if (dark) 0xB0000000.toInt() else 0x403A352A" to "KeyboardView: the popups' drop shadow (offset under the bubble, no ink on it)",
     )
 
     private val raw = Regex("""\b(?:t|p\.theme|tp\.theme|pp\.theme|pal\.theme|palette\.theme|swatch\.theme)\.(?:bg|bg2|key|keyTop|keyHi|keyMod|keyNum|text|textMod|muted|ok|bad)\b|""" +
         """\b(?:p|tp|pp|pal|palette|swatch)\.(?:accent|accentInk|chipFill|chipPressedFill|chipPressedInk|accentSoft|badInk|solidTop|solidPressed)\b""")
-    private val arith = Regex("""ColorMath\.(?:mix|over|withAlpha|ensureContrast)\(|\.alpha = |\balpha = |setAlpha\(""")
+    /** Colour arithmetic, alpha, and colour literals (a hex or android.graphics.Color fill would bypass the table). */
+    private val arith = Regex("""ColorMath\.(?:mix|over|withAlpha|ensureContrast)\(|\.alpha = |\balpha = |setAlpha\(|""" +
+        """\b0x[0-9A-Fa-f]{6,8}\b|\bColor\.(?:rgb|argb|parseColor|valueOf|WHITE|BLACK|GRAY|DKGRAY|LTGRAY|RED|GREEN|BLUE|YELLOW|CYAN|MAGENTA)\b""")
     private val pair = Regex("""Surface\.([A-Z_]+),\s*Ink\.([A-Z_]+)""")
     private val settingsInk = Regex("""(?<![\w.])ink\(Ink\.([A-Z_]+)\)""")
 
