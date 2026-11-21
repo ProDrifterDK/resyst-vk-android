@@ -1956,3 +1956,52 @@ Written before the code; each item names what a JVM test, a source guard or the 
 
 ### Version
 - VR7 0.14.0 / versionCode 17 are the build defaults; docs/novedades-0.14.0.md is the site text (plain language).
+
+### LGX — fix pass: the gate covers what is drawn (independent review of 6f8d83f)
+The review ported the colour pipeline and swept it: the gate's own pairs held everywhere, but the painters drew
+surfaces the gate's hand-written list never named. Root cause: three separate lists (the gate's corrections, its
+checks, and what the painters actually fill and write) that nothing kept equal. Written before the code.
+- LG6 A drawn text/icon pair is not in the checked set. Found: the Settings hero caption (`muted` on the `bg2` card,
+  Papiro, no customisation) 4.28:1; KEYCAP Enter ink on its face lifted 12 % toward white (Tinta electrónica + Ámbar
+  4.21:1, + Lima 4.12:1); the pressed first suggestion (accent on `keyHi`) 4.01:1 (Midnight Laboratory + Tinte
+  intenso), 3.35:1 worst; the GIF «Ir» pressed fill `mix(accent, bg, 0.25)` 3.91:1 on Papiro, 3.10:1 worst; legends on
+  the KEYCAP dark NUM face bottom 6.97:1 (< the 7:1 claim); MOD legends on the RAISED modifier gradient top 4.498:1.
+  Rule: one table (`Drawn`, pure core) names every surface the keyboard, its panels and Settings put text or an icon
+  on — derived ones computed there (key faces per cap × kind: gradient ends and the pressed fill; chips at rest and
+  pressed; pressed panel fills; cards; pills) — and, per surface, the inks drawn on it with their minimum (legends
+  7:1, text 4.5:1, icons 3:1). The painters and Settings take those surfaces and inks from the table; `Legibility`
+  corrects against exactly the table and LG1 checks exactly the table. Source guards: no colour arithmetic
+  (`mix` / `over` / `withAlpha`) in a UI file outside an allowlist of non-text decoration; no theme surface written
+  straight into a fill under text; every (surface, ink) a painter names is declared. JVM: the exhaustive sweep runs
+  the whole table; the review's combinations are named and pass; dropping one declared pair turns a test red.
+- LG7 A lift or press moves an accent fill toward the ink it carries (white ink on a dark accent lifted toward white;
+  «Ir» pressed toward a light bar). Rule: an accent fill's press moves away from its ink; the KEYCAP face's lift
+  shrinks until its ink keeps 4.5:1.
+- LG8 Broken system colours (every shade one grey) plus an accent the swatches do not offer: tint and clamping leave
+  surfaces on both sides of mid-grey, no single text colour passes on all of them, the gate returns white over grey
+  keys (≈ 2.5:1). Rule: surfaces are clamped toward their palette's side (dark palette: white reaches ≥ 8:1 on every
+  surface; light: black does), so the side's pure colour always passes and the gate's fixed point ends there at
+  worst. JVM: uniform system palettes (several greys, black, white) × any accent (pure black / white / grey, the
+  lightness sweep) × tint × cap pass the whole table.
+- LG9 Settings text: captions on cards and an active control dimmed while a mode overrides it ("En pausa", alpha
+  0.6, still editable) fall under AA. Rule: Settings' surfaces (page, card, key-coloured pills, chips) are table
+  surfaces; an active control is never dimmed (its "En pausa" line says it).
+- LG10 Inks nobody gated: `ok` / `bad` (Settings status lines, the clipboard's «Borrar»), the ink on the `bad` fill
+  («Sí, borrar»), a pressed panel button keeping a solid button's ink on `keyHi` (clipboard «Pegar» pressed). Rule:
+  all are table inks; a pressed panel button reads in the legend ink on the pressed fill.
+- LG11 The table costs time: dozens of palettes per Settings render (palette grid, swatches, tema cards). Rule: the
+  gate is a function of (palette, accent, tint, contrast, system colours) and its result is memoised (bounded);
+  JVM: the sweep's per-palette gate time is measured and reported.
+
+### PSX — fix pass: Settings and panel minors (review m2, m4, m5, m6, m9)
+- PS7 Touch targets under Android's 48 dp: accent swatches 44 dp, Tint/other choice chips ~40 dp, «Deshacer» /
+  links 44 dp. Rule: every Settings target ≥ 48 dp (source guard on the sizes).
+- PS8 A quick-panel state line cut mid-word ("Cursor and selecti…"). Rule: the line shrinks to fit (≥ 9.5 dp) and
+  only then shortens at a word boundary.
+- PS9 «＋ Nuevo tema» peeks cut at the screen edge in the tema row. Rule: it is not the row's last, half-visible card;
+  it is a full-width action under the row.
+- PS10 The connected preview on a light palette is the pressed colour, almost the background's: the bubble melts into
+  the keyboard and the pressed slot reads as a hole. Rule: the bubble wears the key's lifted face with a stronger
+  outline on light palettes (a table surface, its legend at 7:1).
+- PS11 The README does not credit the bundled fonts (Atkinson Hyperlegible Next, Nunito, SIL OFL 1.1) beside the
+  other data. Rule: one line in the README's licence list.
