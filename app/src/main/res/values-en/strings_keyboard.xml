@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="lang_code">en</string>
+    <string name="fmt_percent">%1$d%%</string>
     <string name="enter_newline">New line</string>
     <string name="enter_search">Search</string>
     <string name="enter_send">Send</string>

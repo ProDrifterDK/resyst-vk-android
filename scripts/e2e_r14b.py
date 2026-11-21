@@ -94,6 +94,49 @@ def fmt(s, args):
     return s.replace('\0', '%')
 
 
+# ── the earlier scripts look keys up by their Spanish TalkBack names ('Espacio', 'Sugerencia: …'): in English the
+# drawn keys are named in English, so every name also answers to its Spanish twin (built from the same resources)
+_ALIAS = []
+
+
+def build_aliases():
+    es, _ = STR['es']
+    en, _ = STR['en']
+    for k, e in en.items():
+        if k not in es or es[k] == e or not (k.startswith(('key_', 'rail_', 'strip_', 'enter_', 'quick_', 'emoji_', 'clip_', 'gif_', 'qa_', 'editd_',
+                                                           'edit_', 'nomem_desc', 'context_offer', 'say_', 'qs_')) or k == 'nomem_desc'):
+            continue
+        rx = re.escape(e)
+        rx = re.sub(r'%(\d)\\\$[sd]', r'(.+?)', rx) if False else re.sub(r'%\d\\\$[sd]', '(.+?)', rx)
+        try:
+            _ALIAS.append((re.compile('^' + rx + '$', re.S), es[k]))
+        except re.error:
+            pass
+
+
+def localized_keys(tree):
+    base = e2e._keys_orig(tree)
+    if LANG != 'en':
+        return base
+    out = dict(base)
+    for desc, node in base.items():
+        for rx, es_tpl in _ALIAS:
+            m = rx.match(desc)
+            if m:
+                g = m.groups()
+                out.setdefault(re.sub(r'%(\d)\$[sd]', lambda mm: g[int(mm.group(1)) - 1] if int(mm.group(1)) - 1 < len(g) else '', es_tpl), node)
+                break
+    return out
+
+
+def install_aliases():
+    build_aliases()
+    e2e._keys_orig = e2e.keys
+    for mod in (e2e, r13, bl, r13c, r13f, e2e_r13h, r14):
+        if hasattr(mod, 'keys'):
+            mod.keys = localized_keys
+
+
 def check(section, name, ok, detail=''):
     rows.append({'section': section, 'lang': LANG, 'check': name, 'ok': bool(ok), 'detail': str(detail)[:600]})
     print(('PASS ' if ok else 'FAIL ') + f'[{section}/{LANG}] {name}' + ('  ' + str(detail)[:200] if detail else ''), flush=True)
@@ -150,7 +193,7 @@ EN_WORDS = r'\b(the|and|for|with|your|you|this|that|only|never|not|from|when|wha
 # text that quotes the other language on purpose: sample words to type, credits that name Wikipedia's Spanish title
 QUOTED = ('ñandú', 'enciclopedia libre', 'Wikipedia contributors', 'Tatoeba', 'FrequencyWords', 'Midnight', 'KLIPY', 'GPL')
 # what the script itself typed or copied: it is the user's text, in Spanish, whatever the interface speaks
-TYPED = ('nos vemos a las 8 en la plaza', 'https://kv.resyst.cl/novedades/', 'dirección: Av. Siempre Viva 742', 'paso por tu caza y esta bien',
+TYPED = ('Ya al día (0.14.0)', 'nos vemos a las 8 en la plaza', 'https://kv.resyst.cl/novedades/', 'dirección: Av. Siempre Viva 742', 'paso por tu caza y esta bien',
          'paso por tu caza y esta muy bien', 'hola que tal como estas hoy.', 'mañana vamos al cine con la familia.', 'caza', 'casa', 'hola', 'cancio')
 
 
@@ -164,11 +207,22 @@ def texts_of(tree):
     return out
 
 
+# the phone's own content shows next to the interface: words the keyboard learned, pairs, suggestions and clips
+USER_CONTENT = re.compile(r'^(Delete the word|Forget the pair|Remove the emoji|Forget the chosen tone for|Suggestion|Paste from the clipboard|from the clipboard|'
+                          r'Borrar la palabra|Olvidar el par|Borrar el emoji|Olvidar el tono elegido para|Sugerencia|Pegar del portapapeles|del portapapeles|'
+                          r'Borrar la corrección de|Delete the correction from|Delete the email|Borrar el correo)\b.*')
+CLIP_ROW = re.compile(r'^(Paste|Pegar): .*?\. ')
+
+
 def foreign(texts):
     """Words of the other language in [texts] (excluding text that quotes it on purpose and the typed field)."""
     pat = re.compile(EN_WORDS if LANG == 'es' else ES_WORDS, re.I)
     bad = []
     for t in texts:
+        if len(t.split()) <= 3 and t == t.lower() and re.fullmatch(r'[\wáéíóúñü ]+', t):
+            continue  # a word or a pair the keyboard learned, listed as the user's content
+        t = USER_CONTENT.sub('', t)
+        t = CLIP_ROW.sub('', t)
         for typed in TYPED:
             t = t.replace(typed, '')
         if any(q in t for q in QUOTED) or t.startswith('✦ E2E host') or t in ('e2e', 'Mensaje', 'Escribe un mensaje'):
@@ -616,6 +670,7 @@ def main():
     langs = a.langs.split(',')
     for l in ('es', 'en'):
         STR[l] = load_strings(l)
+    install_aliases()
     apk = a.apk or os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
     only = set(a.only.split(','))
     pre = {

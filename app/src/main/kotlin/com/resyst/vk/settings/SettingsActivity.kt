@@ -459,7 +459,7 @@ class SettingsActivity : Activity() {
                 Triple(com.resyst.vk.core.LegendWeight.BOLD, getString(R.string.weight_bold), KeyTile(weight = com.resyst.vk.core.LegendWeight.BOLD.wght, legend = "Aa")),
             ), s.legendWeight) { v -> commit { it.copy(legendWeight = v) } }
             Ctl.LEGEND_SCALE -> {
-                slider(getString(R.string.legend_scale_title), 85, 130, (s.legendScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(legendScale = v / 100f) } }
+                slider(getString(R.string.legend_scale_title), 85, 130, (s.legendScale * 100).roundToInt(), { getString(R.string.fmt_percent, it) }) { v -> commit { it.copy(legendScale = v / 100f) } }
                 into.addView(label(getString(R.string.legend_scale_summary), 12f, ink(Ink.MUTED)), lp(bottom = 4f))
             }
             Ctl.UPPER_LEGENDS -> toggle(getString(R.string.upper_legends_title), getString(R.string.upper_legends_summary), s.upperLegends) { v -> commit { it.copy(upperLegends = v) } }
@@ -502,7 +502,7 @@ class SettingsActivity : Activity() {
                 Triple(KeyFont.HUMAN, getString(R.string.font_human), KeyTile(font = KeyFont.HUMAN, legend = "Añ")),
             ), s.font) { v -> commit { it.copy(font = v) } }
             Ctl.DENSITY -> choice(ctl.label(tx), listOf(Density.TIGHT to getString(R.string.s_density_tight), Density.NORMAL to getString(R.string.s_density_normal), Density.AIRY to getString(R.string.s_density_airy)), s.density) { v -> commit { it.copy(density = v) } }
-            Ctl.HEIGHT -> slider(ctl.label(tx), 80, 130, (s.heightScale * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(heightScale = v / 100f) } }
+            Ctl.HEIGHT -> slider(ctl.label(tx), 80, 130, (s.heightScale * 100).roundToInt(), { getString(R.string.fmt_percent, it) }) { v -> commit { it.copy(heightScale = v / 100f) } }
             Ctl.SUB_LEGENDS -> toggle(ctl.label(tx), getString(R.string.s_sub_legends_summary), s.subLegends) { v -> commit { it.copy(subLegends = v) } }
 
             Ctl.LANG -> choice(ctl.label(tx), listOf(Lang.ES to getString(R.string.lang_name_es), Lang.EN to getString(R.string.lang_name_en)), s.lang) { v -> commit { it.copy(lang = v) } }
@@ -535,7 +535,7 @@ class SettingsActivity : Activity() {
             }
             Ctl.SOUND -> toggle(ctl.label(tx), getString(R.string.s_sound_summary), s.sound) { v -> commit { it.copy(sound = v) } }
             Ctl.SOUND_PACK -> choice(ctl.label(tx), listOf(SoundPack.CLICK to getString(R.string.s_pack_click), SoundPack.THOCK to getString(R.string.s_pack_thock), SoundPack.TYPE to getString(R.string.s_pack_type), SoundPack.BUBBLE to getString(R.string.s_pack_bubble)), s.soundPack) { v -> commit { it.copy(soundPack = v) } }
-            Ctl.VOLUME -> slider(ctl.label(tx), 0, 100, (s.volume * 100).roundToInt(), { "$it %" }) { v -> commit { it.copy(volume = v / 100f) } }
+            Ctl.VOLUME -> slider(ctl.label(tx), 0, 100, (s.volume * 100).roundToInt(), { getString(R.string.fmt_percent, it) }) { v -> commit { it.copy(volume = v / 100f) } }
 
             Ctl.CLIP_HISTORY -> toggle(ctl.label(tx), getString(R.string.s_clip_history_summary, ClipboardHistory.MAX_ITEMS), store.clip.history) { v ->
                 commitClip { it.copy(history = v) }
@@ -1122,7 +1122,7 @@ class SettingsActivity : Activity() {
         val gifOn = KlipyClient.available && GifStore.read(this).active
         val why = getString(if (!KlipyClient.available) R.string.s_conn_why else if (gifOn) R.string.s_conn_why_gif_on else R.string.s_conn_why_gif_off)
         into.addView(label(why, 12f, ink(Ink.MUTED)).apply { tag = "connections-why" }, lp(top = 2f, bottom = 6f))
-        val loc = java.util.Locale.getDefault()
+        val loc = resources.configuration.locales[0] // the language the screen speaks (an app language does not change Locale.getDefault)
         val fmt = java.text.SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(loc, "d MMM yyyy HH:mm"), loc)
         for ((i, e) in log.recent().withIndex()) {
             val media = if (e.media == 0) "" else " · " + tx.plural(R.plurals.s_conn_files, e.media)
@@ -1411,9 +1411,10 @@ class SettingsActivity : Activity() {
                     commitStore(next)
                 }
             }
-            cardV.addView(MiniKeyboardView(this, paletteOf(look), look.shape, look.cap), LinearLayout.LayoutParams(px(132f), px(70f)))
-            cardV.addView(label("${st.icon}  $name", 14f, ink(Ink.TEXT), 650).apply { maxLines = 1 }, lp(top = 6f))
-            cardV.addView(label(styleLine(st.id), 12f, ink(Ink.TEXT_MOD)).apply { maxLines = 2 }, LinearLayout.LayoutParams(px(132f), ViewGroup.LayoutParams.WRAP_CONTENT))
+            val cardW = px(132f * resources.configuration.fontScale.coerceIn(1f, 1.6f)) // r14b: a larger font or a longer name widens the card
+            cardV.addView(MiniKeyboardView(this, paletteOf(look), look.shape, look.cap), LinearLayout.LayoutParams(cardW, px(70f)))
+            cardV.addView(label("${st.icon}  $name", 14f, ink(Ink.TEXT), 650).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, lp(top = 6f))
+            cardV.addView(label(styleLine(st.id), 12f, ink(Ink.TEXT_MOD)).apply { maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(cardW, ViewGroup.LayoutParams.WRAP_CONTENT))
             row.addView(cardV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
         }
         into.addView(bleedRow(row), bleedLp(bottom = 6f))
@@ -1618,7 +1619,7 @@ class SettingsActivity : Activity() {
         }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(label(pg.title(tx), 15f, ink(Ink.TEXT), 550))
-        if (true) col.addView(label(pg.summary(tx), 12f, ink(Ink.MUTED)))
+        col.addView(label(pg.summary(tx), 12f, ink(Ink.MUTED)))
         row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(label("›", 22f, ink(Ink.ACCENT), 500).apply { setPadding(px(12f), 0, px(4f), 0) })
         root.addView(row, lp())

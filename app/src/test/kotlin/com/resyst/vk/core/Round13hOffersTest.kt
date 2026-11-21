@@ -113,7 +113,7 @@ class Round13hOffersTest {
         assertTrue(en.contains(">%1\$d changes<") && en.contains(">Replace %1\$s<") && en.contains(">%1\$s with %2\$s<") && en.contains(">\" and \"<"))
         val ime = File("src/main/kotlin/com/resyst/vk/ime/ResystImeService.kt").readText()
         val chip = ime.substringAfter("private fun showChip()").substringBefore("\n    }")
-        assertTrue("one offer: the 0.12.0 chip", chip.contains("1 -> v.setOffer(live[0].label, getString(R.string.context_offer_desc, live[0].typed, live[0].label))"))
+        assertTrue("one offer: the 0.12.0 chip", chip.contains("1 -> v.setOffer(live[0].label, tx.get(R.string.context_offer_desc, live[0].typed, live[0].label))"))
         assertTrue("several: N cambios", chip.contains("R.string.context_offers_many, live.size"))
         // the gate is 0.12.0's (secret, incognito, the field gate, the switch, Spanish) and the ↶ only exists after a tap
         val gate = ime.substringAfter("private fun offersAllowed()").substringBefore("\n    }")
