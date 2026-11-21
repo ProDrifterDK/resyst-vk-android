@@ -47,6 +47,10 @@ import com.resyst.vk.core.Mode
 import com.resyst.vk.core.NavInsets
 import com.resyst.vk.core.OneHand
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.KeyKind
+import com.resyst.vk.core.Surface
 import com.resyst.vk.core.PointerGuard
 import com.resyst.vk.core.PopupGeometry
 import com.resyst.vk.core.Quick
@@ -1396,8 +1400,7 @@ class KeyboardView(context: Context) : View(context) {
             palette = if (f >= 1f) { fadeFrom = null; fadeTo = null; to } else Palette.mix(from, to, ease(f))
             painter.reset()
         }
-        val t = palette.theme
-        canvas.drawColor(t.bg)
+        canvas.drawColor(Drawn.surface(palette, Surface.BACKGROUND))
         if (panelOpen) {
             // r14: a panel rises 14 dp into place (≤ 160 ms); taps act at once
             val e = ease(grow(panelAt, now, 160))
@@ -1464,34 +1467,41 @@ class KeyboardView(context: Context) : View(context) {
                 StripKind.DAYNIGHT -> {
                     val pressed = s in pressedStrip
                     if (pressed) {
-                        fill.color = t.keyHi
+                        fill.color = Drawn.surface(palette, Surface.PRESSED)
                         tmp.set(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, stripH - 6 * dp)
                         c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
-                    KeyIcons.draw(c, if (dayNight == true) Icon.SUN else Icon.MOON, r.centerX(), r.centerY(), 17 * dp, if (pressed) palette.accent else t.muted, stroke, fill)
+                    KeyIcons.draw(c, if (dayNight == true) Icon.SUN else Icon.MOON, r.centerX(), r.centerY(), 17 * dp,
+                        if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(palette, Surface.BACKGROUND, Ink.MUTED), stroke, fill)
                 }
                 StripKind.SETTINGS -> {
                     val on = s in pressedStrip
                     if (on) {
-                        fill.color = t.keyHi
+                        fill.color = Drawn.surface(palette, Surface.PRESSED)
                         tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp)
                         c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
-                    KeyIcons.draw(c, Icon.GEAR, r.centerX(), r.centerY(), 19 * dp, if (on || gearDot) palette.accent else t.muted, stroke, fill)
+                    KeyIcons.draw(c, Icon.GEAR, r.centerX(), r.centerY(), 19 * dp, when {
+                        on -> Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT)
+                        gearDot -> Drawn.ink(palette, Surface.BACKGROUND, Ink.ACCENT)
+                        else -> Drawn.ink(palette, Surface.BACKGROUND, Ink.MUTED)
+                    }, stroke, fill)
                     if (gearDot) { // r9: an update waits — amber dot, ringed in the strip color
-                        fill.color = t.bg
+                        fill.color = Drawn.surface(palette, Surface.BACKGROUND)
                         c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 5 * dp, fill)
-                        fill.color = palette.accent
+                        fill.color = Drawn.ink(palette, Surface.BACKGROUND, Ink.ACCENT)
                         c.drawCircle(r.centerX() + 8 * dp, r.centerY() - 8 * dp, 3.5f * dp, fill)
                     }
                 }
                 StripKind.NO_MEMORY -> drawNoMemory(c, r, s in pressedStrip)
                 StripKind.GIF_BACK -> {
-                    if (s in pressedStrip) { fill.color = t.keyHi; tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill) }
-                    KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp, t.textMod, stroke, fill)
+                    val pressed = s in pressedStrip
+                    if (pressed) { fill.color = Drawn.surface(palette, Surface.PRESSED); tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill) }
+                    KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp,
+                        if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT_MOD), stroke, fill)
                 }
                 StripKind.GIF_FIELD -> {
-                    fill.color = t.key
+                    fill.color = Drawn.surface(palette, Surface.PLAIN)
                     c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
                     stroke.color = palette.accentGlow
                     stroke.strokeWidth = 1 * dp
@@ -1499,7 +1509,7 @@ class KeyboardView(context: Context) : View(context) {
                     text.textAlign = Paint.Align.LEFT
                     text.textSize = 15 * dp
                     val empty = s.text.isEmpty()
-                    text.color = if (empty) t.muted else t.text
+                    text.color = if (empty) Drawn.ink(palette, Surface.PLAIN, Ink.MUTED) else Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
                     text.typeface = typeface(if (empty) 450 else 550)
                     val label = ellipsize(if (empty) com.resyst.vk.core.GifCopy.PLACEHOLDER else s.text, r.width() - 34 * dp)
                     val fm = text.fontMetrics
@@ -1507,16 +1517,16 @@ class KeyboardView(context: Context) : View(context) {
                     c.drawText(label, r.left + 14 * dp, baseline, text)
                     // the caret: this box, not the app's field, receives the keys
                     val cx = r.left + 14 * dp + (if (empty) 0f else text.measureText(label)) + 2 * dp
-                    fill.color = palette.accent
+                    fill.color = Drawn.ink(palette, Surface.PLAIN, Ink.ACCENT)
                     c.drawRect(cx, r.centerY() - 9 * dp, cx + 1.5f * dp, r.centerY() + 9 * dp, fill)
                     text.textAlign = Paint.Align.CENTER
                 }
                 StripKind.GIF_GO -> {
                     val pressed = s in pressedStrip
                     tmp.set(r.left + 4 * dp, 6 * dp, r.right - 6 * dp, stripH - 6 * dp)
-                    fill.color = if (pressed) ColorMath.mix(palette.accent, t.bg, 0.25f) else palette.accent
+                    fill.color = Drawn.surface(palette, if (pressed) Surface.SOLID_PRESSED else Surface.SOLID)
                     c.drawRoundRect(tmp, tmp.height() / 2, tmp.height() / 2, fill)
-                    text.color = palette.accentInk
+                    text.color = if (pressed) Drawn.ink(palette, Surface.SOLID_PRESSED, Ink.ACCENT_INK) else Drawn.ink(palette, Surface.SOLID, Ink.ACCENT_INK)
                     text.textSize = 14 * dp
                     text.typeface = typeface(650)
                     drawCentered(c, s.text, tmp.centerX(), tmp.centerY())
@@ -1529,21 +1539,28 @@ class KeyboardView(context: Context) : View(context) {
                         // r14: suggestions as chips (one surface each, the first in the accent's chip colours)
                         tmp.set(r.left + 3 * dp, 7 * dp, r.right - 3 * dp, stripH - 7 * dp)
                         val rad = min(tmp.height() / 2, panelRadius() + 4 * dp)
-                        fill.color = when {
-                            pressed -> t.keyHi
-                            firstSuggestion -> palette.chipFill
-                            else -> t.key
-                        }
+                        fill.color = Drawn.surface(palette, when {
+                            pressed -> Surface.PRESSED
+                            firstSuggestion -> Surface.CHIP
+                            else -> Surface.PLAIN
+                        })
                         c.drawRoundRect(tmp, rad, rad, fill)
                         stroke.color = if (firstSuggestion) palette.accentGlow else t.edge
                         stroke.strokeWidth = dp
                         c.drawRoundRect(tmp, rad, rad, stroke)
                     } else if (pressed) {
-                        fill.color = t.keyHi
+                        fill.color = Drawn.surface(palette, Surface.PRESSED)
                         tmp.set(r.left + 2 * dp, 5 * dp, r.right - 2 * dp, stripH - 5 * dp)
                         c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
                     }
-                    text.color = if (firstSuggestion) palette.accent else t.text
+                    text.color = when {
+                        pressed && firstSuggestion -> Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT)
+                        pressed -> Drawn.ink(palette, Surface.PRESSED, Ink.TEXT)
+                        chips && firstSuggestion -> Drawn.ink(palette, Surface.CHIP, Ink.ACCENT)
+                        chips -> Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
+                        firstSuggestion -> Drawn.ink(palette, Surface.BACKGROUND, Ink.ACCENT)
+                        else -> Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT)
+                    }
                     text.textSize = 16 * dp * Legend.fontFactor(fontScale).coerceAtMost(1.25f)
                     text.typeface = typeface(if (firstSuggestion) 650 else 450)
                     val label = ellipsize(s.text, r.width() - (if (chips) 18 else 12) * dp)
@@ -1566,15 +1583,15 @@ class KeyboardView(context: Context) : View(context) {
     private fun drawChip(c: Canvas, r: RectF, pressed: Boolean, icon: Icon, label: String, sizeDp: Float, weight: Int, iconScale: Float) {
         val rad = r.height() / 2
         fill.shader = null
-        fill.color = if (pressed) palette.chipPressedFill else palette.chipFill
+        fill.color = Drawn.surface(palette, if (pressed) Surface.SOLID else Surface.CHIP)
         c.drawRoundRect(r, rad, rad, fill)
         if (!pressed) {
-            stroke.color = if (palette.highContrast) palette.accent else palette.accentGlow
+            stroke.color = if (palette.highContrast) Drawn.ink(palette, Surface.BACKGROUND, Ink.ACCENT) else palette.accentGlow
             stroke.strokeWidth = dp
             stroke.strokeCap = Paint.Cap.BUTT
             c.drawRoundRect(r, rad, rad, stroke)
         }
-        val ink = if (pressed) palette.chipPressedInk else palette.accent
+        val ink = if (pressed) Drawn.ink(palette, Surface.SOLID, Ink.ACCENT_INK) else Drawn.ink(palette, Surface.CHIP, Ink.ACCENT)
         KeyIcons.draw(c, icon, r.left + 17 * dp, r.centerY(), 14 * dp * iconScale, ink, stroke, fill)
         text.color = ink
         text.textSize = sizeDp * dp
@@ -1594,7 +1611,6 @@ class KeyboardView(context: Context) : View(context) {
     private fun drawUpdateChip(c: Canvas, s: StripItem, pressedStrip: Set<StripItem>) {
         val label = updateLabel ?: return
         val x = stripItems.firstOrNull { it.kind == StripKind.UPDATE_X } ?: return
-        val t = palette.theme
         val a = chipAnim.coerceIn(0f, 1f)
         if (a <= 0f) return
         val dx = (1f - a) * 8 * dp
@@ -1603,7 +1619,8 @@ class KeyboardView(context: Context) : View(context) {
         val save = c.saveLayerAlpha(body.left - 2 * dp, 0f, body.right + 2 * dp, stripH, (a * 255).toInt())
         val rad = body.height() / 2
         fill.shader = null
-        fill.color = if (s in pressedStrip) ColorMath.mix(palette.chipFill, palette.accent, 0.18f) else palette.chipFill
+        val pressed = s in pressedStrip
+        fill.color = Drawn.surface(palette, if (pressed) Surface.PRESSED else Surface.CHIP)
         c.drawRoundRect(body, rad, rad, fill)
         // the paste chip's hairline: amber, but the disc alone carries full strength (Enter stays the hero)
         stroke.color = palette.accentGlow
@@ -1613,7 +1630,7 @@ class KeyboardView(context: Context) : View(context) {
         // icon: amber disc + download arrow in the accent's ink (Novedades: the ✦ of the brand)
         val cx = body.left + 16 * dp
         val cy = body.centerY()
-        fill.color = palette.accent
+        fill.color = Drawn.surface(palette, Surface.SOLID)
         c.drawCircle(cx, cy, 10 * dp, fill)
         if (chipNews) {
             val R = 6.2f * dp
@@ -1623,10 +1640,10 @@ class KeyboardView(context: Context) : View(context) {
             starPath.lineTo(cx + r, cy - r); starPath.lineTo(cx + R, cy); starPath.lineTo(cx + r, cy + r)
             starPath.lineTo(cx, cy + R); starPath.lineTo(cx - r, cy + r); starPath.lineTo(cx - R, cy)
             starPath.lineTo(cx - r, cy - r); starPath.close()
-            fill.color = palette.accentInk
+            fill.color = Drawn.ink(palette, Surface.SOLID, Ink.ACCENT_INK)
             c.drawPath(starPath, fill)
         } else {
-            stroke.color = palette.accentInk
+            stroke.color = Drawn.ink(palette, Surface.SOLID, Ink.ACCENT_INK)
             stroke.strokeWidth = 1.6f * dp
             stroke.strokeCap = Paint.Cap.ROUND
             c.drawLine(cx, cy - 4.8f * dp, cx, cy + 2.2f * dp, stroke)
@@ -1636,8 +1653,8 @@ class KeyboardView(context: Context) : View(context) {
         }
         // text
         val tx = body.left + CHIP_ICON_W * dp
-        val tp = chipTitlePaint(label.twoLine).apply { color = palette.accent }
-        val ap = chipActionPaint(label.twoLine).apply { color = t.textMod }
+        val tp = chipTitlePaint(label.twoLine).apply { color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(palette, Surface.CHIP, Ink.ACCENT) }
+        val ap = chipActionPaint(label.twoLine).apply { color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.CHIP, Ink.TEXT_MOD) }
         if (label.twoLine) {
             val tf = tp.fontMetrics
             val af = ap.fontMetrics
@@ -1655,13 +1672,14 @@ class KeyboardView(context: Context) : View(context) {
         }
         // ✕ cell
         val xr = chipX.apply { set(x.rect.left + dx, body.top, x.rect.right + dx, body.bottom) }
-        if (x in pressedStrip) {
-            fill.color = ColorMath.withAlpha(palette.accent, 0.22f)
+        val xPressed = x in pressedStrip
+        if (xPressed) {
+            fill.color = Drawn.surface(palette, Surface.PRESSED)
             c.drawCircle(xr.centerX(), xr.centerY(), 13 * dp, fill)
         }
-        fill.color = ColorMath.withAlpha(palette.accent, 0.3f)
+        fill.color = Drawn.chipDivider(palette)
         c.drawRect(xr.left, body.top + body.height() * 0.24f, xr.left + dp, body.bottom - body.height() * 0.24f, fill)
-        stroke.color = if (x in pressedStrip) palette.accent else t.textMod
+        stroke.color = if (xPressed) Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT) else if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.CHIP, Ink.TEXT_MOD)
         stroke.strokeWidth = 1.6f * dp
         val k = 4.2f * dp
         c.drawLine(xr.centerX() - k, xr.centerY() - k, xr.centerX() + k, xr.centerY() + k, stroke)
@@ -1675,15 +1693,14 @@ class KeyboardView(context: Context) : View(context) {
      * and offers nothing learned. Quiet on purpose (it explains itself on tap / TalkBack).
      */
     private fun drawNoMemory(c: Canvas, r: RectF, pressed: Boolean) {
-        val t = palette.theme
         if (pressed) {
-            fill.color = t.keyHi
+            fill.color = Drawn.surface(palette, Surface.PRESSED)
             tmp.set(r.left + 3 * dp, 8 * dp, r.right - 3 * dp, stripH - 8 * dp)
             c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
         }
         val cx = r.centerX()
         val cy = r.centerY()
-        stroke.color = if (pressed) palette.accent else t.muted
+        stroke.color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(palette, Surface.BACKGROUND, Ink.MUTED)
         stroke.strokeWidth = 1.5f * dp
         stroke.strokeCap = Paint.Cap.ROUND
         c.drawCircle(cx, cy, 6.5f * dp, stroke)
@@ -1702,7 +1719,7 @@ class KeyboardView(context: Context) : View(context) {
         fill.shader = null
         tmp.set(first.left + 6 * dp, first.top + 2 * dp, first.right - 6 * dp, last.bottom - 2 * dp)
         val dockR = min(tmp.width() / 2, 22 * dp)
-        fill.color = t.bg2
+        fill.color = Drawn.surface(palette, Surface.CARD)
         c.drawRoundRect(tmp, dockR, dockR, fill)
         stroke.color = t.edge
         stroke.strokeWidth = dp
@@ -1716,13 +1733,14 @@ class KeyboardView(context: Context) : View(context) {
             var on = false
             for (p in ptrs.values) if (p.rail == side) on = true
             val d = min(r.width() - 16 * dp, 44 * dp).coerceAtLeast(28 * dp)
-            fill.color = if (on) palette.chipFill else t.keyMod
+            fill.color = Drawn.surface(palette, if (on) Surface.CHIP else Surface.MOD_PLAIN)
             c.drawCircle(r.centerX(), r.centerY(), d / 2, fill)
-            stroke.color = if (on || palette.highContrast) palette.accent else t.edgeHi
+            stroke.color = if (on || palette.highContrast) Drawn.ink(palette, Surface.CARD, Ink.ACCENT) else t.edgeHi
             stroke.strokeWidth = dp
             c.drawCircle(r.centerX(), r.centerY(), d / 2, stroke)
             val icon = when (side) { OneHand.LEFT -> Icon.ARROW_LEFT; OneHand.RIGHT -> Icon.ARROW_RIGHT; OneHand.OFF -> Icon.EXPAND }
-            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), d * 0.48f, if (on) palette.accent else t.textMod, stroke, fill)
+            KeyIcons.draw(c, icon, r.centerX(), r.centerY(), d * 0.48f,
+                if (on) Drawn.ink(palette, Surface.CHIP, Ink.ACCENT) else Drawn.ink(palette, Surface.MOD_PLAIN, Ink.TEXT_MOD), stroke, fill)
         }
     }
 
@@ -1738,34 +1756,14 @@ class KeyboardView(context: Context) : View(context) {
         c.drawText(s, cx, cy - (fm.ascent + fm.descent) / 2, text)
     }
 
-    private fun keyColors(k: Key): Pair<Int, Int> {
-        val t = palette.theme
-        return when {
-            k.type == KeyType.ENTER -> palette.accent to palette.accentInk
-            k.type == KeyType.SHIFT && shift == ShiftState.LOCKED -> palette.accent to palette.accentInk
-            k.style == KeyStyle.MOD -> t.keyMod to t.textMod
-            k.style == KeyStyle.NUM -> t.keyNum to t.text
-            k.style == KeyStyle.ACCENT -> t.keyNum to palette.accent
-            else -> t.key to t.text
-        }
-    }
-
-    private fun kindOf(k: Key): KeyPainter.Kind = when {
-        k.type == KeyType.ENTER || (k.type == KeyType.SHIFT && shift == ShiftState.LOCKED) -> KeyPainter.Kind.ACCENT_SOLID
-        k.type == KeyType.SPACE -> KeyPainter.Kind.SPACE
-        k.style == KeyStyle.MOD -> KeyPainter.Kind.MOD
-        k.style == KeyStyle.NUM || k.style == KeyStyle.ACCENT -> KeyPainter.Kind.NUM
-        else -> KeyPainter.Kind.NORMAL
-    }
-
     /** Icons follow the legend size a little (× 0.9-1.2), never past the 0.13.0 cap of 24 dp × 1.2. */
     private fun iconSize(w: Float): Float = KeyIcons.size(rowH, w, dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.2f)
 
     private fun drawKey(c: Canvas, b: Box, press: Float) {
-        val t = palette.theme
         val k = b.key
-        val (_, ink) = keyColors(k)
-        painter.body(c, b.rect, b.row, kindOf(k), palette, press, face)
+        // r14 fix (LG6): the kind and the legend's ink come from the table the gate corrects and checks
+        val ink = Drawn.ink(palette, Surface.KEY_TOP, Drawn.legendInk(k.type, k.style, shift))
+        painter.body(c, b.rect, b.row, Drawn.kindOf(k.type, k.style, shift), palette, press, face)
         // legend: centred on the face the cap leaves (a keycap's face sits above its skirt)
         val cx = face.centerX()
         val cy = face.centerY()
@@ -1779,7 +1777,7 @@ class KeyboardView(context: Context) : View(context) {
                 text.typeface = typeface(settings.legendWeight.wght + if (small) 50 else 0)
                 drawCentered(c, label, cx, cy)
                 if (settings.subLegends && k.hint != null) {
-                    text.color = t.muted
+                    text.color = Drawn.ink(palette, Surface.KEY_TOP, Drawn.HINT)
                     text.textSize = Legend.hint(rowH, settings.legendScale, fontScale, dp)
                     text.typeface = typeface(500)
                     c.drawText(k.hint, face.right - 6 * dp, face.top + 3 * dp + text.textSize * 0.82f, text)
@@ -1790,13 +1788,13 @@ class KeyboardView(context: Context) : View(context) {
             }
             KeyType.SPACE -> {
                 // the language in quiet ink, the brand's ✦ in the accent before it
-                text.color = t.textMod
+                text.color = Drawn.ink(palette, Surface.KEY_TOP, Drawn.SPACE_LABEL)
                 text.textSize = 13 * dp * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.35f)
                 text.typeface = typeface(550)
                 val lw = text.measureText(k.label)
                 val star = text.textSize * 0.42f
                 val x0 = cx - (lw + star * 2 + 6 * dp) / 2
-                drawStar(c, x0 + star, cy, star, palette.accent)
+                drawStar(c, x0 + star, cy, star, Drawn.ink(palette, Surface.KEY_TOP, Drawn.SPACE_STAR))
                 text.textAlign = Paint.Align.LEFT
                 val fm = text.fontMetrics
                 c.drawText(k.label, x0 + star * 2 + 6 * dp, cy - (fm.ascent + fm.descent) / 2, text)
@@ -1804,7 +1802,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (spaceHint) {
                     // the system globe is gone: a globe says "hold me to switch keyboards"
                     val sz = min(rowH * 0.3f, 14 * dp)
-                    KeyIcons.draw(c, Icon.GLOBE, face.right - 8 * dp - sz / 2, cy, sz, t.muted, stroke, fill)
+                    KeyIcons.draw(c, Icon.GLOBE, face.right - 8 * dp - sz / 2, cy, sz, Drawn.ink(palette, Surface.KEY_TOP, Drawn.SPACE_GLOBE), stroke, fill)
                 }
             }
             KeyType.SHIFT -> {
@@ -1814,7 +1812,7 @@ class KeyboardView(context: Context) : View(context) {
                     ShiftState.LOCKED -> Icon.SHIFT_LOCK
                     ShiftState.ONCE, ShiftState.AUTO -> Icon.SHIFT_ON
                 }
-                val color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) palette.accent else ink
+                val color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) Drawn.ink(palette, Surface.KEY_TOP, Drawn.SHIFT_ON) else ink
                 KeyIcons.draw(c, icon, cx, cy, iconSize(face.width()), color, stroke, fill)
             }
             KeyType.ENTER -> KeyIcons.draw(c, enterIcon, cx, cy, iconSize(face.width()), ink, stroke, fill)
@@ -1876,14 +1874,14 @@ class KeyboardView(context: Context) : View(context) {
         c.translate(0f, 2.5f * dp)
         c.drawPath(headPath, fill)
         c.restore()
-        fill.color = if (connected) t.keyHi else t.bg2
+        fill.color = Drawn.surface(palette, if (connected) Surface.PREVIEW else Surface.CARD)
         c.drawPath(bubblePath, fill)
-        stroke.strokeWidth = dp
+        stroke.strokeWidth = if (connected && !t.dark) 1.5f * dp else dp
         stroke.color = if (palette.highContrast) palette.outline else if (connected) t.edgeHi else palette.accentGlow
         c.drawPath(bubblePath, stroke)
         val letter = b.key.label.length == 1 && b.key.label[0].isLetter()
         val label = if (shift != ShiftState.OFF || (settings.upperLegends && letter)) Variants.shiftChar(b.key.label) else b.key.label
-        text.color = t.text
+        text.color = if (connected) Drawn.ink(palette, Surface.PREVIEW, Ink.TEXT) else Drawn.ink(palette, Surface.CARD, Ink.TEXT)
         text.textSize = min(min(h * 0.5f, 30 * dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.3f), tmp.height() * 0.66f)
         text.typeface = typeface(settings.legendWeight.wght + 50)
         drawCentered(c, label, tmp.centerX(), tmp.centerY())
@@ -1942,7 +1940,7 @@ class KeyboardView(context: Context) : View(context) {
         c.translate(0f, 3 * dp)
         c.drawPath(headPath, fill)
         c.restore()
-        fill.color = t.bg2
+        fill.color = Drawn.surface(palette, Surface.CARD)
         c.drawPath(bubblePath, fill)
         stroke.strokeWidth = dp
         stroke.color = if (palette.highContrast) palette.outline else t.edgeHi
@@ -1952,12 +1950,12 @@ class KeyboardView(context: Context) : View(context) {
         p.hlX = if (p.hlX < 0f || motion == Motion.OFF) target else p.hlX + (target - p.hlX) * 0.5f
         if (abs(target - p.hlX) > 0.5f) animating = true else p.hlX = target
         face.set(p.hlX + 2 * dp, body.top + 3 * dp, p.hlX + pop.cell - 2 * dp, body.bottom - 3 * dp)
-        fill.color = palette.accent
+        fill.color = Drawn.surface(palette, Surface.SOLID)
         val cr = min(painter.radius(b.rect), face.height() / 2)
         c.drawRoundRect(face, cr, cr, fill)
         for (i in p.popupItems.indices) {
             val l = pop.cellLeft(i)
-            text.color = if (i == p.sel) palette.accentInk else t.text
+            text.color = if (i == p.sel) Drawn.ink(palette, Surface.SOLID, Ink.ACCENT_INK) else Drawn.ink(palette, Surface.CARD, Ink.TEXT)
             text.textSize = min(h * 0.45f, 24 * dp) * (settings.legendScale * Legend.fontFactor(fontScale)).coerceIn(0.9f, 1.25f)
             text.typeface = typeface(settings.legendWeight.wght + 50)
             drawCentered(c, p.popupItems[i], l + pop.cell / 2, body.centerY())

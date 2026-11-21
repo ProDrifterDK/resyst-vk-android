@@ -11,6 +11,9 @@ import android.text.TextPaint
 import com.resyst.vk.core.ClipRules
 import com.resyst.vk.core.ClipboardHistory
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.Surface
 import kotlin.math.max
 import kotlin.math.min
 
@@ -121,7 +124,7 @@ class ClipboardPanel(private val dp: Float) {
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
         val t = p.theme
         fill.shader = null
-        fill.color = t.bg
+        fill.color = Drawn.surface(p, Surface.BACKGROUND)
         c.drawRect(bounds, fill)
         val d = detail?.let { id -> items.firstOrNull { it.id == id } }
         // header
@@ -134,24 +137,24 @@ class ClipboardPanel(private val dp: Float) {
             return
         }
         if (confirmClear) {
-            text.color = t.bad
+            text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.BAD)
             drawLeft(c, "¿Borrar todo?", bounds.left + 14 * dp, hy)
         } else {
-            drawClipIcon(c, bounds.left + 22 * dp, hy, 16 * dp, p.accent)
-            text.color = t.text
+            drawClipIcon(c, bounds.left + 22 * dp, hy, 16 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT))
+            text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT)
             drawLeft(c, "Portapapeles", bounds.left + 38 * dp, hy)
             if (items.isNotEmpty()) {
-                text.color = t.muted
+                text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.typeface = typeface(500)
                 text.textSize = 12 * dp
                 drawLeft(c, "${items.size}", bounds.left + 38 * dp + measure("Portapapeles", 15 * dp, typeface(650)) + 8 * dp, hy)
             }
         }
         for (h in hits) when (h.act) {
-            Act.CLOSE -> button(c, h, "ABC", t.keyMod, t.textMod, radius, typeface, h === pressed, p)
-            Act.CLEAR_ASK -> button(c, h, "Borrar todo", t.key, t.bad, radius, typeface, h === pressed, p)
-            Act.CLEAR_YES -> button(c, h, "Sí, borrar", t.bad, p.accentInk.let { if (t.dark) t.bg else 0xFFFFFFFF.toInt() }, radius, typeface, h === pressed, p)
-            Act.CLEAR_NO -> button(c, h, "No", t.key, t.text, radius, typeface, h === pressed, p)
+            Act.CLOSE -> button(c, h, "ABC", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
+            Act.CLEAR_ASK -> button(c, h, "Borrar todo", Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
+            Act.CLEAR_YES -> button(c, h, "Sí, borrar", Surface.BAD_FILL, Ink.BAD_INK, radius, typeface, h === pressed, p)
+            Act.CLEAR_NO -> button(c, h, "No", Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
             else -> Unit
         }
         fill.color = t.edge
@@ -159,12 +162,12 @@ class ClipboardPanel(private val dp: Float) {
         // list
         if (items.isEmpty()) {
             text.textAlign = Paint.Align.CENTER
-            text.color = t.text
+            text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT)
             text.typeface = typeface(600)
             text.textSize = 15 * dp
             val cy = (listTop + bounds.bottom) / 2
             drawCenter(c, "Nada copiado todavía", bounds.centerX(), cy - 12 * dp)
-            text.color = t.muted
+            text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
             text.typeface = typeface(450)
             text.textSize = 12 * dp
             drawCenter(c, "Lo que copies aparecerá aquí · hasta 25 · solo en este teléfono", bounds.centerX(), cy + 12 * dp)
@@ -176,10 +179,11 @@ class ClipboardPanel(private val dp: Float) {
             if (h.act != Act.ROW) continue
             val e = items.firstOrNull { it.id == h.id } ?: continue
             val r = h.rect
-            fill.color = if (h === pressed) t.keyHi else t.key
+            val down = h === pressed
+            fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.PLAIN)
             c.drawRoundRect(r, radius, radius, fill)
             if (e.pinned) {
-                fill.color = p.accent
+                fill.color = if (down) Drawn.ink(p, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(p, Surface.PLAIN, Ink.ACCENT)
                 c.drawRoundRect(r.left, r.top + 6 * dp, r.left + 3 * dp, r.bottom - 6 * dp, dp, dp, fill)
             }
             val meta = buildString {
@@ -190,13 +194,18 @@ class ClipboardPanel(private val dp: Float) {
             text.textSize = 11 * dp
             text.typeface = typeface(500)
             val metaW = text.measureText(meta)
-            text.color = if (e.pinned) p.accent else t.muted
+            text.color = when {
+                e.pinned && down -> Drawn.ink(p, Surface.PRESSED, Ink.ACCENT)
+                e.pinned -> Drawn.ink(p, Surface.PLAIN, Ink.ACCENT)
+                down -> Drawn.ink(p, Surface.PRESSED, Ink.MUTED)
+                else -> Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
+            }
             text.textAlign = Paint.Align.RIGHT
             drawBaseline(c, meta, r.right - 10 * dp, r.centerY())
             text.textAlign = Paint.Align.LEFT
             text.textSize = 15 * dp
             text.typeface = typeface(450)
-            text.color = t.text
+            text.color = if (down) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
             val avail = r.width() - metaW - 34 * dp
             drawBaseline(c, ellipsize(oneLine(e.text), avail), r.left + 12 * dp, r.centerY())
         }
@@ -216,11 +225,11 @@ class ClipboardPanel(private val dp: Float) {
         val t = p.theme
         val hy = bounds.top + headerH / 2
         for (h in hits) when (h.act) {
-            Act.BACK -> button(c, h, "‹ Volver", t.keyMod, t.textMod, radius, typeface, h === pressed, p)
+            Act.BACK -> button(c, h, "‹ Volver", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
             else -> Unit
         }
         text.textAlign = Paint.Align.RIGHT
-        text.color = t.muted
+        text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
         text.typeface = typeface(500)
         text.textSize = 12 * dp
         val chars = e.text.length
@@ -228,7 +237,7 @@ class ClipboardPanel(private val dp: Float) {
         // body: the full text in a card aligned with the buttons, wrapped, cut where they start
         val pad = 8 * dp
         tmp.set(bounds.left + pad, listTop + 2 * dp, bounds.right - pad, bounds.bottom - 58 * dp)
-        fill.color = t.bg2
+        fill.color = Drawn.surface(p, Surface.CARD)
         c.drawRoundRect(tmp, radius, radius, fill)
         stroke.color = t.edge
         stroke.strokeWidth = 1 * dp
@@ -236,7 +245,7 @@ class ClipboardPanel(private val dp: Float) {
         val bodyTop = tmp.top + 10 * dp
         val bodyBottom = tmp.bottom - 8 * dp
         text.textAlign = Paint.Align.LEFT
-        text.color = t.text
+        text.color = Drawn.ink(p, Surface.CARD, Ink.TEXT)
         text.typeface = typeface(450)
         text.textSize = 14 * dp
         val w = (bounds.width() - 2 * pad - 24 * dp).toInt().coerceAtLeast(1)
@@ -253,17 +262,17 @@ class ClipboardPanel(private val dp: Float) {
         layout.draw(c)
         c.restore()
         for (h in hits) when (h.act) {
-            Act.PASTE -> button(c, h, "Pegar", p.accent, p.accentInk, radius, typeface, h === pressed, p)
-            Act.PIN -> button(c, h, if (e.pinned) "Soltar" else "Fijar", t.key, t.text, radius, typeface, h === pressed, p)
-            Act.DELETE -> button(c, h, "Borrar", t.key, t.bad, radius, typeface, h === pressed, p)
+            Act.PASTE -> button(c, h, "Pegar", Surface.SOLID, Ink.ACCENT_INK, radius, typeface, h === pressed, p)
+            Act.PIN -> button(c, h, if (e.pinned) "Soltar" else "Fijar", Surface.PLAIN, Ink.TEXT, radius, typeface, h === pressed, p)
+            Act.DELETE -> button(c, h, "Borrar", Surface.PLAIN, Ink.BAD, radius, typeface, h === pressed, p)
             else -> Unit
         }
     }
 
-    private fun button(c: Canvas, h: Hit, label: String, bg: Int, ink: Int, radius: Float, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
-        fill.color = if (pressed) p.theme.keyHi else bg
+    private fun button(c: Canvas, h: Hit, label: String, bg: Surface, ink: Ink, radius: Float, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
+        fill.color = Drawn.surface(p, if (pressed) Surface.PRESSED else bg)
         c.drawRoundRect(h.rect, radius, radius, fill)
-        if (!pressed && (bg == p.theme.key || bg == p.theme.keyMod)) {
+        if (!pressed && (bg == Surface.PLAIN || bg == Surface.MOD_PLAIN)) {
             // quiet buttons sit close to the panel background: an edge keeps their bounds visible
             stroke.color = p.theme.edgeHi
             stroke.strokeWidth = 1 * dp
@@ -275,7 +284,8 @@ class ClipboardPanel(private val dp: Float) {
             c.drawRoundRect(h.rect, radius, radius, stroke)
         }
         text.textAlign = Paint.Align.CENTER
-        text.color = ink
+        // r14 fix (LG10): a pressed button reads in the legend ink on the pressed fill (0.13.0 kept «Pegar»'s ink on it)
+        text.color = if (pressed) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, bg, ink)
         text.typeface = typeface(600)
         text.textSize = 13 * dp
         drawCenter(c, label, h.rect.centerX(), h.rect.centerY())

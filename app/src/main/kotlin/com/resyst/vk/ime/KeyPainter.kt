@@ -7,9 +7,12 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import com.resyst.vk.core.ColorMath
+import com.resyst.vk.core.Drawn
 import com.resyst.vk.core.KeyCap
+import com.resyst.vk.core.KeyKind
 import com.resyst.vk.core.KeyShape
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Surface
 import kotlin.math.max
 import kotlin.math.min
 
@@ -22,9 +25,6 @@ import kotlin.math.min
  * comes back up, not a flash.
  */
 class KeyPainter(private val dp: Float) {
-    /** What a body is filled with. */
-    enum class Kind { NORMAL, MOD, NUM, ACCENT_SOLID, SPACE }
-
     var shape: KeyShape = KeyShape.SOFT
     var cap: KeyCap = KeyCap.RAISED
 
@@ -68,33 +68,24 @@ class KeyPainter(private val dp: Float) {
 
     /**
      * Draws the body of a key over [r] (row [row], surface [kind]) with palette [p]; [press] 0…1; [face] receives the
-     * rect the legend centres on.
+     * rect the legend centres on. Every colour comes from [Drawn] (r14 fix LG6): the face ends and the press are the
+     * key surfaces the legibility gate corrects and checks; the skirt, the hairline and the rings carry no ink.
      */
-    fun body(c: Canvas, r: RectF, row: Int, kind: Kind, p: Palette, press: Float, face: RectF) {
-        val t = p.theme
-        val solid = kind == Kind.ACCENT_SOLID
-        val base = when (kind) {
-            Kind.MOD -> t.keyMod
-            Kind.NUM -> t.keyNum
-            Kind.ACCENT_SOLID -> p.accent
-            Kind.NORMAL, Kind.SPACE -> t.key
-        }
-        val top = when (kind) {
-            Kind.MOD -> ColorMath.mix(base, t.keyTop, 0.5f)
-            Kind.ACCENT_SOLID -> p.accent
-            else -> t.keyTop
-        }
-        val pressedFill = if (solid) ColorMath.mix(p.accent, 0xFFFFFFFF.toInt(), 0.15f) else t.keyHi
+    fun body(c: Canvas, r: RectF, row: Int, kind: KeyKind, p: Palette, press: Float, face: RectF) {
+        val solid = kind == KeyKind.ACCENT_SOLID
+        val top = Drawn.surface(p, Surface.KEY_TOP, cap, kind)
+        val bottom = Drawn.surface(p, Surface.KEY_BOTTOM, cap, kind)
+        val pressedFill = Drawn.surface(p, Surface.KEY_PRESSED, cap, kind)
         fill.shader = null
         face.set(r)
         when (cap) {
             KeyCap.RAISED -> {
-                fill.color = if (solid) ColorMath.mix(p.accent, t.bg, 0.35f) else t.edge
+                fill.color = Drawn.skirt(p, cap, kind)
                 shapeOn(c, r, fill)
                 face.set(r.left, r.top, r.right, r.bottom - 2 * dp)
                 face.offset(0f, 1.5f * dp * press)
-                if (solid) fill.color = p.accent
-                else fill.shader = gradient(slot(row, kind, 0), face.top, face.bottom, top, base)
+                if (solid) fill.color = top
+                else fill.shader = gradient(slot(row, kind, 0), face.top, face.bottom, top, bottom)
                 shapeOn(c, face, fill)
                 fill.shader = null
                 overlay(c, face, pressedFill, press)
@@ -102,20 +93,13 @@ class KeyPainter(private val dp: Float) {
             KeyCap.KEYCAP -> {
                 // a mechanical keycap: a skirt, and a lighter top face set back from it (more skirt at the bottom,
                 // as seen from the typing position); pressing sinks the face into the skirt
-                val dark = t.dark
-                fill.color = when {
-                    solid -> ColorMath.mix(p.accent, 0xFF000000.toInt(), 0.3f)
-                    dark -> ColorMath.mix(base, 0xFF000000.toInt(), 0.55f)
-                    else -> ColorMath.mix(base, t.edge, 0.85f)
-                }
+                fill.color = Drawn.skirt(p, cap, kind)
                 shapeOn(c, r, fill)
                 val sink = 2.5f * dp * press
                 face.set(r.left + 2.5f * dp, r.top + 1.5f * dp + sink, r.right - 2.5f * dp, r.bottom - 4.5f * dp + sink * 0.6f)
                 // dark palettes: the face lifts toward the pressed colour (text is gated against it), the skirt sinks
                 // toward black, so the keycap reads at a glance even on near-black keys
-                val faceTop = if (solid) ColorMath.mix(p.accent, 0xFFFFFFFF.toInt(), 0.12f) else if (dark) ColorMath.mix(base, t.keyHi, 0.95f) else t.keyTop
-                val faceBottom = if (solid) p.accent else if (dark) ColorMath.mix(base, t.keyHi, 0.45f) else base
-                fill.shader = gradient(slot(row, kind, 1), face.top, face.bottom, faceTop, faceBottom)
+                fill.shader = gradient(slot(row, kind, 1), face.top, face.bottom, top, bottom)
                 val rad = max(radius(r) - 2 * dp, 1.5f * dp)
                 shapeOn(c, face, fill, rad)
                 fill.shader = null
@@ -123,34 +107,34 @@ class KeyPainter(private val dp: Float) {
                 if (!solid) {
                     stroke.shader = null
                     stroke.strokeWidth = dp
-                    stroke.color = ColorMath.withAlpha(ColorMath.mix(faceTop, 0xFFFFFFFF.toInt(), 0.5f), if (dark) 0.22f else 0.5f)
+                    stroke.color = Drawn.keycapHairline(p, cap, kind)
                     c.drawLine(face.left + rad, face.top + dp * 0.5f, face.right - rad, face.top + dp * 0.5f, stroke)
                 }
                 overlay(c, face, pressedFill, press, rad)
             }
             KeyCap.FLAT -> {
-                fill.color = base
+                fill.color = top
                 shapeOn(c, r, fill)
                 overlay(c, r, pressedFill, press)
             }
             KeyCap.OUTLINE -> {
-                if (solid) { fill.color = p.accent; shapeOn(c, r, fill) }
+                if (solid) { fill.color = top; shapeOn(c, r, fill) }
                 overlay(c, r, pressedFill, press)
                 stroke.shader = null
                 stroke.strokeWidth = dp
-                stroke.color = if (solid) p.accent else ColorMath.mix(t.edgeHi, p.accent, press)
+                stroke.color = if (solid) top else Drawn.pressEdge(p, press)
                 skirt.set(r); skirt.inset(0.5f * dp, 0.5f * dp)
                 shapeOn(c, skirt, stroke)
             }
             KeyCap.BORDERLESS -> {
                 when {
-                    solid -> { fill.color = p.accent; shapeOn(c, r, fill) }
-                    kind == Kind.SPACE -> {
+                    solid -> { fill.color = top; shapeOn(c, r, fill) }
+                    kind == KeyKind.SPACE -> {
                         // the space bar keeps a quiet outline so the thumb finds it; the label sits on the background
                         skirt.set(r.left + 2 * dp, r.top + r.height() * 0.16f, r.right - 2 * dp, r.bottom - r.height() * 0.16f)
                         stroke.shader = null
                         stroke.strokeWidth = dp
-                        stroke.color = ColorMath.mix(t.edgeHi, p.accent, press)
+                        stroke.color = Drawn.pressEdge(p, press)
                         shapeOn(c, skirt, stroke)
                     }
                 }
@@ -163,7 +147,7 @@ class KeyPainter(private val dp: Float) {
         if (press > 0f && !solid && cap != KeyCap.OUTLINE) {
             stroke.shader = null
             stroke.strokeWidth = 1.2f * dp
-            stroke.color = ColorMath.withAlpha(p.accent, 0.45f * press)
+            stroke.color = Drawn.pressRing(p, press)
             shapeOn(c, if (cap == KeyCap.BORDERLESS) skirt else face, stroke, if (cap == KeyCap.KEYCAP) max(radius(r) - 2 * dp, 1.5f * dp) else radius(face))
         }
         if (p.highContrast && !solid) {
@@ -176,6 +160,7 @@ class KeyPainter(private val dp: Float) {
         }
     }
 
+    /** The press: [color] (a KEY_PRESSED surface) over the face at alpha [press]; at 1 the legend sits on it alone. */
     private fun overlay(c: Canvas, r: RectF, color: Int, press: Float, rad: Float = radius(r)) {
         if (press <= 0f) return
         fill.shader = null
@@ -183,11 +168,11 @@ class KeyPainter(private val dp: Float) {
         shapeOn(c, r, fill, rad)
     }
 
-    private fun slot(row: Int, kind: Kind, face: Int): Int = row.coerceIn(0, MAX_ROWS - 1) * STRIDE + kind.ordinal * 2 + face
+    private fun slot(row: Int, kind: KeyKind, face: Int): Int = row.coerceIn(0, MAX_ROWS - 1) * STRIDE + kind.ordinal * 2 + face
 
     companion object {
         private const val MAX_ROWS = 6
         /** Kinds × the two faces (RAISED's, KEYCAP's) per row. */
-        private val STRIDE = Kind.values().size * 2
+        private val STRIDE = KeyKind.values().size * 2
     }
 }

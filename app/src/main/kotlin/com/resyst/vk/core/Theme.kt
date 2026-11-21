@@ -300,41 +300,64 @@ enum class Tint(val amount: Float) {
 }
 
 /**
- * r14 (LG1): the legibility gate. Every colour pair the keyboard draws is built from the palette and corrected here,
- * once per palette change, so no combination a person can build (palette × accent × tint × cap × high contrast)
- * draws text under WCAG AA — legends at AAA. Text moves; surfaces keep the hue the user chose.
+ * r14 (LG1, fix LG6-LG8): the legibility gate. Every pair the keyboard, its panels and Settings draw is declared once in
+ * [Drawn.PAIRS] (built from the same surface functions the painters use); the gate corrects the palette until every
+ * declared pair passes, once per palette change, so no combination a person can build (palette × accent × tint × cap ×
+ * high contrast × system colours) draws text under WCAG AA — legends at AAA. Text moves; surfaces keep the hue the user
+ * chose (only pushed toward their palette's side when even pure white or black could not reach AAA on them).
  */
 object Legibility {
-    const val LEGEND = 7.0
-    const val TEXT = 4.5
-    const val OUTLINE = 3.0
+    const val LEGEND = Drawn.LEGEND
+    const val TEXT = Drawn.TEXT
+    const val OUTLINE = Drawn.ICON
 
     private const val WHITE = 0xFFFFFFFF.toInt()
     private const val BLACK = 0xFF000000.toInt()
 
+    /** Fixed-point rounds before the last resort (every swept palette settles in a few). */
+    private const val ROUNDS = 8
+
+    private fun ratio(la: Double, lb: Double) = (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
     /**
-     * [fg] moved toward white or black — whichever can reach [ratio] over every one of [bgs], preferring the
-     * direction that keeps its own side of the surfaces — in 2 % steps; pure white or black when nothing less does.
+     * [fg] moved toward white or black until it reaches, on every surface in [bgs], the matching ratio in [mins] —
+     * toward whichever pole can satisfy them all, preferring the one that keeps its own side of the surfaces — in 2 %
+     * steps; pure white or black when nothing less does.
      */
-    fun ensure(fg: Int, ratio: Double, vararg bgs: Int): Int {
-        if (bgs.all { ColorMath.contrast(fg, it) >= ratio }) return fg
-        val towardWhite = bgs.minOf { ColorMath.contrast(WHITE, it) }
-        val towardBlack = bgs.minOf { ColorMath.contrast(BLACK, it) }
-        val lightSurfaces = bgs.map { ColorMath.luminance(it) }.average() >= 0.18
+    fun ensureAll(fg: Int, bgs: IntArray, mins: DoubleArray): Int {
+        require(bgs.size == mins.size)
+        if (bgs.isEmpty()) return fg
+        val lum = DoubleArray(bgs.size) { ColorMath.luminance(bgs[it]) }
+        fun passes(c: Int): Boolean {
+            val l = ColorMath.luminance(c)
+            for (i in lum.indices) if (ratio(l, lum[i]) < mins[i]) return false
+            return true
+        }
+        if (passes(fg)) return fg
+        var whiteWorst = Double.MAX_VALUE
+        var blackWorst = Double.MAX_VALUE
+        for (i in lum.indices) {
+            whiteWorst = min(whiteWorst, ratio(1.0, lum[i]) / mins[i])
+            blackWorst = min(blackWorst, ratio(0.0, lum[i]) / mins[i])
+        }
+        val lightSurfaces = lum.distinct().average() >= 0.18
         val target = when {
-            towardWhite >= ratio && towardBlack >= ratio -> if (lightSurfaces) BLACK else WHITE
-            towardWhite >= ratio -> WHITE
-            towardBlack >= ratio -> BLACK
-            else -> if (towardWhite >= towardBlack) WHITE else BLACK
+            whiteWorst >= 1.0 && blackWorst >= 1.0 -> if (lightSurfaces) BLACK else WHITE
+            whiteWorst >= 1.0 -> WHITE
+            blackWorst >= 1.0 -> BLACK
+            else -> if (whiteWorst >= blackWorst) WHITE else BLACK
         }
         var t = 0.02f
         while (t <= 1.0001f) {
             val c = ColorMath.mix(fg, target, t)
-            if (bgs.all { ColorMath.contrast(c, it) >= ratio }) return c
+            if (passes(c)) return c
             t += 0.02f
         }
         return target
     }
+
+    /** [ensureAll] with one [ratio] on every surface (the classic form). */
+    fun ensure(fg: Int, ratio: Double, vararg bgs: Int): Int = ensureAll(fg, bgs, DoubleArray(bgs.size) { ratio })
 
     private fun best(vararg bgs: Int): Int =
         if (bgs.minOf { ColorMath.contrast(WHITE, it) } >= bgs.minOf { ColorMath.contrast(BLACK, it) }) WHITE else BLACK
@@ -342,21 +365,20 @@ object Legibility {
     /** Chip fill: the accent at this alpha over the bar. */
     fun chipAlpha(dark: Boolean) = if (dark) 0.13f else 0.12f
 
-    /** The best contrast any text can reach on [c] (pure white or pure black). */
-    private fun reachable(c: Int) = max(ColorMath.contrast(WHITE, c), ColorMath.contrast(BLACK, c))
-
     /**
-     * A surface where even pure white or black would stay under [SURFACE] (a mid-grey wallpaper palette, an extreme
-     * tint) is pushed toward its palette's side (darker on a dark palette) until legends can reach AAA with a margin.
-     * The classic and r14 palettes never need it (their surfaces sit far from mid-grey).
+     * A surface where its palette's text side (white on a dark palette, black on a light one) would stay under
+     * [SURFACE] — a mid-grey wallpaper palette, an extreme tint — is pushed toward that palette's side until it would
+     * not (LG8: every surface on one side, so the side's pure colour always passes and no ink is stranded between a
+     * dark and a light surface). The classic and r14 palettes never need it (their surfaces sit far from mid-grey).
      */
     private fun clampSurface(c: Int, dark: Boolean): Int {
-        if (reachable(c) >= SURFACE) return c
+        val pole = if (dark) WHITE else BLACK
+        if (ColorMath.contrast(pole, c) >= SURFACE) return c
         val target = if (dark) BLACK else WHITE
         var t = 0.04f
         while (t <= 1.0001f) {
             val m = ColorMath.mix(c, target, t)
-            if (reachable(m) >= SURFACE) return m
+            if (ColorMath.contrast(pole, m) >= SURFACE) return m
             t += 0.04f
         }
         return target
@@ -364,8 +386,40 @@ object Legibility {
 
     private const val SURFACE = 8.0
 
-    /** The corrected theme and accent. */
-    fun gate(t0: Theme, accent0: Int, highContrast: Boolean): Pair<Theme, Int> {
+    /** The inks the gate moves (the others are derived: the accent's ink, the ink on `bad`, on their own fills). */
+    private val MOVED = listOf(Ink.TEXT, Ink.TEXT_MOD, Ink.MUTED, Ink.OK, Ink.BAD, Ink.ACCENT)
+
+    private fun role(t: Theme, acc: Int, ink: Ink): Int = when (ink) {
+        Ink.TEXT -> t.text
+        Ink.TEXT_MOD -> t.textMod
+        Ink.MUTED -> t.muted
+        Ink.OK -> t.ok
+        Ink.BAD -> t.bad
+        Ink.ACCENT -> acc
+        else -> error("$ink is derived")
+    }
+
+    private fun withRole(t: Theme, ink: Ink, c: Int): Theme = when (ink) {
+        Ink.TEXT -> t.copy(text = c)
+        Ink.TEXT_MOD -> t.copy(textMod = c)
+        Ink.MUTED -> t.copy(muted = c)
+        Ink.OK -> t.copy(ok = c)
+        Ink.BAD -> t.copy(bad = c)
+        else -> t
+    }
+
+    /** [fg] (role [ink]) moved until it passes on every surface [checks] draws it on. */
+    private fun fix(ink: Ink, fg: Int, checks: List<Drawn.Check>): Int {
+        val mine = checks.filter { it.ink == ink }
+        if (mine.all { it.ok }) return fg
+        return ensureAll(fg, IntArray(mine.size) { mine[it].bg }, DoubleArray(mine.size) { mine[it].min })
+    }
+
+    /**
+     * The corrected theme and accent: surfaces clamped to their side, high contrast applied, then a fixed point over
+     * every pair [decls] declares (default: all of [Drawn.PAIRS]; tests pass fewer to prove each pair is load-bearing).
+     */
+    fun gate(t0: Theme, accent0: Int, highContrast: Boolean, decls: List<Drawn.Decl> = Drawn.PAIRS): Pair<Theme, Int> {
         val d = t0.dark
         var t = t0.copy(
             bg = clampSurface(t0.bg, d), bg2 = clampSurface(t0.bg2, d), key = clampSurface(t0.key, d), keyTop = clampSurface(t0.keyTop, d),
@@ -377,15 +431,20 @@ object Legibility {
             val edge = ensure(t.edgeHi, OUTLINE, t.bg, t.key, t.keyMod, t.keyNum)
             t = t.copy(edge = edge, edgeHi = edge, muted = ensure(t.muted, LEGEND, t.key, t.keyNum, t.bg))
         }
-        t = t.copy(
-            text = ensure(t.text, LEGEND, t.key, t.keyTop, t.keyHi, t.keyNum, t.bg, t.bg2),
-            textMod = ensure(t.textMod, TEXT, t.keyMod, t.keyHi, t.key, t.bg),
-            muted = ensure(t.muted, TEXT, t.key, t.keyTop, t.keyNum, t.bg),
-        )
         var acc = accent0
-        repeat(4) {
-            val chip = ColorMath.over(acc, chipAlpha(t.dark), t.bg)
-            acc = ensure(acc, TEXT, t.key, t.keyTop, t.keyNum, t.bg, t.bg2, chip)
+        repeat(ROUNDS) {
+            val checks = Drawn.checks(Palette.build(t, acc, highContrast), decls = decls)
+            if (checks.all { it.ok }) return t to acc
+            for (ink in MOVED) {
+                val next = fix(ink, role(t, acc, ink), checks)
+                if (ink == Ink.ACCENT) acc = next else t = withRole(t, ink, next)
+            }
+        }
+        // last resort (LG8): with every surface on its palette's side, the side's pure colour passes everywhere
+        val pole = if (d) WHITE else BLACK
+        val left = Drawn.checks(Palette.build(t, acc, highContrast), decls = decls).filter { !it.ok }.map { it.ink }.toSet()
+        for (ink in left) if (ink in MOVED) {
+            if (ink == Ink.ACCENT) acc = pole else t = withRole(t, ink, pole)
         }
         return t to acc
     }
@@ -400,41 +459,30 @@ object Legibility {
         }
     }
 
+    /**
+     * LG7: the KEYCAP accent face's lift toward white (12 %, the keycap's light from above) shrinks until its [ink] keeps
+     * 4.5:1 — a dark accent with white ink loses its lift rather than its legibility.
+     */
+    fun lift(accent: Int, ink: Int): Int {
+        for (k in floatArrayOf(0.12f, 0.08f, 0.04f)) {
+            val c = ColorMath.mix(accent, WHITE, k)
+            if (ColorMath.contrast(ink, c) >= TEXT) return c
+        }
+        return accent
+    }
+
+    /** LG7: an accent fill pressed moves 15 % away from its [ink] (toward black under white ink): the press adds contrast. */
+    fun away(accent: Int, ink: Int): Int =
+        ColorMath.mix(accent, if (ColorMath.luminance(ink) >= ColorMath.luminance(accent)) BLACK else WHITE, 0.15f)
+
     data class Check(val name: String, val fg: Int, val bg: Int, val min: Double) {
         val ratio: Double get() = ColorMath.contrast(fg, bg)
         val ok: Boolean get() = ratio >= min - 1e-9
     }
 
-    /** Every text-on-surface pair [cap] draws with palette [p] (what LG1 checks). */
-    fun checks(p: Palette, cap: KeyCap): List<Check> {
-        val t = p.theme
-        val face = when (cap) {
-            KeyCap.OUTLINE, KeyCap.BORDERLESS -> listOf("bg" to t.bg)
-            KeyCap.RAISED, KeyCap.KEYCAP -> listOf("key" to t.key, "keyTop" to t.keyTop)
-            KeyCap.FLAT -> listOf("key" to t.key)
-        }
-        val out = ArrayList<Check>()
-        for ((n, s) in face) {
-            out += Check("legend/$n", t.text, s, LEGEND)
-            out += Check("sub-legend/$n", t.muted, s, TEXT)
-        }
-        out += Check("legend/pressed", t.text, t.keyHi, LEGEND)
-        out += Check("mod legend/keyMod", t.textMod, if (cap == KeyCap.OUTLINE || cap == KeyCap.BORDERLESS) t.bg else t.keyMod, TEXT)
-        out += Check("number legend/keyNum", t.text, if (cap == KeyCap.OUTLINE || cap == KeyCap.BORDERLESS) t.bg else t.keyNum, LEGEND)
-        out += Check("accent legend/keyNum", p.accent, if (cap == KeyCap.OUTLINE || cap == KeyCap.BORDERLESS) t.bg else t.keyNum, TEXT)
-        out += Check("bar suggestion/bg", t.text, t.bg, TEXT)
-        out += Check("bar first suggestion/bg", p.accent, t.bg, TEXT)
-        out += Check("bar muted/bg", t.muted, t.bg, TEXT)
-        out += Check("chip text/chip", p.accent, p.chipFill, TEXT)
-        out += Check("pressed chip", p.chipPressedInk, p.chipPressedFill, TEXT)
-        out += Check("enter ink/accent", p.accentInk, p.accent, TEXT)
-        out += Check("popup text/bg2", t.text, t.bg2, TEXT)
-        if (p.highContrast) {
-            out += Check("outline/bg", p.outline, t.bg, OUTLINE)
-            out += Check("outline/key", p.outline, t.key, OUTLINE)
-        }
-        return out
-    }
+    /** Every text/icon-on-surface pair [cap] draws with palette [p]: [Drawn.PAIRS] resolved (what LG1 checks). */
+    fun checks(p: Palette, cap: KeyCap): List<Check> =
+        Drawn.checks(p, listOf(cap)).map { Check(it.name, it.fg, it.bg, it.min) }
 
     /** The checks that fail, as "name ratio < min" (empty = legible). */
     fun failures(p: Palette, cap: KeyCap): List<String> =
@@ -444,7 +492,9 @@ object Legibility {
 /**
  * Effective colors: theme (tinted, then gated) + accent with guaranteed contrast everywhere it is drawn (r14 LG1:
  * keys, the accent row, the bar, chips, popups). [chipFill] / [chipPressedFill] are the bar chips' surfaces; a
- * pressed chip inverts (accent fill, [chipPressedInk] text). [highContrast] adds [outline] to every key.
+ * pressed chip inverts (accent fill, [chipPressedInk] text). [highContrast] adds [outline] to every key. [badInk] is
+ * the ink on a `bad` fill; [solidTop] / [solidPressed] are an accent fill's KEYCAP lift and its press (LG7). Painters
+ * read surfaces and inks through [Drawn], never these fields directly.
  */
 data class Palette(
     val theme: Theme,
@@ -458,26 +508,54 @@ data class Palette(
     val chipPressedInk: Int = accentInk,
     val outline: Int = theme.edgeHi,
     val highContrast: Boolean = false,
+    val badInk: Int = accentInk,
+    val solidTop: Int = accent,
+    val solidPressed: Int = accent,
 ) {
     companion object {
+        private class Key(val themeId: String?, val accent: Int?, val tint: Tint, val hc: Boolean, val system: SystemColors?) {
+            override fun equals(other: Any?) = other is Key && themeId == other.themeId && accent == other.accent && tint == other.tint &&
+                hc == other.hc && system == other.system
+            override fun hashCode() = ((((themeId?.hashCode() ?: 0) * 31 + (accent ?: 0)) * 31 + tint.ordinal) * 31 + (if (hc) 1 else 0)) * 31 +
+                (system?.hashCode() ?: 0)
+        }
+
+        /** LG11: a palette is a pure function of its inputs; Settings asks for dozens per render (bounded, LRU). */
+        private const val CACHE = 96
+        private val cache = object : LinkedHashMap<Key, Palette>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, Palette>?) = size > CACHE
+        }
+
         fun of(themeId: String?, accent: Int?, tint: Tint = Tint.NONE, highContrast: Boolean = false, system: SystemColors? = null): Palette {
+            val k = Key(themeId, accent, tint, highContrast, system)
+            synchronized(cache) { cache[k]?.let { return it } }
             val base = Themes.resolve(themeId, system)
             val wanted = accent ?: base.accent
-            val (t, acc) = Legibility.gate(tint.applyTo(base, wanted), wanted, highContrast || base.id == "hc")
+            val hc = highContrast || base.id == "hc"
+            val (t, acc) = Legibility.gate(tint.applyTo(base, wanted), wanted, hc)
+            val p = build(t, acc, hc)
+            synchronized(cache) { cache[k] = p }
+            return p
+        }
+
+        /** The palette a gated theme and accent make: every derived colour ([Drawn]'s inputs). */
+        fun build(t: Theme, acc: Int, hc: Boolean): Palette {
             val ink = Legibility.ink(t, acc)
-            val soft = ColorMath.withAlpha(acc, Legibility.chipAlpha(t.dark))
             return Palette(
                 theme = t,
                 accent = acc,
                 accentInk = ink,
-                accentSoft = soft,
+                accentSoft = ColorMath.withAlpha(acc, Legibility.chipAlpha(t.dark)),
                 accentGlow = ColorMath.withAlpha(acc, 0.45f),
                 ghost = ColorMath.withAlpha(t.text, 0.5f),
                 chipFill = ColorMath.over(acc, Legibility.chipAlpha(t.dark), t.bg),
                 chipPressedFill = acc,
                 chipPressedInk = ink,
                 outline = t.edgeHi,
-                highContrast = highContrast || base.id == "hc",
+                highContrast = hc,
+                badInk = Legibility.ink(t, t.bad),
+                solidTop = Legibility.lift(acc, ink),
+                solidPressed = Legibility.away(acc, ink),
             )
         }
 
@@ -502,11 +580,13 @@ data class Palette(
                     keyHi = m(ta.keyHi, tb.keyHi), keyMod = m(ta.keyMod, tb.keyMod), keyNum = m(ta.keyNum, tb.keyNum),
                     edge = m(ta.edge, tb.edge), edgeHi = m(ta.edgeHi, tb.edgeHi), accent = m(ta.accent, tb.accent),
                     text = m(ta.text, tb.text), textMod = m(ta.textMod, tb.textMod), muted = m(ta.muted, tb.muted),
+                    ok = m(ta.ok, tb.ok), bad = m(ta.bad, tb.bad),
                 ),
                 accent = m(a.accent, b.accent), accentInk = m(a.accentInk, b.accentInk), accentSoft = ma(a.accentSoft, b.accentSoft),
                 accentGlow = ma(a.accentGlow, b.accentGlow), ghost = ma(a.ghost, b.ghost), chipFill = m(a.chipFill, b.chipFill),
                 chipPressedFill = m(a.chipPressedFill, b.chipPressedFill), chipPressedInk = m(a.chipPressedInk, b.chipPressedInk),
-                outline = m(a.outline, b.outline),
+                outline = m(a.outline, b.outline), badInk = m(a.badInk, b.badInk), solidTop = m(a.solidTop, b.solidTop),
+                solidPressed = m(a.solidPressed, b.solidPressed),
             )
         }
 

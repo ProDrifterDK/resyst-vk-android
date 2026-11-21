@@ -7,6 +7,9 @@ import android.graphics.Typeface
 import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.Mode
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.Surface
 import com.resyst.vk.core.Quick
 import com.resyst.vk.core.QuickAction
 import kotlin.math.max
@@ -44,6 +47,11 @@ class QuickPanel(private val dp: Float) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+    private companion object {
+        /** r14 fix (PS8): the smallest a tile's state line shrinks to before it shortens (dp). */
+        const val STATE_MIN = 9.5f
+    }
     private val tmp = RectF()
 
     private val headH get() = 44 * dp
@@ -118,24 +126,26 @@ class QuickPanel(private val dp: Float) {
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?, mode: Mode) {
         val t = p.theme
         fill.shader = null
-        fill.color = t.bg
+        fill.color = Drawn.surface(p, Surface.BACKGROUND)
         c.drawRect(bounds, fill)
         // header
         val close = hits.firstOrNull { it.act == Act.CLOSE }
         if (close != null) {
-            if (close === pressed) {
-                fill.color = t.keyHi
+            val down = close === pressed
+            if (down) {
+                fill.color = Drawn.surface(p, Surface.PRESSED)
                 c.drawRoundRect(close.rect.left + 4 * dp, close.rect.top + 6 * dp, close.rect.right - 4 * dp, close.rect.bottom - 6 * dp, radius, radius, fill)
             }
-            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, t.textMod, stroke, fill)
+            val backInk = if (down) Drawn.ink(p, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT_MOD)
+            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, backInk, stroke, fill)
             text.textAlign = Paint.Align.LEFT
-            text.color = t.textMod
+            text.color = backInk
             text.textSize = 14 * dp
             text.typeface = typeface(600)
             baseline(c, back, close.rect.left + 36 * dp, close.rect.centerY())
         }
         text.textAlign = Paint.Align.RIGHT
-        text.color = p.accent
+        text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT)
         text.textSize = 11 * dp
         text.typeface = typeface(700)
         text.letterSpacing = 0.12f
@@ -145,17 +155,18 @@ class QuickPanel(private val dp: Float) {
         c.drawRect(bounds.left, bounds.top + headH - 1, bounds.right, bounds.top + headH, fill)
         // update line (r9 notice, QP5)
         hits.firstOrNull { it.act == Act.UPDATE }?.let { h ->
-            fill.color = if (h === pressed) ColorMath.mix(p.chipFill, p.accent, 0.18f) else p.chipFill
+            val down = h === pressed
+            fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.CHIP)
             val rr = h.rect.height() / 2
             c.drawRoundRect(h.rect, rr, rr, fill)
             stroke.color = p.accentGlow
             stroke.strokeWidth = dp
             c.drawRoundRect(h.rect, rr, rr, stroke)
-            fill.color = p.accent
+            fill.color = Drawn.surface(p, Surface.SOLID)
             c.drawCircle(h.rect.left + 18 * dp, h.rect.centerY(), 9 * dp, fill)
-            drawDownload(c, h.rect.left + 18 * dp, h.rect.centerY(), p.accentInk)
+            drawDownload(c, h.rect.left + 18 * dp, h.rect.centerY(), Drawn.ink(p, Surface.SOLID, Ink.ACCENT_INK))
             text.textAlign = Paint.Align.LEFT
-            text.color = p.accent
+            text.color = if (down) Drawn.ink(p, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(p, Surface.CHIP, Ink.ACCENT)
             text.textSize = 13.5f * dp
             text.typeface = typeface(650)
             baseline(c, ellipsize(h.desc, h.rect.width() - 44 * dp), h.rect.left + 34 * dp, h.rect.centerY())
@@ -165,14 +176,16 @@ class QuickPanel(private val dp: Float) {
             Act.TEMA -> temas.firstOrNull { it.id == h.tema }?.let { drawTema(c, h, it, radius, typeface, h === pressed) }
             Act.PERSONALIZE -> {
                 val rr = h.rect.height() / 2
-                fill.color = if (h === pressed) t.keyHi else t.key
+                val down = h === pressed
+                fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.PLAIN)
                 c.drawRoundRect(h.rect, rr, rr, fill)
                 stroke.color = p.accentGlow
                 stroke.strokeWidth = dp
                 c.drawRoundRect(h.rect, rr, rr, stroke)
-                KeyIcons.draw(c, Icon.PALETTE, h.rect.left + 19 * dp, h.rect.centerY(), 16 * dp, p.accent, stroke, fill)
+                KeyIcons.draw(c, Icon.PALETTE, h.rect.left + 19 * dp, h.rect.centerY(), 16 * dp,
+                    if (down) Drawn.ink(p, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(p, Surface.PLAIN, Ink.ACCENT), stroke, fill)
                 text.textAlign = Paint.Align.LEFT
-                text.color = t.text
+                text.color = if (down) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
                 text.textSize = 13 * dp
                 text.typeface = typeface(600)
                 baseline(c, ellipsize(h.desc, h.rect.width() - 40 * dp), h.rect.left + 33 * dp, h.rect.centerY())
@@ -185,36 +198,40 @@ class QuickPanel(private val dp: Float) {
             val tile = tiles.firstOrNull { it.action == a } ?: continue
             val active = isActive(tile, mode)
             val rad = radius + 4 * dp
-            fill.color = when {
-                h === pressed && h.enabled -> t.keyHi
-                else -> t.key
-            }
+            val down = h === pressed && h.enabled
+            fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.PLAIN)
             c.drawRoundRect(h.rect, rad, rad, fill)
             stroke.color = if (active) p.accentGlow else t.edge
             stroke.strokeWidth = dp
             c.drawRoundRect(h.rect, rad, rad, stroke)
             val ink = when {
-                !h.enabled -> ColorMath.withAlpha(t.muted, 0.55f)
-                active -> p.accent
-                else -> t.text
+                !h.enabled -> Drawn.disabled(p)
+                active && down -> Drawn.ink(p, Surface.PRESSED, Ink.ACCENT)
+                active -> Drawn.ink(p, Surface.PLAIN, Ink.ACCENT)
+                down -> Drawn.ink(p, Surface.PRESSED, Ink.TEXT)
+                else -> Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
             }
             // the icon sits in a soft disc (accent when the tile's state is on)
             val iconSize = min(20 * dp, h.rect.height() * 0.26f)
             val iy = h.rect.top + h.rect.height() * 0.32f
             val disc = min(iconSize * 0.95f, h.rect.height() * 0.2f)
-            fill.color = if (active) p.chipFill else ColorMath.mix(t.key, t.text, 0.09f)
+            fill.color = Drawn.surface(p, if (active) Surface.CHIP else Surface.ICON_DISC)
             c.drawCircle(h.rect.centerX(), iy, disc + 6 * dp, fill)
-            KeyIcons.draw(c, iconFor(tile), h.rect.centerX(), iy, iconSize, if (active) p.accent else if (h.enabled) t.textMod else ink, stroke, fill)
+            KeyIcons.draw(c, iconFor(tile), h.rect.centerX(), iy, iconSize,
+                if (active) Drawn.ink(p, Surface.CHIP, Ink.ACCENT) else if (h.enabled) Drawn.ink(p, Surface.ICON_DISC, Ink.TEXT_MOD) else ink, stroke, fill)
             text.textAlign = Paint.Align.CENTER
             text.color = ink
             text.textSize = min(13 * dp, h.rect.width() * 0.16f)
             text.typeface = typeface(600)
             val (shownLabel, shownState) = localize(tile.label, tile.state)
             baseline(c, ellipsize(shownLabel, h.rect.width() - 8 * dp), h.rect.centerX(), h.rect.top + h.rect.height() * 0.68f)
-            text.color = if (h.enabled) t.muted else ColorMath.withAlpha(t.muted, 0.55f)
+            text.color = if (!h.enabled) Drawn.disabled(p) else if (down) Drawn.ink(p, Surface.PRESSED, Ink.MUTED) else Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
             text.textSize = min(11 * dp, h.rect.width() * 0.14f)
             text.typeface = typeface(500)
-            baseline(c, ellipsize(shownState, h.rect.width() - 8 * dp), h.rect.centerX(), h.rect.top + h.rect.height() * 0.86f)
+            // r14 fix (PS8): the state shrinks to fit (≥ 9.5 dp) and only then shortens, at a word boundary
+            val stateW = h.rect.width() - 8 * dp
+            while (text.textSize > STATE_MIN * dp && text.measureText(shownState) > stateW) text.textSize = max(STATE_MIN * dp, text.textSize - 0.25f * dp)
+            baseline(c, ellipsizeWords(shownState, stateW), h.rect.centerX(), h.rect.top + h.rect.height() * 0.86f)
         }
     }
 
@@ -223,28 +240,28 @@ class QuickPanel(private val dp: Float) {
         val tp = chip.palette
         val r = h.rect
         val rad = min(r.height() / 2, radius + 8 * dp)
-        fill.color = if (pressed) tp.theme.keyHi else tp.theme.bg2
+        fill.color = Drawn.surface(tp, if (pressed) Surface.PRESSED else Surface.CARD)
         c.drawRoundRect(r, rad, rad, fill)
-        stroke.color = if (chip.active) tp.accent else tp.theme.edgeHi
+        stroke.color = if (chip.active) Drawn.ink(tp, Surface.CARD, Ink.ACCENT) else tp.theme.edgeHi
         stroke.strokeWidth = if (chip.active) 2 * dp else dp
         c.drawRoundRect(r, rad, rad, stroke)
         // miniature: two keys and the accent
         val s = 9 * dp
         val y0 = r.centerY() - s / 2
         var x = r.left + 10 * dp
-        fill.color = tp.theme.key
+        fill.color = Drawn.surface(tp, Surface.PLAIN)
         tmp.set(x, y0, x + s, y0 + s); c.drawRoundRect(tmp, 2.5f * dp, 2.5f * dp, fill)
-        stroke.color = ColorMath.withAlpha(tp.theme.text, 0.45f); stroke.strokeWidth = 0.9f * dp; c.drawRoundRect(tmp, 2.5f * dp, 2.5f * dp, stroke)
+        stroke.color = Drawn.miniKeyEdge(tp); stroke.strokeWidth = 0.9f * dp; c.drawRoundRect(tmp, 2.5f * dp, 2.5f * dp, stroke)
         x += s + 2.5f * dp
-        fill.color = tp.theme.keyMod
+        fill.color = Drawn.surface(tp, Surface.MOD_PLAIN)
         tmp.set(x, y0, x + s, y0 + s); c.drawRoundRect(tmp, 2.5f * dp, 2.5f * dp, fill)
         c.drawRoundRect(tmp, 2.5f * dp, 2.5f * dp, stroke)
         x += s + 2.5f * dp
-        fill.color = tp.accent
+        fill.color = Drawn.surface(tp, Surface.SOLID)
         c.drawCircle(x + s / 2, r.centerY(), s / 2, fill)
         x += s + 7 * dp
         text.textAlign = Paint.Align.LEFT
-        text.color = tp.theme.text
+        text.color = if (pressed) Drawn.ink(tp, Surface.PRESSED, Ink.TEXT) else Drawn.ink(tp, Surface.CARD, Ink.TEXT)
         text.textSize = 13 * dp
         text.typeface = typeface(if (chip.active) 700 else 550)
         baseline(c, ellipsize(chip.name, r.right - x - 8 * dp), x, r.centerY())
@@ -284,6 +301,19 @@ class QuickPanel(private val dp: Float) {
         var n = s.length
         while (n > 1 && text.measureText(s, 0, n) + text.measureText("…") > maxW) n--
         return s.substring(0, n) + "…"
+    }
+
+    /** [s] shortened at a word boundary to fit [maxW] (one long word: at a character). */
+    private fun ellipsizeWords(s: String, maxW: Float): String {
+        if (maxW <= 0f) return ""
+        if (text.measureText(s) <= maxW) return s
+        val ell = text.measureText("…")
+        var cut = s.lastIndexOf(' ')
+        while (cut > 0) {
+            if (text.measureText(s, 0, cut) + ell <= maxW) return s.substring(0, cut) + "…"
+            cut = s.lastIndexOf(' ', cut - 1)
+        }
+        return ellipsize(s, maxW)
     }
 
     private fun baseline(c: Canvas, s: String, x: Float, cy: Float) {

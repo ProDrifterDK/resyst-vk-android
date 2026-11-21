@@ -18,6 +18,9 @@ import com.resyst.vk.core.GifCopy
 import com.resyst.vk.core.GifLayout
 import com.resyst.vk.core.KlipyParse
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.Surface
 import kotlin.math.max
 import kotlin.math.min
 
@@ -209,9 +212,9 @@ class GifPanel(context: Context, private val dp: Float) {
         // a quiet "GIF" badge
         val bx = area.centerX()
         val by = area.top + area.height() * 0.17f
-        fill.color = p.accentSoft
+        fill.color = Drawn.surface(p, Surface.CHIP)
         c.drawRoundRect(bx - 26 * dp, by - 15 * dp, bx + 26 * dp, by + 15 * dp, 9 * dp, 9 * dp, fill)
-        text.color = p.accent
+        text.color = Drawn.ink(p, Surface.CHIP, Ink.ACCENT)
         text.textSize = 15 * dp
         text.typeface = typeface(700)
         text.textAlign = Paint.Align.CENTER
@@ -219,14 +222,14 @@ class GifPanel(context: Context, private val dp: Float) {
         val w = (area.width() - 4 * pad).toInt().coerceAtLeast(1)
         val tf600 = typeface(600)
         val tf450 = typeface(450)
-        val l1 = staticLayout(GifCopy.OFF_LINE1, TextPaint(text).apply { color = t.text; textSize = 15 * dp; this.typeface = tf600; textAlign = Paint.Align.LEFT }, w, 1.05f, center = true)
-        val l2 = staticLayout(GifCopy.OFF_LINE2, TextPaint(text).apply { color = t.muted; textSize = 12.5f * dp; this.typeface = tf450; textAlign = Paint.Align.LEFT }, w, 1.1f, center = true)
+        val l1 = staticLayout(GifCopy.OFF_LINE1, TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT); textSize = 15 * dp; this.typeface = tf600; textAlign = Paint.Align.LEFT }, w, 1.05f, center = true)
+        val l2 = staticLayout(GifCopy.OFF_LINE2, TextPaint(text).apply { color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED); textSize = 12.5f * dp; this.typeface = tf450; textAlign = Paint.Align.LEFT }, w, 1.1f, center = true)
         var y = by + 26 * dp
         c.save(); c.translate(area.left + 2 * pad, y); l1.draw(c); c.restore()
         y += l1.height + 6 * dp
         c.save(); c.translate(area.left + 2 * pad, y); l2.draw(c); c.restore()
-        pill(c, offButton, GifCopy.OFF_BUTTON, p.accent, p.accentInk, typeface, pressed?.act == Act.ENABLE, p)
-        drawLogo(c, area.centerX(), area.bottom - 13 * dp, 12 * dp, t.muted, center = true)
+        pill(c, offButton, GifCopy.OFF_BUTTON, Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ENABLE, p)
+        drawLogo(c, area.centerX(), area.bottom - 13 * dp, 12 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED), center = true)
     }
 
     private fun drawDisclosure(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Target?) {
@@ -235,13 +238,13 @@ class GifPanel(context: Context, private val dp: Float) {
         c.save()
         c.clipRect(area.left, area.top, area.right, textBottom)
         c.translate(0f, -scroll)
-        text.color = p.accent
+        text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT)
         text.textSize = 15 * dp
         text.typeface = typeface(650)
         text.textAlign = Paint.Align.LEFT
         c.drawText(GifCopy.TITLE, area.left + 2 * pad, area.top + 24 * dp, text)
         val w = (area.width() - 4 * pad).toInt().coerceAtLeast(1)
-        text.color = t.textMod
+        text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT_MOD)
         val l = disclosureText(w)
         c.save(); c.translate(area.left + 2 * pad, area.top + 34 * dp); l.draw(c); c.restore()
         c.restore()
@@ -257,8 +260,8 @@ class GifPanel(context: Context, private val dp: Float) {
             c.drawRoundRect(area.right - 4 * dp, y, area.right - 2 * dp, y + len, dp, dp, fill)
         }
         for (h in hits) when (h.target.act) {
-            Act.CANCEL -> pill(c, h.rect, GifCopy.CANCEL, t.keyMod, t.text, typeface, pressed?.act == Act.CANCEL, p)
-            Act.ACCEPT -> pill(c, h.rect, GifCopy.ACCEPT, p.accent, p.accentInk, typeface, pressed?.act == Act.ACCEPT, p)
+            Act.CANCEL -> pill(c, h.rect, GifCopy.CANCEL, Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.CANCEL, p)
+            Act.ACCEPT -> pill(c, h.rect, GifCopy.ACCEPT, Surface.SOLID, Ink.ACCENT_INK, typeface, pressed?.act == Act.ACCEPT, p)
             else -> Unit
         }
     }
@@ -266,22 +269,29 @@ class GifPanel(context: Context, private val dp: Float) {
     private fun drawOn(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Target?) {
         val t = p.theme
         // search row: a box that opens the keyboard on its own buffer, and KLIPY's mark
-        fill.color = if (pressed?.act == Act.SEARCH) t.keyHi else t.key
+        val down = pressed?.act == Act.SEARCH
+        fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.PLAIN)
         val r = searchBox.height() / 2
         c.drawRoundRect(searchBox, r, r, fill)
         stroke.color = t.edge
         stroke.strokeWidth = dp
         c.drawRoundRect(searchBox, r, r, stroke)
-        KeyIcons.draw(c, Icon.SEARCH, searchBox.left + 17 * dp, searchBox.centerY(), 15 * dp, t.muted, stroke, fill)
+        KeyIcons.draw(c, Icon.SEARCH, searchBox.left + 17 * dp, searchBox.centerY(), 15 * dp,
+            if (down) Drawn.ink(p, Surface.PRESSED, Ink.MUTED) else Drawn.ink(p, Surface.PLAIN, Ink.MUTED), stroke, fill)
         text.textAlign = Paint.Align.LEFT
         text.textSize = 14 * dp
         val q = query
-        text.color = if (q != null) t.text else t.muted
+        text.color = when {
+            q != null && down -> Drawn.ink(p, Surface.PRESSED, Ink.TEXT)
+            q != null -> Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
+            down -> Drawn.ink(p, Surface.PRESSED, Ink.MUTED)
+            else -> Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
+        }
         text.typeface = typeface(if (q != null) 550 else 450)
         val label = ellipsize(q ?: GifCopy.PLACEHOLDER, searchBox.width() - 40 * dp)
         val fm = text.fontMetrics
         c.drawText(label, searchBox.left + 32 * dp, searchBox.centerY() - (fm.ascent + fm.descent) / 2, text)
-        drawLogo(c, area.right - pad, area.top + rowH / 2 + 1 * dp, 11 * dp, t.muted, center = false)
+        drawLogo(c, area.right - pad, area.top + rowH / 2 + 1 * dp, 11 * dp, Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED), center = false)
         fill.color = t.edge
         c.drawRect(area.left, gridTop - 1, area.right, gridTop, fill)
         // grid
@@ -296,7 +306,7 @@ class GifPanel(context: Context, private val dp: Float) {
             clip.reset()
             clip.addRoundRect(rect, gr, gr, Path.Direction.CW)
             c.clipPath(clip)
-            fill.color = t.key
+            fill.color = Drawn.surface(p, Surface.PLAIN)
             c.drawRect(rect, fill)
             val d = thumb(cell.index)
             if (d != null) {
@@ -310,7 +320,7 @@ class GifPanel(context: Context, private val dp: Float) {
                 d.draw(c)
             }
             if (pressed?.act == Act.ITEM && pressed.index == cell.index) {
-                fill.color = ColorMath.withAlpha(p.accent, 0.28f)
+                fill.color = Drawn.thumbPressed(p)
                 c.drawRect(rect, fill)
             }
             c.restore()
@@ -321,7 +331,7 @@ class GifPanel(context: Context, private val dp: Float) {
         if (items.isEmpty()) {
             if (st != null) {
                 text.textAlign = Paint.Align.CENTER
-                text.color = t.muted
+                text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.textSize = 13.5f * dp
                 text.typeface = typeface(500)
                 centered(c, st, area.centerX(), gridTop + (area.bottom - gridTop) * (if (retry) 0.36f else 0.5f))
@@ -330,7 +340,7 @@ class GifPanel(context: Context, private val dp: Float) {
             val y = gridTop + contentHeight() - 24 * dp - scroll
             if (y < area.bottom && !retry) {
                 text.textAlign = Paint.Align.CENTER
-                text.color = t.muted
+                text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.textSize = 12.5f * dp
                 text.typeface = typeface(500)
                 centered(c, st ?: GifCopy.LOADING, area.centerX(), y)
@@ -338,15 +348,15 @@ class GifPanel(context: Context, private val dp: Float) {
         }
         for (h in hits) if (h.target.act == Act.RETRY) {
             if (items.isNotEmpty() && st != null) {
-                fill.color = t.bg
+                fill.color = Drawn.surface(p, Surface.BACKGROUND)
                 c.drawRect(area.left, h.rect.top - 30 * dp, area.right, area.bottom, fill)
                 text.textAlign = Paint.Align.CENTER
-                text.color = t.muted
+                text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 text.textSize = 12.5f * dp
                 text.typeface = typeface(500)
                 centered(c, st, area.centerX(), h.rect.top - 14 * dp)
             }
-            pill(c, h.rect, "Reintentar", t.keyMod, t.text, typeface, pressed?.act == Act.RETRY, p)
+            pill(c, h.rect, "Reintentar", Surface.MOD_PLAIN, Ink.TEXT, typeface, pressed?.act == Act.RETRY, p)
         }
         // scroll indicator
         val ms = maxScroll()
@@ -378,8 +388,8 @@ class GifPanel(context: Context, private val dp: Float) {
         d.draw(c)
     }
 
-    private fun pill(c: Canvas, r: RectF, label: String, bg: Int, ink: Int, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
-        fill.color = if (pressed) p.theme.keyHi else bg
+    private fun pill(c: Canvas, r: RectF, label: String, bg: Surface, ink: Ink, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
+        fill.color = Drawn.surface(p, if (pressed) Surface.PRESSED else bg)
         val rr = r.height() / 2
         c.drawRoundRect(r, rr, rr, fill)
         if (pressed) {
@@ -388,7 +398,7 @@ class GifPanel(context: Context, private val dp: Float) {
             c.drawRoundRect(r, rr, rr, stroke)
         }
         text.textAlign = Paint.Align.CENTER
-        text.color = if (pressed) p.theme.text else ink
+        text.color = if (pressed) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, bg, ink)
         text.textSize = 14 * dp
         text.typeface = typeface(650)
         centered(c, ellipsize(label, r.width() - 20 * dp), r.centerX(), r.centerY())

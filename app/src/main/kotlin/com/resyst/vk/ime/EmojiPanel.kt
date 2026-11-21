@@ -11,6 +11,9 @@ import android.util.Log
 import com.resyst.vk.core.EmojiCatalog
 import com.resyst.vk.core.EmojiTones
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.Surface
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.ceil
@@ -310,9 +313,8 @@ class EmojiPanel(private val dp: Float) {
     }
 
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
-        val t = p.theme
         fill.shader = null
-        fill.color = t.bg
+        fill.color = Drawn.surface(p, Surface.BACKGROUND)
         c.drawRect(bounds, fill)
         val open = tonesOf
         val layer = if (open != null) under else hits
@@ -320,36 +322,46 @@ class EmojiPanel(private val dp: Float) {
         // tab row
         for (h in layer) if (h.act == Act.TAB) {
             val sel = h.index == tab
+            val down = !sel && h === pressed
             if (sel || h === pressed) {
-                fill.color = if (sel) p.accentSoft else t.keyHi
+                fill.color = Drawn.surface(p, if (sel) Surface.CHIP else Surface.PRESSED)
                 c.drawRoundRect(h.rect.left + 2 * dp, h.rect.top + 5 * dp, h.rect.right - 2 * dp, h.rect.bottom - 5 * dp, radius, radius, fill)
             }
             if (h.index > catalog.groups.size) {
                 text.textSize = min(h.rect.height() * 0.3f, 12.5f * dp)
                 text.typeface = typeface(if (sel) 750 else 650)
-                text.color = if (sel) p.accent else t.muted
+                val gif = when {
+                    sel -> Drawn.ink(p, Surface.CHIP, Ink.ACCENT)
+                    down -> Drawn.ink(p, Surface.PRESSED, Ink.MUTED)
+                    else -> Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
+                }
+                text.color = gif
                 text.alpha = dim
-                stroke.color = if (sel) p.accent else t.muted
+                stroke.color = gif
                 stroke.strokeWidth = 1.2f * dp
                 val gw = min(h.rect.width() - 8 * dp, 30 * dp)
                 c.drawRoundRect(h.rect.centerX() - gw / 2, h.rect.centerY() - 9 * dp, h.rect.centerX() + gw / 2, h.rect.centerY() + 9 * dp, 5 * dp, 5 * dp, stroke)
                 drawCentered(c, "GIF", h.rect.centerX(), h.rect.centerY())
                 text.alpha = 255
             } else if (h.index == 0) {
-                drawClock(c, h.rect.centerX(), h.rect.centerY(), min(h.rect.width(), h.rect.height()) * 0.42f, if (sel) p.accent else t.muted)
+                drawClock(c, h.rect.centerX(), h.rect.centerY(), min(h.rect.width(), h.rect.height()) * 0.42f, when {
+                    sel -> Drawn.ink(p, Surface.CHIP, Ink.ACCENT)
+                    down -> Drawn.ink(p, Surface.PRESSED, Ink.MUTED)
+                    else -> Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
+                })
             } else {
                 text.textSize = min(h.rect.width() * 0.55f, 20 * dp)
-                text.color = t.text
+                text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT)
                 text.alpha = (if (sel) 255 else 150) * dim / 255
                 drawCentered(c, h.text, h.rect.centerX(), h.rect.centerY())
                 text.alpha = 255
             }
             if (sel) {
-                fill.color = p.accent
+                fill.color = Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT)
                 c.drawRoundRect(h.rect.centerX() - 9 * dp, h.rect.bottom - 4 * dp, h.rect.centerX() + 9 * dp, h.rect.bottom - 2 * dp, dp, dp, fill)
             }
         }
-        fill.color = t.edge
+        fill.color = p.theme.edge
         c.drawRect(bounds.left, gridTop - 1, bounds.right, gridTop, fill)
         // grid
         c.save()
@@ -358,10 +370,10 @@ class EmojiPanel(private val dp: Float) {
         for (h in layer) if (h.act == Act.EMOJI) {
             any = true
             if (h === pressed) {
-                fill.color = t.keyHi
+                fill.color = Drawn.surface(p, Surface.PRESSED)
                 c.drawRoundRect(h.rect.left + 2 * dp, h.rect.top + 2 * dp, h.rect.right - 2 * dp, h.rect.bottom - 2 * dp, radius, radius, fill)
             }
-            text.color = t.text
+            text.color = if (h === pressed) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT)
             text.alpha = dim
             text.textSize = min(cell * 0.56f, 28 * dp)
             text.typeface = Typeface.DEFAULT
@@ -371,7 +383,7 @@ class EmojiPanel(private val dp: Float) {
             drawCentered(c, h.text, h.rect.centerX(), cy)
             // a cell with tones gets the platform's small corner mark (long-press affordance)
             if (h.cell?.tones?.isNotEmpty() == true && h.rect.height() >= full - 0.5f) {
-                fill.color = t.muted
+                fill.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
                 val r = 2.2f * dp
                 c.drawCircle(h.rect.right - 6 * dp, h.rect.bottom - 6 * dp, r, fill)
             }
@@ -386,7 +398,7 @@ class EmojiPanel(private val dp: Float) {
             return
         }
         if (!any && !measuring) { // EG3: an empty grid while the tab is measured, no "none" claim
-            text.color = t.muted
+            text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.MUTED)
             text.textSize = 13 * dp
             text.typeface = typeface(500)
             drawCentered(c, if (tab == 0) "Aquí aparecen los emojis que uses" else "Sin emojis disponibles", bounds.centerX(), (gridTop + gridBottom) / 2)
@@ -396,19 +408,18 @@ class EmojiPanel(private val dp: Float) {
             val listH = gridBottom - gridTop
             val barLen = max(18 * dp, listH * listH / (listH + ms))
             val y = gridTop + (listH - barLen) * (scroll / ms)
-            fill.color = t.edgeHi
+            fill.color = p.theme.edgeHi
             c.drawRoundRect(bounds.right - 4 * dp, y, bounds.right - 2 * dp, y + barLen, dp, dp, fill)
         }
         drawBar(c, p, radius, typeface, pressed)
     }
 
     private fun drawBar(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
-        val t = p.theme
         // bottom bar
         for (h in hits) when (h.act) {
-            Act.ABC -> button(c, h, "ABC", t.keyMod, t.textMod, radius, typeface, h === pressed, p)
-            Act.SPACE -> button(c, h, "", t.key, t.muted, radius, typeface, h === pressed, p)
-            Act.DELETE -> button(c, h, "⌫", t.keyMod, t.textMod, radius, typeface, h === pressed, p)
+            Act.ABC -> button(c, h, "ABC", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
+            Act.SPACE -> button(c, h, "", Surface.PLAIN, Ink.MUTED, radius, typeface, h === pressed, p)
+            Act.DELETE -> button(c, h, "⌫", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
             else -> Unit
         }
     }
@@ -419,7 +430,7 @@ class EmojiPanel(private val dp: Float) {
         if (toneHits.isEmpty()) return
         val box = RectF(toneHits.minOf { it.rect.left } - 4 * dp, toneHits.minOf { it.rect.top } - 4 * dp,
             toneHits.maxOf { it.rect.right } + 4 * dp, toneHits.maxOf { it.rect.bottom } + 4 * dp)
-        fill.color = t.key
+        fill.color = Drawn.surface(p, Surface.PLAIN)
         c.drawRoundRect(box, radius, radius, fill)
         stroke.color = t.edgeHi
         stroke.strokeWidth = dp
@@ -427,18 +438,18 @@ class EmojiPanel(private val dp: Float) {
         val chosen = tonesOf?.let { tones.shown(it.base) }
         for (h in toneHits) {
             if (h === pressed || h.text == chosen) {
-                fill.color = if (h === pressed) p.accent else p.accentSoft
+                fill.color = if (h === pressed) Drawn.surface(p, Surface.SOLID) else Drawn.chosenWash(p)
                 c.drawRoundRect(h.rect.left + 2 * dp, h.rect.top + 2 * dp, h.rect.right - 2 * dp, h.rect.bottom - 2 * dp, radius, radius, fill)
             }
-            text.color = t.text
+            text.color = Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
             text.textSize = min(h.rect.width() * 0.56f, 28 * dp)
             text.typeface = Typeface.DEFAULT
             drawCentered(c, h.text, h.rect.centerX(), h.rect.centerY())
         }
     }
 
-    private fun button(c: Canvas, h: Hit, label: String, bg: Int, ink: Int, radius: Float, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
-        fill.color = if (pressed) p.theme.keyHi else bg
+    private fun button(c: Canvas, h: Hit, label: String, bg: Surface, ink: Ink, radius: Float, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
+        fill.color = Drawn.surface(p, if (pressed) Surface.PRESSED else bg)
         c.drawRoundRect(h.rect, radius, radius, fill)
         if (pressed) {
             stroke.color = p.accentGlow
@@ -446,11 +457,13 @@ class EmojiPanel(private val dp: Float) {
             c.drawRoundRect(h.rect, radius, radius, stroke)
         }
         if (label.isEmpty()) return
+        // r14 fix (LG10): a pressed button reads in the legend ink on the pressed fill
+        val color = if (pressed) Drawn.ink(p, Surface.PRESSED, Ink.TEXT) else Drawn.ink(p, bg, ink)
         if (label == "⌫") { // r10 (UI-1): the same vector ⌫ as the keyboard
-            KeyIcons.draw(c, Icon.BACKSPACE, h.rect.centerX(), h.rect.centerY(), min(22 * dp, h.rect.height() * 0.45f), ink, stroke, fill)
+            KeyIcons.draw(c, Icon.BACKSPACE, h.rect.centerX(), h.rect.centerY(), min(22 * dp, h.rect.height() * 0.45f), color, stroke, fill)
             return
         }
-        text.color = ink
+        text.color = color
         text.typeface = typeface(600)
         text.textSize = 14 * dp
         drawCentered(c, label, h.rect.centerX(), h.rect.centerY())

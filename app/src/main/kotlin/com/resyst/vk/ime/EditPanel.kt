@@ -8,6 +8,9 @@ import com.resyst.vk.core.ColorMath
 import com.resyst.vk.core.EditOp
 import com.resyst.vk.core.EditPad
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
+import com.resyst.vk.core.Surface
 import kotlin.math.min
 
 /**
@@ -68,23 +71,25 @@ class EditPanel(private val dp: Float) {
     fun draw(c: Canvas, p: Palette, radius: Float, typeface: (Int) -> Typeface, pressed: Hit?) {
         val t = p.theme
         fill.shader = null
-        fill.color = t.bg
+        fill.color = Drawn.surface(p, Surface.BACKGROUND)
         c.drawRect(bounds, fill)
         // header: ‹ Teclado · the selection state on the right
         hits.firstOrNull { it.act == Act.CLOSE }?.let { close ->
-            if (close === pressed) {
-                fill.color = t.keyHi
+            val down = close === pressed
+            if (down) {
+                fill.color = Drawn.surface(p, Surface.PRESSED)
                 c.drawRoundRect(close.rect.left + 4 * dp, close.rect.top + 6 * dp, close.rect.right - 4 * dp, close.rect.bottom - 6 * dp, radius, radius, fill)
             }
-            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, t.textMod, stroke, fill)
+            val back = if (down) Drawn.ink(p, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT_MOD)
+            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, back, stroke, fill)
             text.textAlign = Paint.Align.LEFT
-            text.color = t.textMod
+            text.color = back
             text.textSize = 14 * dp
             text.typeface = typeface(600)
             baseline(c, "Teclado", close.rect.left + 36 * dp, close.rect.centerY())
         }
         text.textAlign = Paint.Align.RIGHT
-        text.color = p.accent
+        text.color = Drawn.ink(p, Surface.BACKGROUND, Ink.ACCENT)
         text.textSize = 11 * dp
         text.typeface = typeface(700)
         text.letterSpacing = 0.12f
@@ -97,29 +102,33 @@ class EditPanel(private val dp: Float) {
             val op = h.op ?: continue
             val latched = op == EditOp.SELECT && selecting
             val isArrow = op == EditOp.LEFT || op == EditOp.RIGHT || op == EditOp.UP || op == EditOp.DOWN
+            val down = h === pressed && h.enabled
             val bg = when {
-                latched -> p.accent
-                h === pressed && h.enabled -> t.keyHi
-                isArrow -> t.key
-                else -> t.keyMod
+                latched -> Surface.SOLID
+                down -> Surface.PRESSED
+                isArrow -> Surface.PLAIN
+                else -> Surface.MOD_PLAIN
             }
             val rad = radius + 2 * dp
-            fill.color = bg
+            fill.color = Drawn.surface(p, bg)
             c.drawRoundRect(h.rect, rad, rad, fill)
             stroke.color = when {
-                latched -> p.accent
+                latched -> Drawn.surface(p, Surface.SOLID)
                 h === pressed && h.enabled -> p.accentGlow
                 else -> t.edge
             }
             stroke.strokeWidth = dp
             c.drawRoundRect(h.rect, rad, rad, stroke)
             val ink = when {
-                !h.enabled -> ColorMath.withAlpha(t.muted, 0.5f)
-                latched -> p.accentInk
+                !h.enabled -> Drawn.disabled(p, 0.5f)
+                latched -> Drawn.ink(p, Surface.SOLID, Ink.ACCENT_INK)
                 // while selecting, the moves extend the selection: tint them with the accent
-                selecting && isArrow -> p.accent
-                isArrow -> t.text
-                else -> t.textMod
+                down && selecting && isArrow -> Drawn.ink(p, Surface.PRESSED, Ink.ACCENT)
+                down && isArrow -> Drawn.ink(p, Surface.PRESSED, Ink.TEXT)
+                down -> Drawn.ink(p, Surface.PRESSED, Ink.TEXT_MOD)
+                selecting && isArrow -> Drawn.ink(p, Surface.PLAIN, Ink.ACCENT)
+                isArrow -> Drawn.ink(p, Surface.PLAIN, Ink.TEXT)
+                else -> Drawn.ink(p, Surface.MOD_PLAIN, Ink.TEXT_MOD)
             }
             if (isArrow) {
                 val sz = min(26 * dp, min(h.rect.width(), h.rect.height()) * 0.42f)

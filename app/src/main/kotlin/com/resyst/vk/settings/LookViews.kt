@@ -7,9 +7,13 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.view.View
+import com.resyst.vk.core.Drawn
+import com.resyst.vk.core.Ink
 import com.resyst.vk.core.KeyCap
+import com.resyst.vk.core.KeyKind
 import com.resyst.vk.core.KeyShape
 import com.resyst.vk.core.Palette
+import com.resyst.vk.core.Surface
 import com.resyst.vk.ime.KeyPainter
 import kotlin.math.min
 
@@ -34,11 +38,10 @@ class MiniKeyboardView(context: Context, private var palette: Palette, shape: Ke
     }
 
     override fun onDraw(c: Canvas) {
-        val t = palette.theme
         val w = width.toFloat()
         val h = height.toFloat()
         val r = min(10 * dp, h / 6)
-        fill.color = t.bg
+        fill.color = Drawn.surface(palette, Surface.BACKGROUND)
         c.drawRoundRect(0f, 0f, w, h, r, r, fill)
         val pad = 4 * dp
         val rows = 4
@@ -46,25 +49,25 @@ class MiniKeyboardView(context: Context, private var palette: Palette, shape: Ke
         val unit = (w - 2 * pad) / 10f
         val g = 1.2f * dp
         val dot = min(rowH, unit) * 0.11f
-        fun k(x: Float, row: Int, units: Float, kind: KeyPainter.Kind) {
+        fun k(x: Float, row: Int, units: Float, kind: KeyKind) {
             key.set(pad + x * unit + g / 2, pad + row * rowH + g / 2, pad + (x + units) * unit - g / 2, pad + (row + 1) * rowH - g / 2)
             painter.body(c, key, row, kind, palette, 0f, face)
             // a legend in miniature: one dot in the key's ink, so even a borderless keyboard reads as keys
-            if (kind == KeyPainter.Kind.NORMAL || kind == KeyPainter.Kind.MOD) {
-                fill.color = if (kind == KeyPainter.Kind.MOD) t.textMod else t.text
+            if (kind == KeyKind.NORMAL || kind == KeyKind.MOD) {
+                fill.color = if (kind == KeyKind.MOD) Drawn.ink(palette, Surface.KEY_TOP, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.KEY_TOP, Ink.TEXT)
                 c.drawCircle(face.centerX(), face.centerY(), dot, fill)
             }
         }
-        for (i in 0 until 10) k(i.toFloat(), 0, 1f, KeyPainter.Kind.NORMAL)
-        for (i in 0 until 9) k(0.5f + i, 1, 1f, KeyPainter.Kind.NORMAL)
-        k(0f, 2, 1.5f, KeyPainter.Kind.MOD)
-        for (i in 0 until 7) k(1.5f + i, 2, 1f, KeyPainter.Kind.NORMAL)
-        k(8.5f, 2, 1.5f, KeyPainter.Kind.MOD)
-        k(0f, 3, 1.5f, KeyPainter.Kind.MOD)
-        k(1.5f, 3, 1f, KeyPainter.Kind.NORMAL)
-        k(2.5f, 3, 5f, KeyPainter.Kind.SPACE)
-        k(7.5f, 3, 1f, KeyPainter.Kind.NORMAL)
-        k(8.5f, 3, 1.5f, KeyPainter.Kind.ACCENT_SOLID)
+        for (i in 0 until 10) k(i.toFloat(), 0, 1f, KeyKind.NORMAL)
+        for (i in 0 until 9) k(0.5f + i, 1, 1f, KeyKind.NORMAL)
+        k(0f, 2, 1.5f, KeyKind.MOD)
+        for (i in 0 until 7) k(1.5f + i, 2, 1f, KeyKind.NORMAL)
+        k(8.5f, 2, 1.5f, KeyKind.MOD)
+        k(0f, 3, 1.5f, KeyKind.MOD)
+        k(1.5f, 3, 1f, KeyKind.NORMAL)
+        k(2.5f, 3, 5f, KeyKind.SPACE)
+        k(7.5f, 3, 1f, KeyKind.NORMAL)
+        k(8.5f, 3, 1.5f, KeyKind.ACCENT_SOLID)
     }
 }
 
@@ -94,8 +97,8 @@ class SampleKeyView(
         val w = width.toFloat()
         val h = height.toFloat()
         key.set(w * 0.16f, h * 0.1f, w * 0.84f, h * 0.9f)
-        painter.body(c, key, 0, KeyPainter.Kind.NORMAL, palette, 0f, face)
-        text.color = palette.theme.text
+        painter.body(c, key, 0, KeyKind.NORMAL, palette, 0f, face)
+        text.color = Drawn.ink(palette, Surface.KEY_TOP, Ink.TEXT)
         text.typeface = typeface
         text.textSize = min(legendDp * dp, face.height() * 0.55f)
         val fm = text.fontMetrics
