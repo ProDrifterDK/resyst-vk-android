@@ -33,11 +33,11 @@ class Round11UpdateCheckTest {
         val g = OpenCheck.Gate(prefs)
         assertEquals(OpenCheck.Verdict.RUN, g.ask(T0))
         g.end(T0, reached = true)
-        // the same process, opened all day: nothing until 12 h have passed …
-        for (m in listOf(1L, 60, 6 * 60, 11 * 60 + 59)) assertEquals("+$m min", OpenCheck.Verdict.WAIT, g.ask(T0 + m * 60_000))
+        // the same process, opened all day: nothing until 3 h have passed (r15, UC1; 12 h before) …
+        for (m in listOf(1L, 60, 2 * 60, 2 * 60 + 59)) assertEquals("+$m min", OpenCheck.Verdict.WAIT, g.ask(T0 + m * 60_000))
         // … then exactly one more check, still the same Gate (= the same process)
-        assertEquals(OpenCheck.Verdict.RUN, g.ask(T0 + 12 * H))
-        assertEquals(OpenCheck.Verdict.IN_FLIGHT, g.ask(T0 + 12 * H + 1))
+        assertEquals(OpenCheck.Verdict.RUN, g.ask(T0 + 3 * H))
+        assertEquals(OpenCheck.Verdict.IN_FLIGHT, g.ask(T0 + 3 * H + 1))
     }
 
     @Test fun aNewProcessDoesNotResetTheThrottle() { // OC2
@@ -45,23 +45,23 @@ class Round11UpdateCheckTest {
         OpenCheck.Gate(prefs).apply { assertEquals(OpenCheck.Verdict.RUN, ask(T0)); end(T0, reached = true) }
         // process killed and re-created ten times within the hour: the stored attempt rules
         repeat(10) { i -> assertEquals("process $i", OpenCheck.Verdict.WAIT, OpenCheck.Gate(prefs).ask(T0 + (i + 1) * 5 * 60_000L)) }
-        assertEquals(OpenCheck.Verdict.RUN, OpenCheck.Gate(prefs).ask(T0 + 12 * H + 1))
+        assertEquals(OpenCheck.Verdict.RUN, OpenCheck.Gate(prefs).ask(T0 + 3 * H + 1))
     }
 
-    // ── OC4: 12 h after an answer, 1 h after a failure ────────────────────
-    @Test fun aFailedAttemptBacksOffOneHourNotTwelveNotZero() { // OC4
+    // ── OC4: 3 h after an answer (r15, UC1), 1 h after a failure ────────────────────
+    @Test fun aFailedAttemptBacksOffOneHourNotThreeNotZero() { // OC4
         val prefs = Prefs()
         val g = OpenCheck.Gate(prefs)
         assertEquals(OpenCheck.Verdict.RUN, g.ask(T0))
         g.end(T0, reached = false) // offline
         assertEquals("no retry on every open without signal", OpenCheck.Verdict.WAIT, g.ask(T0 + 1))
         assertEquals(OpenCheck.Verdict.WAIT, g.ask(T0 + 59 * 60_000))
-        assertEquals("a failure must not wait 12 h", OpenCheck.Verdict.RUN, g.ask(T0 + H))
+        assertEquals("a failure must not wait 3 h", OpenCheck.Verdict.RUN, g.ask(T0 + H))
         g.end(T0 + H, reached = true)
         assertEquals(OpenCheck.Verdict.WAIT, g.ask(T0 + 2 * H))
-        assertEquals(OpenCheck.Verdict.WAIT, g.ask(T0 + H + 12 * H - 1))
-        assertEquals(OpenCheck.Verdict.RUN, g.ask(T0 + H + 12 * H))
-        assertEquals(OpenCheck.OK_INTERVAL_MS, 12 * H)
+        assertEquals(OpenCheck.Verdict.WAIT, g.ask(T0 + H + 3 * H - 1))
+        assertEquals(OpenCheck.Verdict.RUN, g.ask(T0 + H + 3 * H))
+        assertEquals(OpenCheck.OK_INTERVAL_MS, 3 * H)
         assertEquals(OpenCheck.FAILED_INTERVAL_MS, 1 * H)
     }
 
@@ -200,7 +200,7 @@ class Round11UpdateCheckTest {
         // this process first heard "up to date", then a later open found 0.7.1
         assertNull(UpdateNotice.announce(UpdateDecision.UpToDate("0.7.0"), null))
         assertEquals("0.7.1", UpdateNotice.announce(UpdateDecision.Available(rel("0.7.1")), null)?.version)
-        // a dismissed 0.7.1 does not come back every 12 h; 0.7.2 does
+        // a dismissed 0.7.1 does not come back every 3 h; 0.7.2 does
         assertNull(UpdateNotice.announce(UpdateDecision.Available(rel("0.7.1")), "0.7.1"))
         assertEquals("0.7.2", UpdateNotice.announce(UpdateDecision.Available(rel("0.7.2")), "0.7.1")?.version)
     }
@@ -233,9 +233,9 @@ class Round11UpdateCheckTest {
     // ── OC14, OC15: copy and the log ──────────────────────────────────────
     @Test fun copySaysWhenAndHowOften() { // OC14
         assertEquals("Buscar actualizaciones automáticamente", Ctl.UPDATE_AUTO.label(TestTxt.ES))
-        assertEquals("Al abrir el teclado, como mucho una vez cada 12 horas. Nunca envía lo que escribes.", UpdateNotice.autoSubtitle(TestTxt.ES))
+        assertEquals("Al abrir el teclado, como mucho una vez cada 3 horas. Nunca envía lo que escribes.", UpdateNotice.autoSubtitle(TestTxt.ES))
         val on = UpdateNotice.promise(TestTxt.ES, true)
-        assertTrue(on, on.contains("al abrir el teclado") && on.contains("una vez cada 12 horas") && on.contains("sin enviar nada de lo que escribes"))
+        assertTrue(on, on.contains("al abrir el teclado") && on.contains("una vez cada 3 horas") && on.contains("sin enviar nada de lo que escribes"))
         assertFalse(on.contains("al iniciar"))
         val settings = File("src/main/kotlin/com/resyst/vk/settings/SettingsActivity.kt").readText()
         assertFalse("settings card still says 'al iniciar'", settings.contains("Comprobado al iniciar"))

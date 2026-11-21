@@ -81,6 +81,30 @@ object UpdateNotice {
         w <= room
     }
 
+    /**
+     * r15 (UC2): how long ago a check ran, as Settings writes it: «ahora mismo», «hace 3 min», «hace 1 h», «hace 2 días»
+     * (en: «just now», «3 min ago», …). A time in the future (the clock moved back) reads «ahora mismo».
+     */
+    fun age(t: Txt, ms: Long): String {
+        val mins = (ms / 60_000).coerceAtLeast(0)
+        return when {
+            mins < 1 -> t.get(R.string.s_just_now)
+            mins < 60 -> t.get(R.string.ago_min, mins)
+            mins < 48 * 60 -> t.get(R.string.ago_h, mins / 60)
+            else -> t.get(R.string.s_ago_days, mins / (24 * 60))
+        }
+    }
+
+    /**
+     * r15 (UC2): an «up to date» answer is a fact about the moment of the check, so it says when: «No había versiones
+     * nuevas cuando revisé, hace 1 h». [checkedAt] ≤ 0 = the time is not known: no age is claimed.
+     */
+    fun upToDate(t: Txt, checkedAt: Long, now: Long): String = when {
+        checkedAt <= 0L -> t.get(R.string.s_uptodate_unknown)
+        now - checkedAt < 60_000 -> t.get(R.string.s_uptodate_at, t.get(R.string.s_ago_moment))
+        else -> t.get(R.string.s_uptodate_at, age(t, now - checkedAt))
+    }
+
     /** The subtitle of "Buscar actualizaciones automáticamente" (OC14). */
     fun autoSubtitle(t: Txt): String = t.get(R.string.un_auto_subtitle, OpenCheck.OK_HOURS)
 

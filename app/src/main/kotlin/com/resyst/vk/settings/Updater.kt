@@ -129,7 +129,7 @@ object Updater {
 
     /**
      * OC16: an announced update outlives the process. r9 re-checked on every process start; with
-     * the throttle a restart inside the interval would hide the chip for up to 12 h. The manifest
+     * the throttle a restart inside the interval would hide the chip for the whole interval (3 h). The manifest
      * of the last "available" answer is kept in prefs and re-decided against the installed version
      * here, without network (updated meanwhile → no longer available → forgotten).
      */

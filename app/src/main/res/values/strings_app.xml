@@ -61,7 +61,9 @@
     <string name="s_installed">Versión instalada: %1$s</string>
     <string name="s_check">Buscar actualizaciones</string>
     <string name="s_checking">Buscando actualizaciones…</string>
-    <string name="s_uptodate">✓ Ya tienes la última versión (%1$s).</string>
+    <string name="s_uptodate_at">No había versiones nuevas cuando revisé, %1$s</string>
+    <string name="s_uptodate_unknown">No había versiones nuevas cuando revisé.</string>
+    <string name="s_ago_moment">hace un momento</string>
     <string name="s_check_again">Buscar de nuevo</string>
     <string name="s_incompatible">La versión %1$s requiere Android %2$s o superior; este teléfono no puede instalarla.</string>
     <string name="s_not_published">Todavía no hay una versión publicada.</string>

@@ -668,8 +668,9 @@ class SettingsActivity : Activity() {
             Updater.State.Checking -> status(getString(R.string.s_checking))
             is Updater.State.Checked -> when (val d = st.decision) {
                 is UpdateDecision.UpToDate -> {
-                    status(getString(R.string.s_uptodate, d.latest), ink(Ink.OK))
-                    status(checkedWhen(), ink(Ink.MUTED), 12f)
+                    // r15 (UC2): the answer with its age, never as a present fact; the second line says who asked
+                    status(UpdateNotice.upToDate(tx, Updater.checkedAt, System.currentTimeMillis()))
+                    status(com.resyst.vk.core.UpdateOrigin.checkedLabel(tx, Updater.checkedBy), ink(Ink.MUTED), 12f)
                     checkButton(getString(R.string.s_check_again), quiet = true)
                 }
                 is UpdateDecision.Available -> Unit // the card above
@@ -704,16 +705,8 @@ class SettingsActivity : Activity() {
     }
 
     /** "Comprobado al abrir el teclado · hace 3 min" — where the shown state came from. */
-    private fun checkedWhen(): String {
-        val mins = ((System.currentTimeMillis() - Updater.checkedAt) / 60_000).coerceAtLeast(0)
-        val ago = when {
-            mins < 1 -> getString(R.string.s_just_now)
-            mins < 60 -> getString(R.string.ago_min, mins)
-            mins < 48 * 60 -> getString(R.string.ago_h, mins / 60)
-            else -> getString(R.string.s_ago_days, mins / (24 * 60))
-        }
-        return com.resyst.vk.core.UpdateOrigin.checkedLabel(tx, Updater.checkedBy) + " · $ago"
-    }
+    private fun checkedWhen(): String =
+        com.resyst.vk.core.UpdateOrigin.checkedLabel(tx, Updater.checkedBy) + " · " + UpdateNotice.age(tx, System.currentTimeMillis() - Updater.checkedAt)
 
     /**
      * r9: the update-available card. Amber edge + ✦ badge on the surface color, the version as the

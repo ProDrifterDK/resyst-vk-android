@@ -12,7 +12,8 @@ package com.resyst.vk.core
  * store; JVM-tested in Round11UpdateCheckTest.
  */
 object OpenCheck {
-    const val OK_HOURS = 12
+    /** r15 (UC1): 3 h after an answer (0.14.0 and earlier: 12 h, which hid a fresh release for most of a day). */
+    const val OK_HOURS = 3
     const val FAILED_HOURS = 1
     const val OK_INTERVAL_MS = OK_HOURS * 3_600_000L
     const val FAILED_INTERVAL_MS = FAILED_HOURS * 3_600_000L
