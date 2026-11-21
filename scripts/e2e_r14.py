@@ -567,7 +567,9 @@ def bar_point():
     k = M.km()
     q = M.key('q', k)
     x1, y1, x2, y2 = e2e.bounds(q)
-    top_row = M.find('á', k) or q
+    top_row = M.find('á', k)
+    if top_row is None:  # never `a or b` on ElementTree nodes: a leaf is falsy
+        top_row = q
     _, ty1, _, _ = e2e.bounds(top_row)
     return 3, max(0, ty1 - int((y2 - y1) * 0.35))
 
