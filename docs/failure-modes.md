@@ -2005,3 +2005,43 @@ checks, and what the painters actually fill and write) that nothing kept equal. 
   outline on light palettes (a table surface, its legend at 7:1).
 - PS11 The README does not credit the bundled fonts (Atkinson Hyperlegible Next, Nunito, SIL OFL 1.1) beside the
   other data. Rule: one line in the README's licence list.
+
+## r14b (0.14.1): the whole interface in the phone's language
+
+### TRX — translate everything (owner decision after 0.14.0)
+- TR1 On an English phone the 0.14.0 screens read English while the older ones and the keyboard's own text stay Spanish
+  («Customize appearance» next to «Modo noche» and «TEMA Y MODO»). Cause: only the r13f/r14 strings live in resources;
+  Settings, `SettingsIA`, the updater, `KeyboardView`, the GIF / clipboard / emoji / edit / quick panels, the update and
+  what's-new notices, theme / style / palette / accent names and the emoji category names are Kotlin literals. Rule: every
+  user-visible string (labels, titles, buttons, chips, toasts, dialogs, TalkBack descriptions, notification text, names,
+  error and update messages) is a resource with a Spanish (default) and an English version. Source guard (JVM): a
+  human-readable string literal in UI code fails the build unless it is on a short allow-list (symbols, ids, layout data,
+  stored data); it must fail on the 0.14.0 sources.
+- TR2 A key exists in one language only: Android silently falls back to the default and a Spanish line shows on an English
+  phone (or the reverse for a mistyped English-only key). Rule: every `string`, `plurals` item and `string-array` of
+  `values/` has its twin in `values-en/` and vice versa, with the same placeholders (count, positions, types); JVM test; it
+  must fail on a deleted key and on a placeholder that does not match.
+- TR3 A stored choice is a display name: switching the phone's language orphans the user's theme / style / palette / accent
+  / mode. Rule: only ids are stored (they already are: palette `lab`, style `resyst`, mode `code`, tema id); names are
+  resolved when drawn. A tema the user did not rename (the seed «Pizarra», the migrated «Noche») shows its translated name;
+  one they renamed shows what they typed. JVM: the stored map is byte-identical before and after the change.
+- TR4 The UI language leaks into what the keyboard types or labels as the typing language: the space bar says
+  `español` / `english` (the typing language, not the UI language), key legends, the layouts, the dictionaries, the
+  corrector's decisions and the context offers are not translated. Rule: those are not resources; the replay and offer
+  tables stay identical (the whole suite proves it).
+- TR5 Word order and plurals differ between the languages: «Cambiar %1$s por %2$s» / «Replace %1$s with %2$s», «1 vez» /
+  «N veces», «1 pair» / «N pairs», Kotlin concatenation («$n » + noun). Rule: positional arguments (`%1$s`), `<plurals>` for
+  every count, no sentence assembled from fragments in Kotlin.
+- TR6 A longer string in the other language clips or overflows (English is shorter on labels, Spanish on a few; German-style
+  expansion is not a risk here but large font scale is). Rule: checked on the rendered pixels in both locales at 1.0× and
+  at the largest font scale; strips shrink then shorten as before.
+- TR7 The language changes while the keyboard process lives for days: views keep the strings of the old language. Rule: a
+  locale change rebuilds the input view and the notices; texts are read when drawn, never cached in a field at start.
+- TR8 Dates and numbers formatted with a fixed locale (`es` / `CL` in the connection book). Rule: the device's locale.
+- TR9 «Novedades» and links to kv.resyst.cl open the Spanish page on an English phone. The live site has no English
+  address (one page, both languages in the DOM, the language comes from a saved toggle; `/en/` is a 404). Rule: one
+  function picks the address from the locale and is the only place to change when the site publishes an English one; today
+  it returns the Spanish address for both, which is a pending item for the site, not a hidden decision.
+- TR10 Notification, TalkBack and toast text are the easiest to miss (no visible widget). Rule: they go through the same
+  resources and the guard covers `contentDescription`, `setTitle` / `setMessage`, `Toast` and notification builders by
+  sink, whatever the literal looks like.
