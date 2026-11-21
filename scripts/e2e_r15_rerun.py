@@ -19,6 +19,15 @@ def main():
     if which == 'r14':
         import e2e_r14 as m
         m.BASE = os.path.join(ROOT, 'build', 'e2e-r15', 'r14')
+        # the typing language comes from the store (Spanish), so host() never needs Android's keyboard picker, whose
+        # route fails on the Android 17 test phone once an earlier English pass left the system subtype in English
+        plain = m.store
+
+        def store(theme='lab', **extra):
+            v = plain(theme, **extra)
+            v.setdefault('phone.lang', 'ES')
+            return v
+        m.store = store
     elif which == 'r14b':
         import e2e_r14b as m
         m.BASE = os.path.join(ROOT, 'build', 'e2e-r15', 'r14b')
