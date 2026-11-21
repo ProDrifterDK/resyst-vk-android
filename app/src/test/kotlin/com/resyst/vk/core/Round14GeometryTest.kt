@@ -85,6 +85,32 @@ class Round14GeometryTest {
         assertEquals(1.3f, ProfileCodec.HEIGHT_MAX, 0f)
     }
 
+    /** r14 PE1: nothing is allocated per frame in the drawing section (0.13.0 built a LinearGradient per key per frame). */
+    @Test fun pe1TheDrawingLoopAllocatesNothing() {
+        val view = File("src/main/kotlin/com/resyst/vk/ime/KeyboardView.kt").readText()
+        val drawing = view.substringAfter("// ── drawing ──").substringBefore("// ── accessibility (TalkBack")
+        assertTrue(drawing.length > 10_000)
+        for (bad in listOf("LinearGradient(", "HashSet<", ".toSet()", "mapNotNull", "RectF(", "Path()", "ValueAnimator", "listOf(", "arrayOf("))
+            assertTrue("KeyboardView's drawing allocates: $bad", !drawing.contains(bad))
+        val painter = File("src/main/kotlin/com/resyst/vk/ime/KeyPainter.kt").readText()
+        val body = painter.substringAfter("fun body(").substringBefore("private fun overlay(")
+        assertTrue("KeyPainter.body allocates", listOf("LinearGradient(", "RectF(", "Path()", "Paint(").none { body.contains(it) })
+        // gradients come from the per-(row, kind) cache
+        assertTrue(painter.contains("private fun gradient(slot: Int"))
+    }
+
+    /** r14 VO1b: the names TalkBack reads for the keys and the bar are the E2E contract: byte-identical to 0.13.0. */
+    @Test fun vo1bTheKeyNamesAreThe0130Ones() {
+        val view = File("src/main/kotlin/com/resyst/vk/ime/KeyboardView.kt").readText()
+        val describe = view.substringAfter("private fun describe(k: Key): String = when (k.type) {").substringBefore("private inner class KeyA11y")
+        for (n in listOf("\"coma\"", "\"punto\"", "\"arroba\"", "\"barra\"", "\"guion\"", "\"Mayúsculas\"", "\"Mayúsculas, bloqueadas\"", "\"Mayúsculas, activadas\"",
+            "\"Borrar\"", "\"Espacio. Mantén pulsado para cambiar de teclado\"", "\"Espacio\"", "\"Símbolos\"", "\"Más símbolos\"", "\"Letras\"", "\"Emojis\""))
+            assertTrue("describe() lost $n", describe.contains(n))
+        for (n in listOf("\"Ajustes de Resyst VK\"", "\"Sugerencia: \${s.text}\"", "\"Pegar del portapapeles: \${s.text}\"", "\"Mover el teclado a la izquierda\"",
+            "\"Mover el teclado a la derecha\"", "\"Teclado a todo el ancho\"", "\"Cambiar de teclado\""))
+            assertTrue("the bar / rail lost $n", view.contains(n))
+    }
+
     private companion object {
         // pinned on the 0.13.0 tree (75cfe1a), before any r14 code
         const val LAYOUTS_0130 = "a1b0855dbd52b5973a3c67f9c981130a473d0462517472a75c86559a3d8b4d3a"

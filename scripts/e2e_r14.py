@@ -44,6 +44,7 @@ import e2e_r10_bilingual as bl  # noqa: E402
 import e2e_r13 as r13  # noqa: E402
 import e2e_r13c as r13c  # noqa: E402
 import e2e_r13f as r13f  # noqa: E402
+import e2e_r13h as r13h  # noqa: E402  (its import makes bl.set_lang go through Android's picker: the space flick ships off)
 from e2e import PKG, IME, SETTINGS  # noqa: E402
 
 FORBIDDEN = {s.strip() for s in os.environ.get('VK_E2E_FORBIDDEN_SERIALS', '').split(',') if s.strip()}
@@ -149,7 +150,7 @@ def host(kind='text'):
     time.sleep(0.6)
     k = km()
     if k and bl.space_label() != 'es':
-        bl.set_lang('es')
+        bl.set_lang('es')  # through Android's keyboard picker (e2e_r13h): the subtype sync can pull English back
         k = km()
     return k
 
@@ -224,6 +225,7 @@ def palettes():
 
 
 def section_k():
+    layouts = {}
     for mode in ('light', 'dark'):
         night(mode == 'dark')
         for t in palettes():
@@ -231,8 +233,10 @@ def section_k():
             k = host('text')
             type_seq('hol', k)
             time.sleep(0.6)
-            shot(f'K-{mode}-{t}', f'palette {t}, system {mode}, "hol" typed (suggestions on the bar)')
+            layouts[f'{mode}-{t}'] = bl.space_label()
+            shot(f'K-{mode}-{t}', f'palette {t}, system {mode}, "hol" typed (suggestions on the bar), layout {layouts[f"{mode}-{t}"]}')
     night(False)
+    check('K', 'every palette shot on the Spanish layout', all(v == 'es' for v in layouts.values()), {k: v for k, v in layouts.items() if v != 'es'} or 'all es')
 
 
 # ── S: key states ────────────────────────────────────────────────────────
@@ -526,9 +530,105 @@ def section_m(apk):
     night(False)
 
 
+# ── index: before / after side by side ───────────────────────────────────
+SECTIONS = [
+    ('K', 'Every palette, system light and dark', 'K-'),
+    ('S', 'Key states: shift, pressed + preview, long press, symbols, suggestions, context offer, "2 cambios", ↶', 'S-'),
+    ('P', 'Panels: paste chip, quick, edit, clipboard, emoji, GIF, one-hand', 'P-'),
+    ('F', 'Large text (font scale 1.3)', 'F-'),
+    ('T', 'Settings', 'T-'),
+    ('N', '0.14.0: follow the system, quick-panel temas, styles, high contrast, the style gallery', 'N-'),
+    ('U', '0.13.0 → 0.14.0 in place', 'U-'),
+]
+
+
+def write_index():
+    import html
+    data = {}
+    for label in ('before', 'after'):
+        path = os.path.join(BASE, label, f'r14-{label}.json')
+        data[label] = json.load(open(path, encoding='utf-8')) if os.path.exists(path) else {'scenes': [], 'rows': [], 'metrics': {}}
+    files = {label: {s['scene']: s for s in data[label]['scenes']} for label in data}
+    out = ['<!doctype html><meta charset="utf-8"><title>Resyst VK r14 — before / after</title>',
+           '<style>body{font:14px system-ui,sans-serif;margin:24px;background:#111;color:#eee}a{color:#c9a84c}'
+           'table{border-collapse:collapse}td,th{border:1px solid #333;padding:6px;vertical-align:top}th{background:#1c1c1c}'
+           'img{width:240px;display:block}video{width:240px}.na{color:#777;font-style:italic}.ok{color:#5cbf6a}.bad{color:#d0605a}'
+           'h2{margin-top:36px;color:#c9a84c}code{color:#ddd}</style>',
+           '<h1>✦ Resyst VK 0.14.0 (r14) — before (0.13.0) / after (0.14.0)</h1>',
+           '<p>Pixel 6, debug builds of both versions, captured by <code>scripts/e2e_r14.py</code> through the drawn keys. '
+           'Click a picture for the full screenshot. Missing cells: the scene does not exist on that side (a new palette or '
+           'feature, or a page that grew).</p>']
+    m_b = data['before'].get('metrics', {}).get('M')
+    m_a = data['after'].get('metrics', {}).get('M')
+    if m_b or m_a:
+        out.append('<h2>M — measurements (same text typed 3× through the drawn keys)</h2><table><tr><th></th><th>before</th><th>after</th></tr>')
+
+        def med(m, f):
+            try:
+                return f(m)
+            except Exception:
+                return '—'
+        rows_m = [
+            ('APK bytes', lambda m: m['apk_bytes']),
+            ('frames p50 / p90 / p95 / p99 (ms)', lambda m: ' · '.join('/'.join(str(r['gfx'][k]) for k in ('p50', 'p90', 'p95', 'p99')) for r in m['runs'])),
+            ('janky %', lambda m: ', '.join(str(r['gfx']['janky_pct']) for r in m['runs'])),
+            ('key handler median / p90 (µs)', lambda m: ', '.join(f"{r['keytime']['key']['median_us']}/{r['keytime']['key']['p90_us']}" for r in m['runs'])),
+            ('bar refresh median / p90 (µs)', lambda m: ', '.join(f"{r['keytime']['bar']['median_us']}/{r['keytime']['bar']['p90_us']}" for r in m['runs'])),
+            ('Java / native heap after typing (KB)', lambda m: f"{m['heap_typing']['java_heap_kb']} / {m['heap_typing']['native_heap_kb']}"),
+            ('TOTAL PSS after typing (KB)', lambda m: m['heap_typing']['total_pss_kb']),
+            ('Java / native heap after panels (KB)', lambda m: f"{m['heap_after_panels']['java_heap_kb']} / {m['heap_after_panels']['native_heap_kb']}"),
+            ('TOTAL PSS after panels (KB)', lambda m: m['heap_after_panels']['total_pss_kb']),
+        ]
+        for name, f in rows_m:
+            out.append(f'<tr><td>{html.escape(name)}</td><td>{med(m_b, f) if m_b else "—"}</td><td>{med(m_a, f) if m_a else "—"}</td></tr>')
+        out.append('</table>')
+    for key, title, prefix in SECTIONS:
+        names = sorted({n for label in files for n in files[label] if n.startswith(prefix) and not files[label][n]['file'].endswith('.mp4')})
+        if not names:
+            continue
+        out.append(f'<h2>{key} — {html.escape(title)}</h2><table><tr><th>scene</th><th>before 0.13.0</th><th>after 0.14.0</th></tr>')
+        for n in names:
+            cells = []
+            for label in ('before', 'after'):
+                s = files[label].get(n)
+                if s is None:
+                    cells.append('<td class="na">—</td>')
+                else:
+                    src = f'{label}/{s["file"]}'
+                    cells.append(f'<td><a href="{src}"><img loading="lazy" src="{src}"></a></td>')
+            note = (files['after'].get(n) or files['before'].get(n) or {}).get('note', '')
+            out.append(f'<tr><td><code>{html.escape(n)}</code><br>{html.escape(note)}</td>{"".join(cells)}</tr>')
+        out.append('</table>')
+    vids = sorted({n for label in files for n in files[label] if files[label][n]['file'].endswith('.mp4')})
+    if vids:
+        out.append('<h2>R — motion (screen recordings)</h2><table><tr><th>scene</th><th>before 0.13.0</th><th>after 0.14.0</th></tr>')
+        for n in vids:
+            cells = []
+            for label in ('before', 'after'):
+                s = files[label].get(n)
+                cells.append('<td class="na">—</td>' if s is None else f'<td><video controls muted loop preload="metadata" src="{label}/{s["file"]}"></video><br><a href="{label}/{s["file"]}">{s["file"]}</a></td>')
+            note = (files['after'].get(n) or files['before'].get(n) or {}).get('note', '')
+            out.append(f'<tr><td><code>{html.escape(n)}</code><br>{html.escape(note)}</td>{"".join(cells)}</tr>')
+        out.append('</table>')
+    for label in ('before', 'after'):
+        rows_l = data[label].get('rows', [])
+        if rows_l:
+            out.append(f'<h2>E2E rows — {label}</h2><table><tr><th>section</th><th>check</th><th>result</th><th>detail</th></tr>')
+            for r in rows_l:
+                cls = 'ok' if r['ok'] else 'bad'
+                out.append(f'<tr><td>{r["section"]}</td><td>{html.escape(r["check"])}</td><td class="{cls}">{"PASS" if r["ok"] else "FAIL"}</td><td>{html.escape(r["detail"])}</td></tr>')
+            out.append('</table>')
+    path = os.path.join(BASE, 'index.html')
+    open(path, 'w', encoding='utf-8').write('\n'.join(out))
+    print('index →', os.path.relpath(path, e2e.ROOT))
+
+
 # ── main ─────────────────────────────────────────────────────────────────
 def main():
     global OUT, LABEL
+    if '--index' in sys.argv:
+        write_index()
+        return 0
     ap = argparse.ArgumentParser()
     ap.add_argument('--serial', required=True)
     ap.add_argument('--label', required=True, choices=['before', 'after'])
@@ -543,7 +643,7 @@ def main():
     e2e.ADB.extend(['-s', a.serial])
     LABEL = a.label
     OUT = os.path.join(BASE, LABEL)
-    for mod in (e2e, r13, r13c, r13f):
+    for mod in (e2e, r13, r13c, r13f, r13h):
         mod.OUT = OUT
     os.makedirs(OUT, exist_ok=True)
     apk = a.apk or os.path.join(e2e.ROOT, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
