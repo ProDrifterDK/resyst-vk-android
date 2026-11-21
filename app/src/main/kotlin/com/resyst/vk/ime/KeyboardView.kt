@@ -657,8 +657,9 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val content = (stripH + keysHeight() + 4 * dp + bandH).toInt()
-        setMeasuredDimension(w, NavInsets.totalHeight(content, paddingBottom))
+        val content = (stripH + keysHeight() + 4 * dp).toInt()
+        // r15 (ES11): the emoji search's results band adds its height on top (0 when not searching: 0.13.0's height)
+        setMeasuredDimension(w, NavInsets.totalHeight(content + bandH.toInt(), paddingBottom))
     }
 
     /**

@@ -163,7 +163,7 @@ class QuickPanel(private val dp: Float, private val tx: Txt) {
     private fun backWidth(): Float {
         text.textSize = 14 * dp * ff()
         text.typeface = tf(600)
-        return (36 + 14) * dp + text.measureText(back)
+        return (QuickLayout.MARGIN + 21 + 14) * dp + text.measureText(back)
     }
 
     private fun titleWidth(): Float {
@@ -257,12 +257,13 @@ class QuickPanel(private val dp: Float, private val tx: Txt) {
                 c.drawRoundRect(close.rect.left + 4 * dp, close.rect.top + 6 * dp, close.rect.right - 4 * dp, close.rect.bottom - 6 * dp, radius, radius, fill)
             }
             val backInk = if (down) Drawn.ink(p, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(p, Surface.BACKGROUND, Ink.TEXT_MOD)
-            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + 22 * dp, close.rect.centerY(), 14 * dp, backInk, stroke, fill)
+            // the arrow's left edge on the panel's margin, like the chips and the tiles below it (QP8)
+            KeyIcons.draw(c, Icon.ARROW_LEFT, close.rect.left + QuickLayout.MARGIN * dp + 7 * dp, close.rect.centerY(), 14 * dp, backInk, stroke, fill)
             text.textAlign = Paint.Align.LEFT
             text.color = backInk
             text.textSize = 14 * dp * ff()
             text.typeface = typeface(600)
-            baseline(c, back, close.rect.left + 36 * dp, close.rect.centerY())
+            baseline(c, back, close.rect.left + QuickLayout.MARGIN * dp + 21 * dp, close.rect.centerY())
         }
         if (g.titleShown && g.back.r + 16 * dp + titleWidth() <= bounds.right - QuickLayout.MARGIN * dp) {
             text.textAlign = Paint.Align.RIGHT
@@ -347,6 +348,8 @@ class QuickPanel(private val dp: Float, private val tx: Txt) {
     }
 
     private fun drawPersonalize(c: Canvas, p: Palette, r: RectF, typeface: (Int) -> Typeface, down: Boolean, iconOnly: Boolean) {
+        // the palette button is a circle the chip row's height, centred in its 48 dp target
+        if (iconOnly) { val d = r.height(); val cx = r.centerX(); r.set(cx - d / 2, r.top, cx + d / 2, r.bottom) }
         val rr = r.height() / 2
         fill.color = Drawn.surface(p, if (down) Surface.PRESSED else Surface.PLAIN)
         c.drawRoundRect(r, rr, rr, fill)

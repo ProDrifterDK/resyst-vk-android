@@ -6,9 +6,9 @@ package com.resyst.vk.core
  *
  * One rhythm (QP8): side margins and the gap above the tiles are [MARGIN] dp, the bottom margin too (the grid ends one
  * margin above the panel's bottom: no dead band), tiles are [GAP] dp apart in both directions. Tema chips are as wide as
- * their whole name (QP6); «Personalizar» is pinned at the row's right end, with its label when everything fits and as
- * its palette button when the temas need the room, and the chips scroll sideways in what is left when they still do
- * not fit. The layout takes the richest arrangement that fits the height (QP7):
+ * their whole name (QP6); «Personalizar» follows them, with its label when everything fits and as its palette button
+ * when the temas need the room; when even then they do not fit, it is pinned at the row's end and the chips scroll
+ * sideways in what is left. The layout takes the richest arrangement that fits the height (QP7):
  *
  *   1. chips on their own row, FULL tiles (icon disc, label, state)
  *   2. chips on their own row, COMPACT tiles (plain icon, label, state)
@@ -21,13 +21,13 @@ package com.resyst.vk.core
 object QuickLayout {
     const val MARGIN = 12f
     const val GAP = 8f
-    const val HEADER = 48f
+    const val HEADER = 44f
     const val CHIP_ROW = 44f
     const val CHIP_H = 40f
     const val CHIP_GAP = 8f
     const val UPDATE = 36f
     /** Space between the header and an update line or the chip row (the header's own text already breathes). */
-    const val AFTER_HEADER = 2f
+    const val AFTER_HEADER = 0f
 
     enum class Place { ROW, HEADER, NONE }
     enum class Tier { FULL, COMPACT, MINI }
@@ -109,12 +109,15 @@ object QuickLayout {
             val chipsW = i.chipW.sum() + cg * maxOf(0, i.chipW.size - 1)
             icon = chipsW + cg + i.personalizeW > row.w
             val pw = if (icon) i.personalizeIconW else i.personalizeW
-            personalize = Box(row.r - pw, ct, row.r, cb)
+            // it follows the chips when all fit (no hole before it); pinned at the end when the chips must scroll
+            val fits = chipsW + cg + pw <= row.w
+            val pl = if (fits) row.l + chipsW + cg else row.r - pw
+            personalize = Box(pl, ct, pl + pw, cb)
             val vp = Box(row.l, row.t, personalize.l - cg, row.b)
             viewport = vp
             var x = vp.l
             for (w in i.chipW) { chips += Box(x, ct, x + w, cb); x += w + cg }
-            maxScroll = maxOf(0f, chipsW - vp.w)
+            maxScroll = if (fits) 0f else maxOf(0f, chipsW - vp.w)
             chips.getOrNull(i.activeChip)?.let { a -> if (a.r > vp.r) toActive = minOf(maxScroll, a.r - vp.r + cg) }
         }
         // tiles (QP8): the rest of the height, one margin above (after the chip row) and below

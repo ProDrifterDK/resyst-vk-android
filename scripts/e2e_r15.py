@@ -112,6 +112,7 @@ def logcat_lines(pattern):
 def set_lang(lang):
     global LANG
     LANG = lang
+    r14b.LANG = lang  # the shared helpers' key aliases (English names answer to their Spanish twins) read it
     sh(f'cmd locale set-app-locales {PKG} --locales {lang}')
     sh(f'am force-stop {PKG}', check=False)
     time.sleep(0.8)
@@ -152,6 +153,22 @@ def gear():
     tap_desc(T('strip_settings'), wait=1.0)
 
 
+# ── L: legibility of the new surfaces on the rendered pixels (r14's WCAG pixel contrast) ──
+def measure(name, node, minimum, inset_dp=(0, 0, 0, 0), what=''):
+    """Contrast of the ink on its surface inside [node]'s box (minus an inset in dp: l, t, r, b) on the last shot."""
+    if node is None:
+        check('L', name, False, 'no node')
+        return None
+    d = r14.density()
+    x1, y1, x2, y2 = e2e.bounds(node)
+    box = (int(x1 + inset_dp[0] * d), int(y1 + inset_dp[1] * d), int(x2 - inset_dp[2] * d), int(y2 - inset_dp[3] * d))
+    png = os.path.join(BASE, LABEL, LANG, scenes[-1]['scene'] + '.png')
+    r, bg, ink = r14.pixel_contrast(png, box)
+    check('L', name, r >= minimum, f'{what}: rendered {r}:1 (ink {ink} on {bg}) in {scenes[-1]["scene"]}')
+    metrics.setdefault('L', {})[f'{LANG}-{name}'] = {'ratio': r, 'bg': bg, 'ink': ink, 'scene': scenes[-1]['scene'], 'min': minimum}
+    return r
+
+
 # ── Q: the quick-settings panel ──────────────────────────────────────────
 def section_q():
     for mode in ('dark', 'light'):
@@ -177,6 +194,10 @@ def section_q():
                     k = keys()
                     seen = [nm for nm in ('tema_seed_noche', 'tema_seed_dia', 'tema_seed_juego', 'tema_seed_escritura') if find(T('quick_tema_desc', T(nm)), k) is not None]
                     check('Q', f'{mode} f{f} h{pct}: tema chips are nodes with their whole names', len(seen) >= 2, seen)
+                    if f == '1.0' and pct == 100:
+                        # a chip's name on its own palette's card (the swatch is left out of the box)
+                        for nm in seen:
+                            measure(f'{mode}: tema chip «{T(nm)}» name', find(T('quick_tema_desc', T(nm)), k), 4.5, (34, 10, 8, 10), 'name on the chip')
                 tap_desc(T('quick_back_desc'), wait=0.5)
     if LABEL == 'after':
         # the row scrolls sideways and a tap after a drag switches nothing (QP11); a switch keeps the row (QP12)
@@ -380,6 +401,8 @@ def section_s():
     open_search()
     shot('S-0-empty', 'emoji search opened: the hint, the box, the letters')
     k = keys()
+    measure('dark: search box placeholder', find(T('emoji_search_field', T('strip_gif_empty')), k), 4.5, (30, 8, 8, 8), 'placeholder on the box')
+    measure('dark: the band\'s hint line', find(T('emoji_search_hint')[:12], k), 4.5, (36, 12, 16, 12), 'hint on the background')
     check('S', 'the search box is a node', find(T('emoji_search_field', T('strip_gif_empty')), k) is not None, [d for d in k if ':' in d][:4])
     check('S', 'the hint is a node in the interface language', find(T('emoji_search_hint')[:12], k) is not None, T('emoji_search_hint'))
     logcat_clear()
@@ -395,9 +418,11 @@ def section_s():
         enter = find(T('emoji_search_enter', '🦅'))
         check('S', f'«{q}»: Enter inserts 🦅', enter is not None, T('emoji_search_enter', '🦅'))
         lat += logcat_lines('emoji-search: len=')
+    measure('dark: search box query', find(T('emoji_search_field', QUERIES[-1])), 4.5, (30, 8, 8, 8), 'query on the box')
     clear_query()
     type_query(NONE_QUERY)
     shot('S-none', f'«{NONE_QUERY}»: no result')
+    measure('dark: the band\'s «no emoji» line', find(T('emoji_search_none', NONE_QUERY)), 4.5, (36, 12, 16, 12), 'line on the background')
     check('S', 'a query with no result says so (a node)', find(T('emoji_search_none', NONE_QUERY)) is not None, T('emoji_search_none', NONE_QUERY))
     lat += logcat_lines('emoji-search: len=')
     # pick: a tap on the result, then Enter
@@ -416,7 +441,28 @@ def section_s():
     k = keys()
     shot('S-back', '← : back to the panel as it was')
     check('S', '← returns to the panel', find(T('emoji_search_desc'), k) is not None, sorted(k)[:6])
+    measure('dark: «Buscar emoji» pill', find(T('emoji_search_desc'), k), 4.5, (24, 10, 10, 10), 'label on the pill')
     tap_desc(T('quick_back_desc'), wait=0.6)
+    # the same surfaces on a light palette
+    r14.night(False)
+    r14.write_prefs(store('dia', 1.0))
+    host('text')
+    tap_desc(T('key_emoji'), wait=1.4)
+    shot('S-light-panel', 'light: the emoji panel with the search pill')
+    measure('light: «Buscar emoji» pill', find(T('emoji_search_desc')), 4.5, (24, 10, 10, 10), 'label on the pill')
+    tap_desc(T('emoji_search_desc'), wait=1.2)
+    shot('S-light-empty', 'light: the search opened')
+    k = keys()
+    measure('light: search box placeholder', find(T('emoji_search_field', T('strip_gif_empty')), k), 4.5, (30, 8, 8, 8), 'placeholder on the box')
+    measure('light: the band\'s hint line', find(T('emoji_search_hint')[:12], k), 4.5, (36, 12, 16, 12), 'hint on the background')
+    type_query('eagle')
+    shot('S-light-eagle', 'light: «eagle»')
+    res = band_results()
+    check('S', 'light: «eagle» → 🦅 first', bool(res) and res[0][0].startswith('🦅'), [d for d, _ in res][:3])
+    measure('light: search box query', find(T('emoji_search_field', 'eagle')), 4.5, (30, 8, 8, 8), 'query on the box')
+    tap_desc(T('emoji_search_back'), wait=0.8)
+    tap_desc(T('quick_back_desc'), wait=0.6)
+    r14.night(True)
     # latency per keystroke (lengths and times only)
     us = []
     for l in lat:

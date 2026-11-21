@@ -27,7 +27,7 @@ class Round15QuickLayoutTest {
             left = 0f, top = 0f, width = wDp * dp, height = hDp * dp, dp = dp, tiles = 8, update = update,
             chipW = temas.map { (8 + 20 + 6 + 10) * dp + textW(it, 13 * ff) }, // QuickPanel: CHIP_PAD + SWATCH + SWATCH_GAP + CHIP_END
             personalizeW = (12 + 16 + 8 + 14) * dp + textW(t.get(com.resyst.vk.R.string.quick_personalize), 13 * ff), personalizeIconW = 48 * dp,
-            backW = (36 + 14) * dp + textW(t.get(com.resyst.vk.R.string.quick_back), 14 * ff),
+            backW = (12 + 21 + 14) * dp + textW(t.get(com.resyst.vk.R.string.quick_back), 14 * ff),
             titleW = textW(t.get(com.resyst.vk.R.string.quick_title), 11 * ff) * 1.12f,
             need = mapOf(
                 QuickLayout.Tier.FULL to (5 + 30 + 4 + 1 + 5) * dp + l + s,
@@ -84,9 +84,10 @@ class Round15QuickLayoutTest {
                     val vp = r.viewport!!
                     for ((k, b) in r.chips.withIndex()) assertTrue(where, near(b.w, i.chipW[k]))
                     for (k in 1 until r.chips.size) assertTrue(where, near(r.chips[k].l - r.chips[k - 1].r, QuickLayout.CHIP_GAP * dp))
-                    // «Personalizar» pinned at the row's end, outside the scrolling part; the last chip reachable inside it
+                    // «Personalizar» right after the chips when nothing scrolls (no hole), pinned at the row's end when they scroll
                     val p = r.personalize!!
-                    assertTrue(where, near(p.r, row.r) && p.l >= vp.r && p.w >= 48 * dp - 0.5f)
+                    assertTrue(where, p.l >= vp.r && p.r <= row.r + 0.5f && p.w >= 48 * dp - 0.5f)
+                    if (r.maxScroll > 0f) assertTrue(where, near(p.r, row.r)) else assertTrue(where, near(p.l - r.chips.last().r, QuickLayout.CHIP_GAP * dp))
                     assertTrue(where, r.chips.last().r - r.maxScroll <= vp.r + 0.5f)
                     if (r.maxScroll <= 0f) assertTrue(where, r.chips.last().r <= vp.r + 0.5f)
                 }
