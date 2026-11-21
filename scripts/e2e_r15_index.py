@@ -50,6 +50,18 @@ def main():
         b, a = scenes[k].get('before'), scenes[k].get('after')
         note = (a or b)['note']
         md.append(f"| {k[0]} | {k[1]} | {('[' + b['file'] + '](' + b['file'] + ')') if b else '—'} | {('[' + a['file'] + '](' + a['file'] + ')') if a else '—'} | {note} |")
+    others = []
+    for name, rel in (('r14b (both languages)', 'r14b/r14b.json'), ('r14b index', 'r14b/index.md'), ('r14', 'r14/after/r14-after.json')):
+        d = load(rel) if rel.endswith('.json') else None
+        if os.path.exists(os.path.join(BASE, rel)):
+            summary = ''
+            if d is not None:
+                rr = d.get('rows', [])
+                summary = f" — {sum(1 for r in rr if r.get('ok'))}/{len(rr)} rows, apk {d.get('apk', '?')}"
+            others.append(f'- {name}: [{rel}]({rel}){summary}')
+    md += ['', '## The r14 and r14b suites on the 0.15.0 build', ''] + (others or ['- not run']) + [
+        '', 'r14b ran in full on b979499 (118/118); its K and L sections (the keyboard and large font, where the quick panel',
+        'shows) were re-run on 7f2c027 and merged. r14 ran on 7f2c027. The main-source diff b979499..7f2c027 is three quick-panel files.']
     md += ['', '## Rows', '', '| ok | label | lang | section | check | detail |', '|---|---|---|---|---|---|']
     for r in rows:
         md.append(f"| {'PASS' if r['ok'] else 'FAIL'} | {r.get('label', '')} | {r['lang']} | {r['section']} | {r['check']} | {r['detail'][:160].replace('|', '/')} |")
