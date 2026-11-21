@@ -105,14 +105,16 @@ class KeyPainter(private val dp: Float) {
                 val dark = t.dark
                 fill.color = when {
                     solid -> ColorMath.mix(p.accent, 0xFF000000.toInt(), 0.3f)
-                    dark -> ColorMath.mix(base, t.bg, 0.45f)
-                    else -> ColorMath.mix(base, t.edge, 0.75f)
+                    dark -> ColorMath.mix(base, 0xFF000000.toInt(), 0.55f)
+                    else -> ColorMath.mix(base, t.edge, 0.85f)
                 }
                 shapeOn(c, r, fill)
                 val sink = 2.5f * dp * press
                 face.set(r.left + 2.5f * dp, r.top + 1.5f * dp + sink, r.right - 2.5f * dp, r.bottom - 4.5f * dp + sink * 0.6f)
-                val faceTop = if (solid) ColorMath.mix(p.accent, 0xFFFFFFFF.toInt(), 0.12f) else if (dark) ColorMath.mix(base, t.keyHi, 0.55f) else t.keyTop
-                val faceBottom = if (solid) p.accent else if (dark) ColorMath.mix(base, t.keyHi, 0.2f) else base
+                // dark palettes: the face lifts toward the pressed colour (text is gated against it), the skirt sinks
+                // toward black, so the keycap reads at a glance even on near-black keys
+                val faceTop = if (solid) ColorMath.mix(p.accent, 0xFFFFFFFF.toInt(), 0.12f) else if (dark) ColorMath.mix(base, t.keyHi, 0.95f) else t.keyTop
+                val faceBottom = if (solid) p.accent else if (dark) ColorMath.mix(base, t.keyHi, 0.45f) else base
                 fill.shader = gradient(slot(row, kind, 1), face.top, face.bottom, faceTop, faceBottom)
                 val rad = max(radius(r) - 2 * dp, 1.5f * dp)
                 shapeOn(c, face, fill, rad)

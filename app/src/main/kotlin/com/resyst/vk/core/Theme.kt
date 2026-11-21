@@ -287,7 +287,7 @@ object DayNight {
 
 /** r14 (LG2): the accent's hue mixed into the keyboard's surfaces. */
 enum class Tint(val amount: Float) {
-    NONE(0f), SOFT(0.10f), STRONG(0.22f);
+    NONE(0f), SOFT(0.12f), STRONG(0.30f);
 
     fun applyTo(t: Theme, accent: Int): Theme {
         if (amount == 0f) return t
