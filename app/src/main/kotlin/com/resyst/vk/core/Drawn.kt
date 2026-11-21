@@ -96,8 +96,8 @@ object Drawn {
         listOf(
             d(Surface.BACKGROUND, Ink.TEXT, LEGEND, "suggestions, panel and Settings text"),
             d(Surface.BACKGROUND, Ink.ACCENT, TEXT, "first suggestion, titles, links, bar icons"),
-            d(Surface.BACKGROUND, Ink.MUTED, TEXT, "captions, status, bar icons"),
-            d(Surface.BACKGROUND, Ink.TEXT_MOD, TEXT, "headers, Settings titles, the GIF back arrow"),
+            d(Surface.BACKGROUND, Ink.MUTED, TEXT, "captions, status, bar icons, the emoji search band's line"),
+            d(Surface.BACKGROUND, Ink.TEXT_MOD, TEXT, "headers, Settings titles, the GIF and emoji search ← and ✕"),
             d(Surface.BACKGROUND, Ink.OK, TEXT, "Settings status"),
             d(Surface.BACKGROUND, Ink.BAD, TEXT, "Settings warnings, the clipboard's «¿Borrar todo?»"),
             d(Surface.CARD, Ink.TEXT, LEGEND, "variants, the floating preview, Settings cards, tema chips"),
@@ -106,9 +106,9 @@ object Drawn {
             d(Surface.CARD, Ink.ACCENT, TEXT, "Settings card labels and links"),
             d(Surface.CARD, Ink.OK, TEXT, "a done setup step"),
             d(Surface.CARD, Ink.BAD, TEXT, "Settings warnings on cards"),
-            d(Surface.PLAIN, Ink.TEXT, LEGEND, "«Pastillas», tiles, rows, buttons, Settings pills and choices"),
-            d(Surface.PLAIN, Ink.ACCENT, TEXT, "an active tile, a pinned clip, selecting arrows, setup steps"),
-            d(Surface.PLAIN, Ink.MUTED, TEXT, "tile states, clip times, the GIF field's placeholder"),
+            d(Surface.PLAIN, Ink.TEXT, LEGEND, "«Pastillas», tiles, rows, buttons, Settings pills and choices, the emoji search query"),
+            d(Surface.PLAIN, Ink.ACCENT, TEXT, "an active tile, a pinned clip, selecting arrows, setup steps, the search boxes' caret"),
+            d(Surface.PLAIN, Ink.MUTED, TEXT, "tile states, clip times, the GIF and emoji search placeholders, «Buscar emoji»"),
             d(Surface.PLAIN, Ink.BAD, TEXT, "«Borrar»"),
             d(Surface.MOD_PLAIN, Ink.TEXT_MOD, TEXT, "ABC, ⌫, edit buttons, the dock's arrows"),
             d(Surface.MOD_PLAIN, Ink.TEXT, TEXT, "GIF pills"),
@@ -220,6 +220,9 @@ object Drawn {
 
     /** The update chip's divider before its ✕ (no ink). */
     fun chipDivider(p: Palette): Int = ColorMath.withAlpha(p.accent, 0.3f)
+
+    /** r15 (QP6): the transparent end of the tema row's edge fade — the background at alpha 0 (no ink on it). */
+    fun clearOf(p: Palette): Int = ColorMath.withAlpha(p.theme.bg, 0f)
 
     /** The hairline around a quick-panel tema miniature's keys (no ink). */
     fun miniKeyEdge(p: Palette): Int = ColorMath.withAlpha(p.theme.text, 0.45f)

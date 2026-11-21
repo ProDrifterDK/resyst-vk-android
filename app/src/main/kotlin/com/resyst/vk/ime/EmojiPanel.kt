@@ -44,7 +44,7 @@ import kotlin.math.min
  * dedicated tab, never mixed with the emoji (KLIPY rule 5).
  */
 class EmojiPanel(private val dp: Float, private val tx: Txt) {
-    enum class Act { TAB, EMOJI, ABC, SPACE, DELETE, TONE, CLOSE_TONES, GIF }
+    enum class Act { TAB, EMOJI, ABC, SPACE, DELETE, TONE, CLOSE_TONES, GIF, SEARCH }
     /** [cell] = the catalog cell behind an EMOJI / TONE hit (null in recents for unknown emoji); [gif] = a GIF-tab target. */
     class Hit(val act: Act, val text: String, val index: Int, val rect: RectF, val desc: String, val cell: EmojiCatalog.Cell? = null,
               val gif: GifPanel.Target? = null)
@@ -95,6 +95,27 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
 
     /** Synchronous check: recents and the tones popup only (a handful of emoji), never a catalog tab (EG1). */
     private fun drawable(e: String) = glyphOk.getOrPut(e) { glyphPaint.hasGlyph(e) }
+
+    /** r15 (ES): the «Buscar emoji» pill in the bottom bar (never on the GIF tab, which has its own search). */
+    var searchable = true
+
+    /**
+     * r15 (ES7): the base emoji the measuring thread found the font cannot draw (the search leaves them out, like the
+     * grid). A tab not measured yet excludes nothing.
+     */
+    fun undrawable(): Set<String> {
+        val out = HashSet<String>()
+        for ((t, cells) in cache) {
+            val g = catalog.groups.getOrNull(t - 1) ?: continue
+            if (cells.size == g.cells.size) continue
+            val ok = cells.mapTo(HashSet()) { it.base }
+            for (c in g.cells) if (c.base !in ok) out += c.base
+        }
+        return out
+    }
+
+    /** r15 (ES): what a search result shows and inserts for [c]: the user's tone once its glyph is known, else the base. */
+    fun shownFor(c: EmojiCatalog.Cell): String = toned(c)
 
     /** r11b: the GIF tab's panel, null = no GIF tab in this field. */
     var gif: GifPanel? = null
@@ -290,7 +311,14 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
         val bb = bounds.bottom - 4 * dp
         val side = 76 * dp
         hits += Hit(Act.ABC, "ABC", 0, RectF(bounds.left + pad, by, bounds.left + pad + side, bb), tx.get(R.string.quick_back_desc))
-        hits += Hit(Act.SPACE, "", 0, RectF(bounds.left + 2 * pad + side, by, bounds.right - 2 * pad - side, bb), tx.get(R.string.key_space))
+        val midL = bounds.left + 2 * pad + side
+        val midR = bounds.right - 2 * pad - side
+        if (searchable && !onGif) {
+            // r15 (ES): «🔍 Buscar emoji» takes the larger part of the middle, the space bar keeps the rest
+            val split = midL + (midR - midL - pad) * 0.58f
+            hits += Hit(Act.SEARCH, "", 0, RectF(midL, by, split, bb), tx.get(R.string.emoji_search_desc))
+            hits += Hit(Act.SPACE, "", 0, RectF(split + pad, by, midR, bb), tx.get(R.string.key_space))
+        } else hits += Hit(Act.SPACE, "", 0, RectF(midL, by, midR, bb), tx.get(R.string.key_space))
         hits += Hit(Act.DELETE, "⌫", 0, RectF(bounds.right - pad - side, by, bounds.right - pad, bb), tx.get(R.string.key_backspace))
     }
 
@@ -426,8 +454,35 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
             Act.ABC -> button(c, h, "ABC", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
             Act.SPACE -> button(c, h, "", Surface.PLAIN, Ink.MUTED, radius, typeface, h === pressed, p)
             Act.DELETE -> button(c, h, "⌫", Surface.MOD_PLAIN, Ink.TEXT_MOD, radius, typeface, h === pressed, p)
+            Act.SEARCH -> searchPill(c, h, typeface, h === pressed, p)
             else -> Unit
         }
+    }
+
+    /** r15 (ES): the search pill reads as a field: the key colour, a magnifier and «Buscar emoji» in the placeholder ink. */
+    private fun searchPill(c: Canvas, h: Hit, typeface: (Int) -> Typeface, pressed: Boolean, p: Palette) {
+        val r = h.rect.height() / 2
+        fill.color = Drawn.surface(p, if (pressed) Surface.PRESSED else Surface.PLAIN)
+        c.drawRoundRect(h.rect, r, r, fill)
+        stroke.color = p.accentGlow
+        stroke.strokeWidth = dp
+        c.drawRoundRect(h.rect, r, r, stroke)
+        val ink = if (pressed) Drawn.ink(p, Surface.PRESSED, Ink.MUTED) else Drawn.ink(p, Surface.PLAIN, Ink.MUTED)
+        val icon = min(16 * dp, h.rect.height() * 0.42f)
+        text.typeface = typeface(550)
+        text.textSize = 13.5f * dp
+        val label = tx.get(R.string.emoji_search_pill)
+        val room = h.rect.width() - icon - 30 * dp
+        val shown = if (text.measureText(label) <= room) label else ""
+        val w = icon + (if (shown.isEmpty()) 0f else 8 * dp + text.measureText(shown))
+        val x0 = h.rect.centerX() - w / 2
+        KeyIcons.draw(c, Icon.SEARCH, x0 + icon / 2, h.rect.centerY(), icon, ink, stroke, fill)
+        if (shown.isEmpty()) return
+        text.color = ink
+        text.textAlign = Paint.Align.LEFT
+        val fm = text.fontMetrics
+        c.drawText(shown, x0 + icon + 8 * dp, h.rect.centerY() - (fm.ascent + fm.descent) / 2, text)
+        text.textAlign = Paint.Align.CENTER
     }
 
     private fun drawTones(c: Canvas, p: Palette, radius: Float, pressed: Hit?) {

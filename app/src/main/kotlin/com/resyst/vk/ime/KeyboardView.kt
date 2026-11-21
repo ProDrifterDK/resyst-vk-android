@@ -141,6 +141,10 @@ class KeyboardView(context: Context) : View(context) {
         /** r11b: the GIF search strip's ← (back to the grid, no request) and «Buscar» (one request). */
         fun onGifSearchBack() = Unit
         fun onGifSearchGo() = Unit
+        /** r15 (ES): the emoji search: a result tapped, ✕, ← (back to the panel). */
+        fun onEmojiSearchPick(emoji: String) = Unit
+        fun onEmojiSearchClear() = Unit
+        fun onEmojiSearchBack() = Unit
         /** r13f (offers): the context offer chip — replace the earlier word with the offered one. */
         fun onContextOffer() = Unit
         /** r14 (PS4): a tema chip in the quick panel's row. */
@@ -193,7 +197,7 @@ class KeyboardView(context: Context) : View(context) {
         private set
 
     /** r10: the quick panel under ⚙ (UX-3), same overlay pattern. */
-    val quickPanel = QuickPanel(resources.displayMetrics.density, tx)
+    val quickPanel = QuickPanel(resources.displayMetrics.density, tx).apply { face = { w -> typeface(w) } }
     var quickOpen = false
         private set
     private var mode = Mode.NONE
@@ -232,10 +236,12 @@ class KeyboardView(context: Context) : View(context) {
         cancelPointers()
         hideClipboard(); hideEmoji(); hideEdit()
         this.mode = mode
-        if (!quickOpen) panelAt = SystemClock.uptimeMillis()
+        if (!quickOpen) { panelAt = SystemClock.uptimeMillis(); quickPanel.opened() }
         quickOpen = true
         layoutPanel()
         quickPanel.set(tiles, update, temas, tx.get(R.string.quick_personalize))
+        // r15 (QP6–QP10): what the layout chose and what the real font would cut (debuggable builds; the E2E reads it)
+        if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) quickPanel.logReport(TAG)
         invalidate(); a11y.invalidateRoot()
     }
 
@@ -345,6 +351,21 @@ class KeyboardView(context: Context) : View(context) {
         invalidate(); a11y.invalidateRoot()
     }
 
+    /**
+     * r15 (ER4): back from the emoji search: the panel as it was (tab, scroll, the recents' order it opened with); not a
+     * new open.
+     */
+    fun resumeEmoji() {
+        cancelPointers()
+        hideClipboard()
+        quickOpen = false
+        if (!emojiOpen) panelAt = SystemClock.uptimeMillis()
+        emojiOpen = true
+        layoutPanel()
+        emojiPanel.relayout()
+        invalidate(); a11y.invalidateRoot()
+    }
+
     /** r15 (ER3): the recents were wiped: the open row empties at once (a pick never reorders it while open, ER1). */
     fun wipeEmojiRecents() {
         emojiPanel.wipeRecents()
@@ -385,6 +406,55 @@ class KeyboardView(context: Context) : View(context) {
         layoutStrip(); invalidate(); a11y.invalidateRoot()
     }
 
+    // ── r15: the emoji search (ES): the bar is its box, a band above the bar holds the results ──
+    /** One result: what it draws and inserts (the user's tone) and its TalkBack name («🦅, águila»). */
+    class SearchResult(val emoji: String, val desc: String)
+    /** The query being typed, null = not searching (no band, nothing moves). */
+    private var esQuery: String? = null
+    private var esResults: List<SearchResult> = emptyList()
+    /** The band's line when it has no result: the hint, «preparing», or «no emoji for …». */
+    private var esStatus: String? = null
+    private var esScroll = 0f
+    /** The visible results: index in [esResults] → its cell (view coordinates, inside the band). */
+    private val esHits = ArrayList<Pair<Int, RectF>>()
+    /** ES11: the band's height; 0 when not searching, so every offset below is exactly the 0.14 arithmetic. */
+    private val bandH get() = if (esQuery != null) BAND_DP * dp else 0f
+
+    /** [query] null ends the search (the band goes, the keyboard is its usual height again). */
+    fun setEmojiSearch(query: String?, results: List<SearchResult>, status: String?) {
+        val was = esQuery != null
+        if (query == null) { esQuery = null; esResults = emptyList(); esStatus = null }
+        else {
+            if (query != esQuery || results.map { it.emoji } != esResults.map { it.emoji }) esScroll = 0f
+            esQuery = query; esResults = results; esStatus = status
+        }
+        if (was != (query != null)) { cancelPointers(); requestLayout() }
+        layoutStrip(); layoutBand(); invalidate(); a11y.invalidateRoot()
+    }
+
+    /** r15 (ES10): while searching, Enter shows (and inserts) the top match; null = its icon. */
+    private var enterGlyph: String? = null
+
+    fun setEnterGlyph(g: String?) {
+        if (g != enterGlyph) { enterGlyph = g; invalidate() }
+    }
+
+    private fun bandCell() = BAND_CELL_DP * dp
+    private fun bandMaxScroll() = max(0f, 2 * BAND_PAD_DP * dp + esResults.size * bandCell() - width)
+
+    private fun layoutBand() {
+        esHits.clear()
+        if (esQuery == null || width == 0) return
+        esScroll = esScroll.coerceIn(0f, bandMaxScroll())
+        val cell = bandCell()
+        for (i in esResults.indices) {
+            val l = BAND_PAD_DP * dp + i * cell - esScroll
+            if (l + cell <= 0f) continue
+            if (l >= width) break
+            esHits += i to RectF(l, 3 * dp, l + cell, bandH - 3 * dp)
+        }
+    }
+
     // ── geometry ─────────────────────────────────────────────────────────
     private val dp = resources.displayMetrics.density
     private class Box(val key: Key, val rect: RectF, val cellLeft: Float, val cellRight: Float, val row: Int) {
@@ -396,7 +466,7 @@ class KeyboardView(context: Context) : View(context) {
     private var rowH = 0f
     private val stripH get() = 42 * dp
 
-    private enum class StripKind { PASTE, SUGGESTION, OFFER, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY, GIF_BACK, GIF_FIELD, GIF_GO }
+    private enum class StripKind { PASTE, SUGGESTION, OFFER, SETTINGS, DAYNIGHT, UPDATE, UPDATE_X, NO_MEMORY, GIF_BACK, GIF_FIELD, GIF_GO, ES_BACK, ES_FIELD, ES_CLEAR }
     private class StripItem(val kind: StripKind, val text: String, val rect: RectF)
     private val stripItems = ArrayList<StripItem>()
 
@@ -495,6 +565,7 @@ class KeyboardView(context: Context) : View(context) {
         animScale = runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) }.getOrDefault(1f)
         motion = Motion.effective(s.motion, animScale)
         fontScale = resources.configuration.fontScale
+        quickPanel.fontScale = fontScale
         // r14: colours cross-fade when the keyboard is on screen and only they changed (a tema switch, day/night)
         val target = fadeTo ?: palette
         if (isShown && width > 0 && p != target && motion == Motion.FULL && !heightChanged) {
@@ -570,7 +641,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun layoutPanel() {
-        val h = if (height > 0) (height - paddingBottom).toFloat() else stripH + keysHeight() + 4 * dp
+        val h = if (height > 0) (height - paddingBottom - bandH) else stripH + keysHeight() + 4 * dp
         clipPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
         emojiPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
         quickPanel.setBounds(RectF(0f, 0f, width.toFloat(), h))
@@ -586,7 +657,7 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val content = (stripH + keysHeight() + 4 * dp).toInt()
+        val content = (stripH + keysHeight() + 4 * dp + bandH).toInt()
         setMeasuredDimension(w, NavInsets.totalHeight(content, paddingBottom))
     }
 
@@ -676,6 +747,7 @@ class KeyboardView(context: Context) : View(context) {
         // the double-reserve guard needs the laid-out position: re-check once we have one
         if (reserveNavBar && paddingBottom > 0) post { rootWindowInsets?.let { applyNavPadding(navPaddingFrom(it, it)) } }
         layoutKeys()
+        layoutBand()
         if (panelOpen) layoutPanel()
     }
 
@@ -722,6 +794,16 @@ class KeyboardView(context: Context) : View(context) {
         stripItems.clear()
         if (width == 0) return
         val h = stripH
+        esQuery?.let { q ->
+            // r15 (ES): ← · the search box · ✕ (when there is something to clear); nothing else while searching
+            val back = 48 * dp
+            val clear = if (q.isNotEmpty()) 48 * dp else 0f
+            stripItems += StripItem(StripKind.ES_BACK, "", RectF(0f, 0f, back, h))
+            if (clear > 0f) stripItems += StripItem(StripKind.ES_CLEAR, "", RectF(width - clear, 0f, width.toFloat(), h))
+            stripItems += StripItem(StripKind.ES_FIELD, q, RectF(back, 5 * dp, width - max(clear, 8 * dp), h - 5 * dp))
+            gearDot = false
+            return
+        }
         gifSearch?.let { q ->
             // r11b: ← · the query box · «Buscar»; nothing else (no suggestions, no chips) while typing a GIF search
             val back = 48 * dp
@@ -857,20 +939,30 @@ class KeyboardView(context: Context) : View(context) {
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
+            // r15 (ES11): the results band sits above the bar; below it every y is the bar's (bandH = 0 when not searching)
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val i = e.actionIndex
-                down(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
+                val y = e.getY(i)
+                if (esQuery != null && y < bandH) bandDown(e.getPointerId(i), e.getX(i))
+                else down(e.getPointerId(i), e.getX(i), y - bandH, e.eventTime)
             }
             MotionEvent.ACTION_MOVE -> {
                 // r13h (JG1): every sample counts (a batched MOVE carries the reports since the last frame)
                 for (h in 0 until e.historySize) {
-                    for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getHistoricalX(i, h), e.getHistoricalY(i, h), e.getHistoricalEventTime(h))
+                    for (i in 0 until e.pointerCount) {
+                        val id = e.getPointerId(i)
+                        if (id == bandPtr) bandMove(e.getHistoricalX(i, h)) else move(id, e.getHistoricalX(i, h), e.getHistoricalY(i, h) - bandH, e.getHistoricalEventTime(h))
+                    }
                 }
-                for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
+                for (i in 0 until e.pointerCount) {
+                    val id = e.getPointerId(i)
+                    if (id == bandPtr) bandMove(e.getX(i)) else move(id, e.getX(i), e.getY(i) - bandH, e.eventTime)
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val i = e.actionIndex
-                up(e.getPointerId(i), e.getX(i), e.getY(i), e.eventTime)
+                val id = e.getPointerId(i)
+                if (id == bandPtr) bandUp(e.getX(i)) else up(id, e.getX(i), e.getY(i) - bandH, e.eventTime)
             }
             MotionEvent.ACTION_CANCEL -> cancelPointers()
         }
@@ -966,7 +1058,8 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun move(id: Int, x: Float, y: Float, t: Long) {
-        if (id == quickPtr || id == editPtr) return
+        if (id == quickPtr) { quickMove(x, y); return }
+        if (id == editPtr) return
         if (id == emojiPtr) { emojiMove(x, y); return }
         if (id == panelPtr) { panelMove(y); return }
         landing[id]?.let { g ->
@@ -1095,25 +1188,84 @@ class KeyboardView(context: Context) : View(context) {
             StripKind.GIF_BACK -> listener?.onGifSearchBack()
             StripKind.GIF_GO -> listener?.onGifSearchGo()
             StripKind.GIF_FIELD -> Unit
+            StripKind.ES_BACK -> listener?.onEmojiSearchBack()
+            StripKind.ES_CLEAR -> listener?.onEmojiSearchClear()
+            StripKind.ES_FIELD -> Unit
         }
+    }
+
+    // ── r15: the results band: one finger, tap = insert, a sideways drag scrolls ──
+    private var bandPtr = -1
+    private var bandHit = -1
+    private var bandDownX = 0f
+    private var bandLastX = 0f
+    private var bandScrolling = false
+
+    private fun bandIndexAt(x: Float): Int = esHits.firstOrNull { x >= it.second.left && x < it.second.right }?.first ?: -1
+
+    private fun bandDown(id: Int, x: Float) {
+        if (bandPtr != -1) return
+        bandPtr = id
+        bandHit = bandIndexAt(x)
+        bandDownX = x; bandLastX = x
+        bandScrolling = false
+        invalidate()
+    }
+
+    private fun bandMove(x: Float) {
+        if (!bandScrolling && abs(x - bandDownX) > 10 * dp) { bandScrolling = true; bandHit = -1 }
+        if (bandScrolling) {
+            val s = (esScroll + bandLastX - x).coerceIn(0f, bandMaxScroll())
+            if (s != esScroll) { esScroll = s; layoutBand(); invalidate(); a11y.invalidateRoot() }
+        }
+        bandLastX = x
+    }
+
+    private fun bandUp(x: Float) {
+        val h = bandHit
+        val scrolled = bandScrolling
+        bandPtr = -1; bandHit = -1; bandScrolling = false
+        if (!scrolled && h >= 0 && bandIndexAt(x) == h) bandAct(h)
+        invalidate()
+    }
+
+    private fun bandAct(i: Int) {
+        val r = esResults.getOrNull(i) ?: return
+        listener?.onEmojiSearchPick(r.emoji)
     }
 
     // ── quick panel touch: one finger, tap = act ──────────────────────────
     private var quickPtr = -1
     private var quickHit: QuickPanel.Hit? = null
+    /** r15 (QP11): a touch that started on a tema row that scrolls, where it started, and whether it became a scroll. */
+    private var quickRow = false
+    private var quickDownX = 0f
+    private var quickLastX = 0f
+    private var quickScrolling = false
 
     private fun quickDown(id: Int, x: Float, y: Float) {
         if (quickPtr != -1) return
         quickPtr = id
         quickHit = quickPanel.hitAt(x, y)?.takeIf { it.enabled }
+        quickRow = quickPanel.scrollsAt(x, y)
+        quickDownX = x; quickLastX = x
+        quickScrolling = false
         invalidate()
+    }
+
+    private fun quickMove(x: Float, y: Float) {
+        if (quickRow && !quickScrolling && abs(x - quickDownX) > quickPanel.slop) { quickScrolling = true; quickHit = null; invalidate() }
+        if (quickScrolling && quickPanel.scrollBy(quickLastX - x)) { invalidate(); a11y.invalidateRoot() }
+        quickLastX = x
     }
 
     private fun quickUp(x: Float, y: Float) {
         quickPtr = -1
         val h = quickHit
         quickHit = null
-        if (h != null && quickPanel.hitAt(x, y) === h) quickAct(h)
+        val scrolled = quickScrolling
+        quickScrolling = false
+        if (!scrolled && h != null && quickPanel.hitAt(x, y) === h) quickAct(h)
         invalidate()
     }
 
@@ -1343,11 +1495,13 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun cancelPointers() {
+        bandPtr = -1; bandHit = -1; bandScrolling = false
         handler.removeCallbacksAndMessages(editToken)
         editPtr = -1
         editHit = null
         quickPtr = -1
         quickHit = null
+        quickScrolling = false
         handler.removeCallbacksAndMessages(panelToken)
         panelPtr = -1
         panelHit = null
@@ -1395,6 +1549,17 @@ class KeyboardView(context: Context) : View(context) {
             painter.reset()
         }
         canvas.drawColor(Drawn.surface(palette, Surface.BACKGROUND))
+        // r15 (ES11): the results band on top while searching; the bar and the keys below it, shifted by its height
+        val band = bandH
+        if (band > 0f) drawBand(canvas)
+        val shifted = canvas.save()
+        if (band > 0f) canvas.translate(0f, band)
+        drawBody(canvas, now)
+        canvas.restoreToCount(shifted)
+        if (animating) postInvalidateOnAnimation()
+    }
+
+    private fun drawBody(canvas: Canvas, now: Long) {
         if (panelOpen) {
             // r14: a panel rises 14 dp into place (≤ 160 ms); taps act at once
             val e = ease(grow(panelAt, now, 160))
@@ -1407,7 +1572,6 @@ class KeyboardView(context: Context) : View(context) {
                 editOpen -> editPanel.draw(canvas, palette, panelRadius(), ::typeface, editHit)
             }
             canvas.restore()
-            if (animating) postInvalidateOnAnimation()
             return
         }
         drawStrip(canvas, now)
@@ -1421,7 +1585,62 @@ class KeyboardView(context: Context) : View(context) {
             if (pop != null) drawVariants(canvas, p, pop, now)
             else if (settings.popups && !secretField && b.key.type == KeyType.CHAR && !p.cursorMode) drawPreview(canvas, p, b, now)
         }
-        if (animating) postInvalidateOnAnimation()
+    }
+
+    /**
+     * r15 (ES): the results band: the matches in a row that scrolls sideways (the first ringed: Enter inserts it), or one
+     * line (the hint, «preparing», «no emoji for …»). Emoji are colour glyphs; the line is muted text on the background.
+     */
+    private fun drawBand(c: Canvas) {
+        val t = palette.theme
+        fill.shader = null
+        val bh = bandH
+        if (esResults.isEmpty()) {
+            val line = esStatus ?: ""
+            text.textAlign = Paint.Align.LEFT
+            text.color = Drawn.ink(palette, Surface.BACKGROUND, Ink.MUTED)
+            text.textSize = 14 * dp * Legend.fontFactor(fontScale).coerceAtMost(1.3f)
+            text.typeface = typeface(500)
+            val x0 = 16 * dp
+            KeyIcons.draw(c, Icon.SEARCH, x0 + 8 * dp, bh / 2, 15 * dp, Drawn.ink(palette, Surface.BACKGROUND, Ink.MUTED), stroke, fill)
+            val shown = ellipsize(line, width - x0 - 40 * dp)
+            val fm = text.fontMetrics
+            c.drawText(shown, x0 + 26 * dp, bh / 2 - (fm.ascent + fm.descent) / 2, text)
+            text.textAlign = Paint.Align.CENTER
+        } else {
+            c.save()
+            c.clipRect(0f, 0f, width.toFloat(), bh)
+            val glyph = min(bandCell() * 0.58f, 28 * dp)
+            for ((i, r) in esHits) {
+                val pressed = i == bandHit && !bandScrolling
+                tmp.set(r.left + 3 * dp, r.top + 2 * dp, r.right - 3 * dp, r.bottom - 2 * dp)
+                if (pressed) {
+                    fill.color = Drawn.surface(palette, Surface.PRESSED)
+                    c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill)
+                }
+                if (i == 0) { // the one Enter inserts
+                    stroke.color = palette.accentGlow
+                    stroke.strokeWidth = 1.5f * dp
+                    c.drawRoundRect(tmp, panelRadius(), panelRadius(), stroke)
+                }
+                text.color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT)
+                text.textSize = glyph
+                text.typeface = Typeface.DEFAULT
+                drawCentered(c, esResults[i].emoji, r.centerX(), r.centerY())
+            }
+            c.restore()
+            // more to the side: a scroll track under the row
+            val ms = bandMaxScroll()
+            if (ms > 0f) {
+                val w = width.toFloat()
+                val len = max(24 * dp, w * w / (w + ms))
+                val x = (w - len) * (esScroll / ms)
+                fill.color = t.edgeHi
+                c.drawRoundRect(x, bh - 3 * dp, x + len, bh - 1.5f * dp, dp, dp, fill)
+            }
+        }
+        fill.color = t.edge
+        c.drawRect(0f, bh - 1, width.toFloat(), bh, fill)
     }
 
     /** 1 while held; after the release it fades out (≤ 110 ms) so the key reads as coming back up. */
@@ -1524,6 +1743,52 @@ class KeyboardView(context: Context) : View(context) {
                     text.textSize = 14 * dp
                     text.typeface = typeface(650)
                     drawCentered(c, s.text, tmp.centerX(), tmp.centerY())
+                }
+                StripKind.ES_BACK -> {
+                    val pressed = s in pressedStrip
+                    if (pressed) { fill.color = Drawn.surface(palette, Surface.PRESSED); tmp.set(r.left + 4 * dp, 6 * dp, r.right - 4 * dp, stripH - 6 * dp); c.drawRoundRect(tmp, panelRadius(), panelRadius(), fill) }
+                    KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp,
+                        if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT_MOD), stroke, fill)
+                }
+                StripKind.ES_CLEAR -> {
+                    val pressed = s in pressedStrip
+                    if (pressed) { fill.color = Drawn.surface(palette, Surface.PRESSED); c.drawCircle(r.centerX(), r.centerY(), 15 * dp, fill) }
+                    stroke.color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT_MOD)
+                    stroke.strokeWidth = 1.7f * dp
+                    stroke.strokeCap = Paint.Cap.ROUND
+                    val k = 5f * dp
+                    c.drawLine(r.centerX() - k, r.centerY() - k, r.centerX() + k, r.centerY() + k, stroke)
+                    c.drawLine(r.centerX() + k, r.centerY() - k, r.centerX() - k, r.centerY() + k, stroke)
+                    stroke.strokeCap = Paint.Cap.BUTT
+                }
+                StripKind.ES_FIELD -> {
+                    // r15 (ES): the box the keys type into (not the app's field): a magnifier, the query and its caret
+                    fill.color = Drawn.surface(palette, Surface.PLAIN)
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
+                    stroke.color = palette.accentGlow
+                    stroke.strokeWidth = 1 * dp
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, stroke)
+                    KeyIcons.draw(c, Icon.SEARCH, r.left + 18 * dp, r.centerY(), 15 * dp, Drawn.ink(palette, Surface.PLAIN, Ink.MUTED), stroke, fill)
+                    text.textAlign = Paint.Align.LEFT
+                    text.textSize = 15 * dp * Legend.fontFactor(fontScale).coerceAtMost(1.25f)
+                    val empty = s.text.isEmpty()
+                    text.color = if (empty) Drawn.ink(palette, Surface.PLAIN, Ink.MUTED) else Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
+                    text.typeface = typeface(if (empty) 450 else 550)
+                    val room = r.width() - 48 * dp
+                    // the end of a long query stays visible (the caret is there)
+                    var label = if (empty) tx.get(R.string.emoji_search_placeholder) else s.text
+                    if (!empty && text.measureText(label) > room) {
+                        var from = 0
+                        while (from < label.length - 1 && text.measureText("…" + label.substring(from)) > room) from++
+                        label = "…" + label.substring(from)
+                    } else if (empty) label = ellipsize(label, room)
+                    val fm = text.fontMetrics
+                    val x0 = r.left + 34 * dp
+                    c.drawText(label, x0, r.centerY() - (fm.ascent + fm.descent) / 2, text)
+                    val cx = (if (empty) x0 else x0 + text.measureText(label)) + 2 * dp
+                    fill.color = Drawn.ink(palette, Surface.PLAIN, Ink.ACCENT)
+                    c.drawRect(cx, r.centerY() - 9 * dp, cx + 1.5f * dp, r.centerY() + 9 * dp, fill)
+                    text.textAlign = Paint.Align.CENTER
                 }
                 StripKind.UPDATE_X -> Unit // drawn with its chip
                 StripKind.UPDATE -> drawUpdateChip(c, s, pressedStrip)
@@ -1809,7 +2074,14 @@ class KeyboardView(context: Context) : View(context) {
                 val color = if (shift == ShiftState.ONCE || shift == ShiftState.AUTO) Drawn.ink(palette, Surface.KEY_TOP, Drawn.SHIFT_ON) else ink
                 KeyIcons.draw(c, icon, cx, cy, iconSize(face.width()), color, stroke, fill)
             }
-            KeyType.ENTER -> KeyIcons.draw(c, enterIcon, cx, cy, iconSize(face.width()), ink, stroke, fill)
+            KeyType.ENTER -> {
+                val g = enterGlyph
+                if (g != null) { // r15 (ES10): the top match, inserted by Enter
+                    text.textSize = iconSize(face.width()) * 1.2f
+                    text.typeface = Typeface.DEFAULT
+                    drawCentered(c, g, cx, cy)
+                } else KeyIcons.draw(c, enterIcon, cx, cy, iconSize(face.width()), ink, stroke, fill)
+            }
             KeyType.BACKSPACE -> KeyIcons.draw(c, Icon.BACKSPACE, cx, cy, iconSize(face.width()), ink, stroke, fill)
             KeyType.EMOJI -> KeyIcons.draw(c, Icon.EMOJI, cx, cy, iconSize(face.width()), ink, stroke, fill)
             else -> {
@@ -1962,7 +2234,13 @@ class KeyboardView(context: Context) : View(context) {
         val handled = a11y.dispatchHoverEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT && accessibility?.isTouchExplorationEnabled == true) {
             val x = event.x
-            val y = event.y
+            val y0 = event.y
+            if (esQuery != null && y0 >= 0 && y0 < bandH) {
+                val i = bandIndexAt(x)
+                if (i >= 0) bandAct(i)
+                return true
+            }
+            val y = y0 - bandH
             if (x >= 0 && x < width && y >= 0 && y < height) {
                 if (clipboardOpen) { clipPanel.hitAt(x, y)?.let { panelAct(it) }; return true }
                 if (emojiOpen) { emojiPanel.hitAt(x, y)?.let { emojiAct(it) }; return true }
@@ -2017,8 +2295,16 @@ class KeyboardView(context: Context) : View(context) {
         private val quickBase = 40_000
         private val railBase = 50_000
         private val editBase = 60_000
+        /** r15 (ES12): the results band (its visible cells). */
+        private val bandBase = 70_000
 
-        override fun getVirtualViewAt(x: Float, y: Float): Int {
+        override fun getVirtualViewAt(x: Float, y0: Float): Int {
+            if (esQuery != null && y0 < bandH) {
+                if (esResults.isEmpty()) return if (esStatus != null) bandBase else INVALID_ID
+                val i = esHits.indexOfFirst { x >= it.second.left && x < it.second.right }
+                return if (i >= 0) bandBase + i else INVALID_ID
+            }
+            val y = y0 - bandH
             if (clipboardOpen) {
                 val h = clipPanel.hitAt(x, y) ?: return INVALID_ID
                 return panelBase + clipPanel.hits.indexOf(h)
@@ -2042,6 +2328,8 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun getVisibleVirtualViews(ids: MutableList<Int>) {
+            // r15 (ES12): the results, or the band's one line (hint, preparing, no result) as one node
+            if (esQuery != null) { if (esResults.isEmpty()) { if (esStatus != null) ids += bandBase } else for (i in esHits.indices) ids += bandBase + i }
             if (clipboardOpen) { for (i in clipPanel.hits.indices) ids += panelBase + i; return }
             if (emojiOpen) { for (i in emojiPanel.hits.indices) ids += emojiBase + i; return }
             if (quickOpen) { for (i in quickPanel.hits.indices) ids += quickBase + i; return }
@@ -2054,7 +2342,16 @@ class KeyboardView(context: Context) : View(context) {
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
             val r = RectF()
             val desc: String
-            if (id >= editBase) {
+            if (id >= bandBase) {
+                if (esResults.isEmpty()) {
+                    desc = esStatus ?: ""
+                    r.set(0f, 0f, width.toFloat(), bandH)
+                } else {
+                    val h = esHits.getOrNull(id - bandBase)
+                    desc = h?.let { esResults.getOrNull(it.first)?.desc } ?: ""
+                    h?.let { r.set(it.second) }
+                }
+            } else if (id >= editBase) {
                 val h = editPanel.hits.getOrNull(id - editBase)
                 desc = h?.desc ?: ""
                 h?.let { r.set(it.rect) }
@@ -2099,6 +2396,9 @@ class KeyboardView(context: Context) : View(context) {
                     StripKind.GIF_BACK -> tx.get(R.string.strip_gif_back)
                     StripKind.GIF_GO -> tx.get(R.string.strip_gif_search)
                     StripKind.GIF_FIELD -> tx.get(R.string.strip_gif_field, s.text.ifEmpty { tx.get(R.string.strip_gif_empty) })
+                    StripKind.ES_BACK -> tx.get(R.string.emoji_search_back)
+                    StripKind.ES_CLEAR -> tx.get(R.string.emoji_search_clear)
+                    StripKind.ES_FIELD -> tx.get(R.string.emoji_search_field, s.text.ifEmpty { tx.get(R.string.strip_gif_empty) })
                     null -> ""
                 }
                 s?.let { r.set(it.rect) }
@@ -2110,6 +2410,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (b?.key?.type == KeyType.SPACE) node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat(
                     AccessibilityNodeInfo.ACTION_LONG_CLICK, tx.get(R.string.key_switch_keyboard)))
             }
+            if (id < bandBase) r.offset(0f, bandH) // below the band: the bar's coordinates (bandH = 0 when not searching)
             node.contentDescription = desc
             node.className = "android.widget.Button"
             node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK)
@@ -2117,6 +2418,11 @@ class KeyboardView(context: Context) : View(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, args: Bundle?): Boolean {
+            if (id >= bandBase) {
+                if (action != AccessibilityNodeInfo.ACTION_CLICK) return false
+                val h = esHits.getOrNull(id - bandBase) ?: return false
+                bandAct(h.first); return true
+            }
             if (id >= editBase) {
                 val h = editPanel.hits.getOrNull(id - editBase) ?: return false
                 if (action != AccessibilityNodeInfo.ACTION_CLICK || !h.enabled) return false
@@ -2178,5 +2484,9 @@ class KeyboardView(context: Context) : View(context) {
         const val CHIP_X_W = 48f
         /** Text → ✕ divider breathing room (dp). */
         const val CHIP_TEXT_END = 10f
+        /** r15 (ES11): the emoji search's results band: its height, a result's cell, the row's side padding (dp). */
+        const val BAND_DP = 54f
+        const val BAND_CELL_DP = 50f
+        const val BAND_PAD_DP = 6f
     }
 }

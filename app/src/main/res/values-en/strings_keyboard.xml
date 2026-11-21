@@ -76,4 +76,18 @@
     <string name="gif_search_desc">Search KLIPY: %1$s. Tap to change the search</string>
     <string name="gif_retry">Try again</string>
     <string name="gif_item_desc">GIF: %1$s</string>
+    <!-- r15 (ES): emoji search (the query stays in the keyboard: never sent, never learned) -->
+    <string name="emoji_search_pill">Search emoji</string>
+    <string name="emoji_search_desc">Search an emoji by name, in Spanish or English</string>
+    <string name="emoji_search_placeholder">Emoji name</string>
+    <string name="emoji_search_hint">Type its name, in English or Spanish: “eagle”, “hawk”…</string>
+    <string name="emoji_search_none">No emoji for “%1$s”</string>
+    <string name="emoji_search_loading">Getting the search ready…</string>
+    <string name="emoji_search_result">%1$s, %2$s</string>
+    <string name="emoji_search_first">%1$s, %2$s. Enter inserts it</string>
+    <string name="emoji_search_field">Emoji search: %1$s</string>
+    <string name="emoji_search_back">Back to the emoji</string>
+    <string name="emoji_search_clear">Clear the search</string>
+    <string name="emoji_search_enter">Insert %1$s</string>
+    <string name="say_emoji_search">Emoji search. Type the name; nothing leaves the phone</string>
 </resources>

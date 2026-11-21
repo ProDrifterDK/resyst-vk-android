@@ -41,6 +41,7 @@ import com.resyst.vk.core.EditOp
 import com.resyst.vk.core.Edits
 import com.resyst.vk.core.EmojiCatalog
 import com.resyst.vk.core.EmojiRecents
+import com.resyst.vk.core.EmojiSearch
 import com.resyst.vk.core.EmojiTones
 import com.resyst.vk.core.Lang
 import com.resyst.vk.core.TextEdit
@@ -125,7 +126,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** Learns the user's word pairs; the write gate ([pairsWrite]) is re-read on every call. */
     private val pairLearner = com.resyst.vk.core.PairLearner { pairsWrite() }
     /** WRITE: never secret / incognito / opted-out fields, the switches on, not the GIF box. */
-    private fun pairsWrite() = PersonalStore.pairs?.takeIf { policy.pairWrite(s) && !gifSearching }
+    private fun pairsWrite() = PersonalStore.pairs?.takeIf { policy.pairWrite(s) && !privateBox }
     /** READ (the offer decision): also in opted-out prose fields. */
     private fun pairsRead() = PersonalStore.pairs?.takeIf { policy.pairRead(s) }
     private var pairWordsCache: Pair<ContextLexicon, com.resyst.vk.core.PairLearner.Words>? = null
@@ -416,6 +417,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         learner.reset()
         touchTrail.reset()
         endGifSearch(rebuild = false)
+        endEmojiSearch(toPanel = false) // r15 (ES2): a new field starts with an empty search box, off
         view?.hideClipboard()
         view?.hideEmoji()
         view?.hideQuick()
@@ -474,6 +476,8 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onFinishInputView(finishingInput: Boolean) {
         rememberValue()
         endGifSearch(rebuild = false)
+        endEmojiSearch(toPanel = false) // r15 (ES10): hiding the keyboard ends the search …
+        EmojiSearchAsset.release() // … and drops the index (ES8)
         view?.hideClipboard()
         view?.hideEmoji()
         resetGif() // r11b (GO4, GM1): in-flight loads cancelled, thumbnails released
@@ -543,7 +547,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         v.setSwitchAvailable(customSwitcherRequested || canSwitch())
         v.setDayNight(if (st.dayNightChip) Themes.byId(st.theme).dark else null)
         // r11b: the GIF search box types on the plain letters (an email / URL field's layout would not fit a query)
-        val spec = LayoutSpec(st.lang, st.effectiveTopRow, if (gifSearching) FieldKind.TEXT else fieldKind, emojiKey = st.emojiKey && !policy.secret)
+        val spec = LayoutSpec(st.lang, st.effectiveTopRow, if (privateBox) FieldKind.TEXT else fieldKind, emojiKey = st.emojiKey && !policy.secret)
         val rows = KeyboardLayouts.rows(engine.layer, spec)
         // Height is anchored to the letters layer so switching layers never jumps.
         val base = if (engine.layer == Layer.NUMPAD) 4 else st.baseRowCount
@@ -577,6 +581,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val near = pendingNear
         pendingNear = ""
         if (gifSearching) { onGifKey(key); return } // r11b (GQ1): the GIF box owns the keys
+        if (emojiSearching) { onEmojiSearchKey(key); return } // r15 (ES1): so does the emoji search box, before the field is read
         val ic = currentInputConnection ?: return
         val t0 = if (timing) SystemClock.elapsedRealtimeNanos() else 0L
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
@@ -701,6 +706,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onVariant(text: String) {
         if (gifSearching) { if (gifQuery.type(text)) view?.setGifSearch(gifQuery.text); return }
+        if (emojiSearching) { if (emojiQuery.type(text)) refreshEmojiSearch(); return } // r15 (ES1)
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(WINDOW, 0) ?: ""
         // r13c (EP1): a closing variant (… ! ?) ends the word before it like the key would
@@ -755,7 +761,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     }
 
     override fun onCursorDrag(steps: Int) {
-        if (gifSearching || currentInputConnection == null) return // the caret of the app's field never moves for the GIF box
+        if (privateBox || currentInputConnection == null) return // the caret of the app's field never moves for a search box
         engine.endProvisional() // r12 (PS4): the space-drag cursor ends a pick's provisional space
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(kotlin.math.abs(steps)) { sendDownUpKeyEvents(code) }
@@ -897,6 +903,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     /** r10 (UX-6): the leftward swipe on ⌫ deletes the previous word (one char in secret fields, W4). */
     override fun onDeleteWord() {
         if (gifSearching) { while (gifQuery.text.isNotEmpty() && gifQuery.text.last() == ' ') gifQuery.backspace(); while (gifQuery.text.isNotEmpty() && gifQuery.text.last() != ' ') gifQuery.backspace(); view?.setGifSearch(gifQuery.text); return }
+        if (emojiSearching) { while (emojiQuery.text.isNotEmpty() && emojiQuery.text.last() == ' ') emojiQuery.backspace(); while (emojiQuery.text.isNotEmpty() && emojiQuery.text.last() != ' ') emojiQuery.backspace(); refreshEmojiSearch(); return }
         editAction(EditOp.DELETE_WORD)
     }
 
@@ -1186,6 +1193,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
 
     override fun onEmojiKey() {
         if (gifSearching) { onGifSearchBack(); return }
+        if (emojiSearching) { onEmojiSearchBack(); return } // r15 (ES10): the emoji key goes back to the panel
         if (policy.secret) return
         engine.endProvisional() // r12 (PS4): opening a panel ends a pick's provisional space
         emojiRecents = null // re-read: "Borrar lo aprendido" may have wiped files/personal/
@@ -1225,8 +1233,137 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             EmojiPanel.Act.SPACE -> { ic.commitText(" ", 1); feedback(null) }
             EmojiPanel.Act.DELETE -> { backspace(ic); feedback(null) }
             EmojiPanel.Act.ABC -> view?.hideEmoji()
+            EmojiPanel.Act.SEARCH -> startEmojiSearch()
             EmojiPanel.Act.TAB, EmojiPanel.Act.TONE, EmojiPanel.Act.CLOSE_TONES, EmojiPanel.Act.GIF -> Unit
         }
+    }
+
+    // ── r15: emoji search (docs/failure-modes.md ES1–ES14) ──────────────
+    /** What the user types in the emoji search box: never the app's field, never learned, never logged, never sent (ES1). */
+    private val emojiQuery = GifQuery()
+    /** The keys type into [emojiQuery] (the bar shows the search box, the band above it the results). */
+    private var emojiSearching = false
+    private var emojiIndex: EmojiSearch? = null
+    private var emojiIndexFailed = false
+    /** The recents' order when the search opened (ES6: first within a tier). */
+    private var emojiRanks: IntArray? = null
+    private var emojiUndrawable: Set<String> = emptySet()
+    /** What Enter inserts: the top result (ES10). */
+    private var emojiFirst: String? = null
+
+    /** A private search box owns the keys (GIF or emoji): nothing reaches the field, the corrector or the memory. */
+    private val privateBox get() = gifSearching || emojiSearching
+
+    private fun startEmojiSearch() {
+        val v = view ?: return
+        if (policy.secret || gifSearching) return // ES2: the panel's own rule (it never opens in a secret field)
+        emojiSearching = true
+        emojiQuery.clear()
+        emojiFirst = null
+        v.hideEmoji() // its tab, scroll and recents snapshot stay for the way back (ER4)
+        engine.setLayer(Layer.LETTERS)
+        engine.updateAutoCap(false) // the field's auto-capital never applies to the search
+        rebuildLayout()
+        v.setShift(engine.shift)
+        val catalog = emojiCatalog()
+        emojiUndrawable = v.emojiPanel.undrawable()
+        emojiIndexFailed = false
+        emojiIndex = EmojiSearchAsset.ready(catalog, tx.lang)
+        emojiRanks = emojiIndex?.recentRanks(recents().items(), catalog)
+        refreshEmojiSearch()
+        if (emojiIndex == null) EmojiSearchAsset.load(this, catalog, tx.lang) { idx ->
+            if (!emojiSearching) return@load
+            emojiIndex = idx
+            emojiIndexFailed = idx == null
+            emojiRanks = idx?.recentRanks(recents().items(), catalog)
+            refreshEmojiSearch()
+        }
+        v.announceForAccessibility(tx.get(R.string.say_emoji_search))
+    }
+
+    /** The results for what is in the box (ES6, ES7); the debug log carries lengths and times, never the text (ES1, ES9). */
+    private fun refreshEmojiSearch() {
+        val v = view ?: return
+        if (!emojiSearching) return
+        val q = emojiQuery.text
+        val idx = emojiIndex
+        val t0 = SystemClock.elapsedRealtimeNanos()
+        val ids = idx?.search(q, emojiRanks) ?: IntArray(0)
+        val t1 = SystemClock.elapsedRealtimeNanos()
+        val out = ArrayList<KeyboardView.SearchResult>(ids.size)
+        if (idx != null) for (id in ids) {
+            val cell = idx.cell(id)
+            if (cell.base in emojiUndrawable) continue
+            val e = v.emojiPanel.shownFor(cell)
+            val name = idx.name(id)
+            out += KeyboardView.SearchResult(e, tx.get(if (out.isEmpty()) R.string.emoji_search_first else R.string.emoji_search_result, e, name))
+        }
+        val t2 = SystemClock.elapsedRealtimeNanos()
+        emojiFirst = out.firstOrNull()?.emoji
+        val status = when {
+            EmojiSearch.words(q).isEmpty() -> tx.get(R.string.emoji_search_hint)
+            idx == null && !emojiIndexFailed -> tx.get(R.string.emoji_search_loading)
+            out.isEmpty() -> tx.get(R.string.emoji_search_none, q.trim())
+            else -> null
+        }
+        v.setEmojiSearch(q, out, status)
+        val first = emojiFirst
+        if (first != null) { v.setEnter(Icon.ENTER, tx.get(R.string.emoji_search_enter, first)); v.setEnterGlyph(first) }
+        else { v.setEnterGlyph(null); v.setEnter(Icon.EMOJI, tx.get(R.string.emoji_search_back)) }
+        if (timing) Log.i(TAG, "emoji-search: len=${q.codePointCount(0, q.length)} results=${out.size} lookup_us=${(t1 - t0) / 1000} total_us=${(t2 - t0) / 1000}")
+    }
+
+    /** A key while the emoji search is open: into the private box, nowhere else (ES1). */
+    private fun onEmojiSearchKey(key: Key) {
+        when (key.type) {
+            KeyType.CHAR -> {
+                val t = (engine.variant(key.text).firstOrNull() as? Out.Commit)?.text ?: key.text // shift applied, nothing committed
+                emojiQuery.type(t)
+            }
+            KeyType.SPACE -> emojiQuery.type(" ")
+            KeyType.BACKSPACE -> emojiQuery.backspace()
+            KeyType.ENTER -> { feedback(null); emojiFirst?.let { onEmojiSearchPick(it) } ?: onEmojiSearchBack(); return }
+            KeyType.LAYER -> { engine.setLayer(key.target ?: Layer.LETTERS); rebuildLayout() }
+            KeyType.EMOJI -> { onEmojiSearchBack(); return }
+            KeyType.SHIFT, KeyType.SPACER -> Unit
+        }
+        view?.setShift(engine.shift)
+        refreshEmojiSearch()
+    }
+
+    /** A result (or Enter): the emoji goes into the app's field like a tap in the panel; the search stays open for more. */
+    override fun onEmojiSearchPick(emoji: String) {
+        if (!emojiSearching) return
+        onEmojiPanel(EmojiPanel.Act.EMOJI, emoji)
+    }
+
+    override fun onEmojiSearchClear() {
+        feedback(null)
+        emojiQuery.clear()
+        refreshEmojiSearch()
+    }
+
+    /** ← or the emoji key: back to the panel as it was (ER4, ES10). */
+    override fun onEmojiSearchBack() {
+        feedback(null)
+        endEmojiSearch(toPanel = true)
+    }
+
+    private fun endEmojiSearch(toPanel: Boolean) {
+        if (!emojiSearching) return
+        emojiSearching = false
+        emojiQuery.clear()
+        emojiFirst = null
+        emojiRanks = null
+        emojiIndex = null
+        emojiUndrawable = emptySet()
+        view?.setEmojiSearch(null, emptyList(), null)
+        view?.setEnterGlyph(null)
+        view?.setEnter(fieldEnter.first, fieldEnter.second)
+        engine.setLayer(Layer.LETTERS)
+        rebuildLayout()
+        refreshContext()
+        if (toPanel) view?.resumeEmoji()
     }
 
     // ── r11b: opt-in GIF search (KLIPY) ─────────────────────────────────
@@ -1601,7 +1738,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private fun offersAllowed(): Boolean {
         val st = s
         return st.suggest && st.contextOffers && policy.suggestions && !policy.secret && !policy.incognito &&
-            fieldKind == FieldKind.TEXT && !gifSearching && !barShowsValues && writeLang == Lang.ES
+            fieldKind == FieldKind.TEXT && !privateBox && !barShowsValues && writeLang == Lang.ES
     }
 
     /** HP5: after a word end the key path only posts this; the read and the decision happen later, off the key. */
