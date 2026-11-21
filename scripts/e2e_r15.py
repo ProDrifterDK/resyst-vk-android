@@ -603,7 +603,10 @@ def section_u(before_apk, apk):
     r14.type_seq('hola ', None)
     ver0 = re.search(r'versionName=(\S+)', sh(f'dumpsys package {PKG}')).group(1)
     shot('U-0140-keyboard', f'{ver0} with a customised store, recents and a typed word')
-    files0 = r14.run_as('cd files && find . -type f | sort | xargs md5sum 2>/dev/null')
+    # the user's files; files/profileInstalled is AndroidX ProfileInstaller's marker of the installed APK (its version and
+    # time), rewritten by every update by design, not user data
+    user_files = "cd files && find . -type f ! -name profileInstalled | sort | xargs md5sum 2>/dev/null"
+    files0 = r14.run_as(user_files)
     p0 = r14.run_as(f'cat {r14.PROFILES}')
     rec0 = stored_recents()
     e2e.adb('install', '-r', apk)  # in place: data kept
@@ -620,9 +623,10 @@ def section_u(before_apk, apk):
     check('U', f'{ver0} → {ver1}: every stored setting keeps its value', bool(m0) and not lost and ver0.startswith('0.14.0') and ver1.startswith('0.15.0'),
           f'{len(m0)} keys before, {len(m1)} after, changed/lost: {lost}')
     check('U', 'the emoji recents survive the update in order', stored_recents() == rec0 == RECENTS, stored_recents())
-    files1 = r14.run_as('cd files && find . -type f | sort | xargs md5sum 2>/dev/null')
+    files1 = r14.run_as(user_files)
     same = [l for l in files0.splitlines() if l in files1.splitlines()]
-    check('U', 'the personal files survive the update', len(same) == len(files0.splitlines()) > 0, f'{len(same)}/{len(files0.splitlines())} files identical')
+    check('U', 'the user\'s files survive the update byte for byte (learned words, values, recents, clipboard)', len(same) == len(files0.splitlines()) > 0,
+          f'{len(same)}/{len(files0.splitlines())} identical: ' + ', '.join(l.split()[-1] for l in files0.splitlines()))
     metrics.setdefault('U', {})['versions'] = [ver0, ver1]
 
 
