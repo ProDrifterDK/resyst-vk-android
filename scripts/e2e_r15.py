@@ -592,6 +592,7 @@ def prefs_map(xml):
 def section_u(before_apk, apk):
     e2e.adb('install', '-r', '-d', before_apk)
     sh(f'pm clear {PKG}', check=False)
+    sh(f'cmd locale set-app-locales {PKG} --locales {LANG}', check=False)  # the clear may take the per-app language with it
     e2e.ensure_ime()
     r14.night(True)
     font('1.0')
