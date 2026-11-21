@@ -573,7 +573,9 @@ def section_k():
 
 
 def news_off():
-    write_prefs_file('resyst_vk_news', {'seen': '0.14.1-debug'})
+    # the installed build's own version: the «Novedades» chip stays away whatever version this runs on (r15: 0.15.0)
+    m = re.search(r'versionName=(\S+)', sh(f'dumpsys package {PKG}', check=False))
+    write_prefs_file('resyst_vk_news', {'seen': m.group(1) if m else '0.14.1-debug'})
 
 
 # ── large font ───────────────────────────────────────────────────────────────────────────────
