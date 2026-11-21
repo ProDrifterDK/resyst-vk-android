@@ -45,9 +45,15 @@ class MiniKeyboardView(context: Context, private var palette: Palette, shape: Ke
         val rowH = (h - 2 * pad) / rows
         val unit = (w - 2 * pad) / 10f
         val g = 1.2f * dp
+        val dot = min(rowH, unit) * 0.11f
         fun k(x: Float, row: Int, units: Float, kind: KeyPainter.Kind) {
             key.set(pad + x * unit + g / 2, pad + row * rowH + g / 2, pad + (x + units) * unit - g / 2, pad + (row + 1) * rowH - g / 2)
             painter.body(c, key, row, kind, palette, 0f, face)
+            // a legend in miniature: one dot in the key's ink, so even a borderless keyboard reads as keys
+            if (kind == KeyPainter.Kind.NORMAL || kind == KeyPainter.Kind.MOD) {
+                fill.color = if (kind == KeyPainter.Kind.MOD) t.textMod else t.text
+                c.drawCircle(face.centerX(), face.centerY(), dot, fill)
+            }
         }
         for (i in 0 until 10) k(i.toFloat(), 0, 1f, KeyPainter.Kind.NORMAL)
         for (i in 0 until 9) k(0.5f + i, 1, 1f, KeyPainter.Kind.NORMAL)

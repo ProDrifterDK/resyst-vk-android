@@ -32,7 +32,7 @@
     <!-- r14 (0.14.0): English for the visual overhaul and personalisation. -->
     <string name="quick_title">✦ QUICK SETTINGS</string>
     <string name="quick_back">Keyboard</string>
-    <string name="quick_personalize">Customise</string>
+    <string name="quick_personalize">Customize</string>
     <string name="quick_tema_desc">Theme %1$s</string>
     <string name="quick_tema_active">, in use</string>
     <string name="follow_system_title">Follow the system\'s dark mode</string>
@@ -78,12 +78,12 @@
     <string name="colors_light">Light</string>
     <string name="colors_system">Your wallpaper</string>
     <string name="colors_system_off">Needs Android 12 or later</string>
-    <string name="palette_desc">Colours %1$s</string>
-    <string name="accent_more">More colours</string>
+    <string name="palette_desc">Colors %1$s</string>
+    <string name="accent_more">More colors</string>
     <string name="accent_theme">Theme\'s own</string>
-    <string name="accent_hint">Any colour adjusts itself to read well on the keyboard.</string>
+    <string name="accent_hint">Any color adjusts itself to read well on the keyboard.</string>
     <string name="tint_title">Tint</string>
-    <string name="tint_summary">Brings the accent\'s colour into the keys and the background</string>
+    <string name="tint_summary">Brings the accent\'s color into the keys and the background</string>
     <string name="tint_none">None</string>
     <string name="tint_soft">Soft</string>
     <string name="tint_strong">Strong</string>
@@ -130,12 +130,12 @@
     <string name="motion_subtle">Subtle</string>
     <string name="motion_off">None</string>
     <string name="group_styles">Styles</string>
-    <string name="group_colors">Colours</string>
+    <string name="group_colors">Colors</string>
     <string name="group_keys">Keys</string>
     <string name="group_type">Letters</string>
     <string name="group_details">Details</string>
     <string name="home_your_keyboard">Your keyboard</string>
-    <string name="home_customize">Customise appearance</string>
+    <string name="home_customize">Customize appearance</string>
     <string name="home_customize_desc">Open the theme\'s Appearance</string>
     <string name="setup_step3">Make it yours: pick a style below</string>
     <string name="know_dash_title">What I keep about you, in numbers</string>

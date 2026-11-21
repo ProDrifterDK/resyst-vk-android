@@ -1287,7 +1287,6 @@ class SettingsActivity : Activity() {
 
     /** The palettes as miniature keyboards in a 3-column grid: dark, light, then the wallpaper's (Android 12+). */
     private fun paletteGrid(s: KbSettings) {
-        into.addView(label(getString(R.string.group_colors), 14f, t.textMod, 550), lp(top = 6f, bottom = 4f))
         val look = store.activeTema.look
         fun group(title: String, list: List<com.resyst.vk.core.Theme>, enabled: Boolean = true, note: String? = null) {
             into.addView(label(title, 12f, t.muted, 600), lp(top = 8f, bottom = 4f))
@@ -1401,7 +1400,7 @@ class SettingsActivity : Activity() {
             }
             cardV.addView(MiniKeyboardView(this, paletteOf(look), look.shape, look.cap), LinearLayout.LayoutParams(px(132f), px(70f)))
             cardV.addView(label("${st.icon}  $name", 14f, t.text, 650).apply { maxLines = 1 }, lp(top = 6f))
-            cardV.addView(label(styleLine(st.id), 11f, t.muted).apply { maxLines = 2 }, LinearLayout.LayoutParams(px(132f), ViewGroup.LayoutParams.WRAP_CONTENT))
+            cardV.addView(label(styleLine(st.id), 12f, t.textMod).apply { maxLines = 2 }, LinearLayout.LayoutParams(px(132f), ViewGroup.LayoutParams.WRAP_CONTENT))
             row.addView(cardV, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = px(8f) })
         }
         into.addView(bleedRow(row), bleedLp(bottom = 6f))
