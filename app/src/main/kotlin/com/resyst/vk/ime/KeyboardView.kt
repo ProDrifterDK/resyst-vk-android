@@ -407,8 +407,16 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     // ── r15: the emoji search (ES): the bar is its box, a band above the bar holds the results ──
-    /** One result: what it draws and inserts (the user's tone) and its TalkBack name («🦅, águila»). */
-    class SearchResult(val emoji: String, val desc: String)
+    /**
+     * One result: what it draws and inserts (the user's tone) and its CLDR name in the interface language; the TalkBack
+     * name («🦅, águila») is formatted only when TalkBack asks (ES9: nothing per result per keystroke).
+     */
+    class SearchResult(val emoji: String, val name: String)
+
+    private fun resultDesc(i: Int): String {
+        val r = esResults.getOrNull(i) ?: return ""
+        return tx.get(if (i == 0) R.string.emoji_search_first else R.string.emoji_search_result, r.emoji, r.name)
+    }
     /** The query being typed, null = not searching (no band, nothing moves). */
     private var esQuery: String? = null
     private var esResults: List<SearchResult> = emptyList()
@@ -2357,7 +2365,7 @@ class KeyboardView(context: Context) : View(context) {
                     r.set(0f, 0f, width.toFloat(), bandH)
                 } else {
                     val h = esHits.getOrNull(id - bandBase)
-                    desc = h?.let { esResults.getOrNull(it.first)?.desc } ?: ""
+                    desc = h?.let { resultDesc(it.first) } ?: ""
                     h?.let { r.set(it.second) }
                 }
             } else if (id >= editBase) {

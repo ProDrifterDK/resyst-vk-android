@@ -1294,9 +1294,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         if (idx != null) for (id in ids) {
             val cell = idx.cell(id)
             if (cell.base in emojiUndrawable) continue
-            val e = v.emojiPanel.shownFor(cell)
-            val name = idx.name(id)
-            out += KeyboardView.SearchResult(e, tx.get(if (out.isEmpty()) R.string.emoji_search_first else R.string.emoji_search_result, e, name))
+            out += KeyboardView.SearchResult(v.emojiPanel.shownFor(cell), idx.name(id))
         }
         val t2 = SystemClock.elapsedRealtimeNanos()
         emojiFirst = out.firstOrNull()?.emoji
