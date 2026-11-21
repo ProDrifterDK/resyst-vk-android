@@ -1855,3 +1855,102 @@ Found in review (after the code; written here before the fixes):
 
 ### Version
 - VR6 0.13.0 / versionCode 16 are the build defaults; docs/novedades-0.13.0.md is the site text (plain language).
+
+## Round 14 — the visual overhaul and deeper personalisation (0.14.0)
+
+The corrector, the context offers and the pair memory are frozen and measured; 0.14.0 changes how Resyst VK looks,
+moves and feels, and how much of that a person can shape. An audit of 0.13.0 on the Pixel 6 (renders of every palette
+in light and dark system mode, every key state and panel) found: the variants popup grows rightwards from the key and
+covers the accent row; the pressed state is a faint outline; letters and modifiers mix gradients and flat fills; the
+bar's chip text misses WCAG AA on the light palettes (Papiro: chip text 3.52:1, pressed chip 2.83:1, first suggestion
+on the bar 4.05:1, accent-row legends 4.23:1; Sepia: chip text 3.92:1, pressed 3.06:1); the keyboard ignores the
+system's dark mode and its font scale; choosing colours is a list of names (no swatch); a tema cannot be created; and
+the drawing code allocates a `LinearGradient` per key per frame.
+
+Written before the code; each item names what a JVM test, a source guard or the device run must catch.
+
+### VO — what the keyboard types must not move
+- VO1 A visual change moves a touch target. The hit grid is what the engine reads: row height (`keysHeight` /
+  rows), the 3 dp side padding, each key's unit width, the 42 dp strip, the cells `boxAt` and `nearKeys` use, and
+  `Box.rect` (the TalkBack bounds the E2E taps the centre of; r13d taps a corner of it). Rule: all of these are
+  computed exactly as in 0.13.0 for every setting a 0.13.0 user can hold; a new shape, cap or legend style paints
+  inside `Box.rect` and never changes it; `KeyboardLayouts`, `PopupGeometry`, `OneHand.split`, `TouchKeys` and the
+  long-press slide mapping are untouched. JVM: a geometry snapshot (every layer × top row × field × emoji key ×
+  language: key types, labels, widths) equals the 0.13.0 one; the full suite (every replay table, every offer
+  number) is unchanged without editing a single existing test. Device: the r13h and r13i rows pass on 0.14.0.
+- VO1b The key names TalkBack reads are the E2E contract ("Borrar", "Espacio", "Mayúsculas", "Ajustes de Resyst
+  VK", "Sugerencia: …"): they stay byte-identical. New UI gets new names; none of the old ones is renamed.
+
+### LG — legibility of everything a person can build
+- LG1 A palette, accent, tint, cap or high-contrast combination yields text under WCAG AA. Rule: one legibility gate
+  (`Legibility`, pure core) builds every drawn colour pair from the palette and corrects it before drawing: legends ≥
+  7:1 on their key (AAA), modifier legends ≥ 4.5:1, accent text ≥ 4.5:1 on every surface it is drawn on (key, the
+  accent row's key, the bar, the chip at rest and pressed, popups), the Enter/accent key's ink ≥ 4.5:1 (pure white or
+  black always reaches 4.58:1), sub-legends and the space label ≥ 4.5:1, borderless legends ≥ 7:1 on the keyboard's
+  background. JVM: every palette × every curated accent × a 36-hue sweep at three lightnesses × every tint × every
+  cap × light/dark twin × high-contrast on/off passes every pair; the 0.13.0 failures above are named and pass.
+- LG2 A user-tinted palette (the accent's hue mixed into the surfaces) drifts the text. Rule: the tint is applied
+  before the gate; the gate fixes text, not the tint (the surfaces keep the hue the user chose).
+- LG3 System dynamic colours (Android 12+ "Tu fondo") arrive with any contrast. Rule: they seed a palette that goes
+  through the same gate; below Android 12, or if the resources are missing, a fixed neutral palette stands in (no
+  crash, no blank keys).
+- LG4 Large text overflows the keys. Rule: legends follow the system font scale and the user's size (×0.85–1.3), but
+  a legend never exceeds 62 % of its key's height nor its width minus 8 dp; at 2.0 the keys still read. JVM: the
+  size function at font scale 2.0 × size 1.3 × the smallest key (landscape, height 0.8, tight density) fits.
+- LG5 High contrast. Rule: Android's "High contrast text" (or the "Alto contraste" palette) draws 1 dp key outlines
+  at ≥ 3:1 against the keyboard, legends at 21:1 or the gate's maximum, no translucent fills. JVM: the transform's
+  pairs; device: the setting on, a screenshot.
+
+### FS — following the system's dark mode
+- FS1 Upgrading users' keyboards change colour on their own. Rule: "Seguir el modo oscuro del sistema" is stored
+  device-wide (`daynight.auto`); a store written by 0.13.0 or older (any non-empty store without the key) reads OFF;
+  only a fresh install (an empty store) starts ON. JVM: decode of a real 0.13.0 store → off, every look field as
+  stored; decode of an empty store → on.
+- FS2 Following fights a manual choice. Rule: the effective palette is the tema's own when its brightness matches the
+  system, else its day/night partner (the remembered one, else the twin). A tap on Día / noche (quick panel or
+  Settings) while following turns following off and shows the opposite of what is on screen: the explicit choice
+  wins, and the tile says "Auto" while following. JVM for every palette; device: `cmd uimode night yes/no`.
+- FS3 The palette changes mid-word with the keyboard up. Rule: it is resolved when the keyboard is shown and on a
+  configuration change (the system's own moment to re-skin); never during a touch (pointers are cancelled first).
+
+### MO — motion
+- MO1 Animation costs frames while typing fast. Rule: motion is time-based inside `onDraw` (no Animator per press, no
+  allocation per frame), `postInvalidateOnAnimation` only while something moves, every effect ≤ 180 ms, none delays
+  input (a tap during a fade acts at once). Budgets on the Pixel 6, same text typed through the drawn keys: frame
+  p90 and janky % not worse than 0.13.0 beyond run-to-run noise; keytime unchanged.
+- MO2 Reduced motion ignored. Rule: "Animaciones: Completas / Sutiles / Ninguna"; Android's "Quitar animaciones"
+  (animator scale 0) forces Ninguna. JVM: the effective level; device: scale 0 → no animation frames after a press.
+- MO3 Popups move under the finger. Rule: the variants popup and the preview grow from the key in place; their cells
+  (PopupGeometry) and the selection mapping are 0.13.0's.
+
+### PE — performance and memory (the IME lives for days)
+- PE1 Allocation in the drawing loop (0.13.0: a `LinearGradient` per key per frame, a `HashSet` and a `mapNotNull`
+  set per frame). Rule: shaders are cached per (palette, key height), collections are reused. Source guard: no
+  `LinearGradient(` / `HashSet<` / `.toSet()` inside the drawing functions of `KeyboardView`.
+- PE2 Heap growth: palettes, fonts and caches. Rule: no bitmap caches of the keyboard; bundled fonts are subset to the
+  characters the layouts, variants and the bar use; a Typeface is cached per (font, weight); heap after typing and a
+  panel cycle within +1 MB of 0.13.0 (dumpsys meminfo after a forced GC); APK growth justified per file.
+
+### HS — haptics and sound
+- HS1 Haptics are one pulse for everything while sounds have four kinds. Rule: "Por tecla" (default) gives keys a
+  click, space a softer click, modifiers a tick, Enter a firm click and ⌫ repeats a tick, matching the sound kinds;
+  "Uniforme" is 0.13.0 exactly. Long press stays the heaviest, the cursor tick the lightest (K6-K8 still hold).
+
+### PS — personalisation and Settings
+- PS1 A new appearance option is stored nowhere or on two pages, or a mode overwrites it (SettingsIATest I1-I9,
+  Round10TemasTest T9 keep holding without edits: every look option is a tema field on «Apariencia», every phone
+  option has exactly one control).
+- PS2 A style preset destroys a tuned tema. Rule: a style only sets look fields on the active tema, and «Deshacer»
+  restores the previous look in one tap.
+- PS3 Tema management breaks the store: an empty name, a duplicate id, deleting the active or last tema. Rule: ids
+  `[a-z0-9_-]{1,24}` unique, names trimmed to 18, the last tema cannot be deleted, deleting the active one activates
+  the next. JVM: create / rename / delete round-trip through the codec.
+- PS4 The quick panel's tema row: every tema is one 48 dp target with a TalkBack name ("Tema Arcade, en uso");
+  «Personalizar» opens «Apariencia».
+- PS5 A bundled font lacks a glyph the keys draw (ñ, ¿, ¡, «», €, …): a tofu box on a key. Rule: a legend the font
+  cannot draw falls back to DM Sans; the subset covers every character of every layer and every variant. JVM: the
+  font file's character map covers the layouts' and variants' characters.
+- PS6 Strings: every new string exists in Spanish and English (resources); the old key names stay Spanish (VO1b).
+
+### Version
+- VR7 0.14.0 / versionCode 17 are the build defaults; docs/novedades-0.14.0.md is the site text (plain language).
