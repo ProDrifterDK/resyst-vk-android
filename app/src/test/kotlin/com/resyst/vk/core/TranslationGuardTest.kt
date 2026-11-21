@@ -9,14 +9,14 @@ import org.junit.Test
 /**
  * r14b (TR1, TR10): no user-visible string literal in the app's Kotlin. Every human-readable literal in a UI file
  * must be a resource; what is left is an explicit, justified allow-list (symbols, ids, protocol words, stored data).
- * `-Dvk.mainDir=<dir with kotlin/>` points the scan at another tree (used to prove the guard bites on 0.14.0).
+ * `VK_I18N_MAIN=<dir with kotlin/>` (or -Dvk.mainDir) points the scan at another tree (used to prove the guard bites on 0.14.0).
  */
 class TranslationGuardTest {
 
     /** A literal found in a source file: where, what, and whether its line is a visible-text sink. */
     data class Lit(val file: String, val line: Int, val text: String, val sink: Boolean)
 
-    private val mainDir get() = File(System.getProperty("vk.mainDir") ?: "src/main")
+    private val mainDir get() = File(System.getProperty("vk.mainDir") ?: System.getenv("VK_I18N_MAIN") ?: "src/main")
 
     @Test fun noHardcodedUserVisibleText() {
         val found = violations(mainDir)

@@ -55,7 +55,7 @@ object Res {
     data class Parsed(val strings: Map<String, String>, val plurals: Map<String, Map<String, String>>,
         val arrays: Map<String, List<String>>, val untranslatable: Set<String>)
 
-    fun resDir(): File = File(System.getProperty("vk.resDir") ?: "src/main/res")
+    fun resDir(): File = File(System.getProperty("vk.resDir") ?: System.getenv("VK_I18N_RES") ?: "src/main/res")
 
     fun parse(dir: File): Parsed {
         val s = LinkedHashMap<String, String>()

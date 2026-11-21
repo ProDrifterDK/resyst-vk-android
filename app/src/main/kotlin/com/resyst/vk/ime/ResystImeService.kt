@@ -216,6 +216,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     private var ctxKeep: Pair<com.resyst.vk.core.Suggest, ContextKeep.Keep>? = null
 
     override fun onCreate() {
+        uiContext = ResLocale.wrap(this)
         super.onCreate()
         repo = SettingsRepo(this)
         store = repo.load()
@@ -240,9 +241,13 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // r11b: «Apagar» in settings stops the GIF tab at once; a GIF file left by a dead process goes (GC2)
         GifStore.prefs(this).registerOnSharedPreferenceChangeListener(gifPrefsListener)
         deleteGifFile()
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(localeReceiver, android.content.IntentFilter(Intent.ACTION_APPLICATION_LOCALE_CHANGED), android.content.Context.RECEIVER_NOT_EXPORTED)
+        }
     }
 
     override fun onDestroy() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) runCatching { unregisterReceiver(localeReceiver) }
         repo.prefs.unregisterOnSharedPreferenceChangeListener(this)
         GifStore.prefs(this).unregisterOnSharedPreferenceChangeListener(gifPrefsListener)
         gifFeed.clear()
@@ -333,11 +338,28 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         }
     }
 
-    /** r14b: the service's own words (announcements, toasts) in the phone's language, read when said. */
-    private val tx: com.resyst.vk.core.Txt by lazy { ResTxt(this) }
+    /**
+     * r14b: the context the keyboard's words and views live on: this service, or (Android 13+, an app language chosen in
+     * Settings › Languages) a copy of it in that language, so the keyboard speaks the app's language like Settings does.
+     */
+    private var uiContext: android.content.Context = this
+    private var txFor: android.content.Context? = null
+    private var txCache: com.resyst.vk.core.Txt? = null
+
+    /** The service's own words (announcements, toasts) in the language of [uiContext], read when said. */
+    private val tx: com.resyst.vk.core.Txt
+        get() = txCache?.takeIf { txFor === uiContext } ?: ResTxt(uiContext).also { txCache = it; txFor = uiContext }
+
+    private val localeReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            // the app language changed while the process lives: words and views are rebuilt as for any configuration change
+            uiContext = ResLocale.wrap(this@ResystImeService)
+            onConfigurationChanged(resources.configuration)
+        }
+    }
 
     override fun onCreateInputView(): View {
-        val v = KeyboardView(this)
+        val v = KeyboardView(uiContext)
         v.listener = this
         gifPanel = GifPanel(this, resources.displayMetrics.density, tx).also { p -> p.thumb = { gifFeed.thumb(it) } }
         v.reserveNavBar = true
@@ -779,7 +801,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         applySettings()
         refreshContext()
         pulse(HapticEvent.LONG_PRESS)
-        view?.announceForAccessibility(getString(if (next == com.resyst.vk.core.Lang.EN) R.string.lang_name_en else R.string.lang_name_es))
+        view?.announceForAccessibility(tx.get(if (next == com.resyst.vk.core.Lang.EN) R.string.lang_name_en else R.string.lang_name_es))
     }
 
     // ── quick panel (r10, UX-3) ─────────────────────────────────────────
@@ -807,7 +829,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
             val ks = look.applyTo(store.phone)
             val active = t.id == store.active
             val name = com.resyst.vk.core.SeedNames.display(tx, t)
-            val desc = getString(R.string.quick_tema_desc, name) + if (active) getString(R.string.quick_tema_active) else ""
+            val desc = tx.get(R.string.quick_tema_desc, name) + if (active) tx.get(R.string.quick_tema_active) else ""
             QuickPanel.TemaChip(t.id, name, t.icon, Palette.of(ks, hc, if (ks.theme in Themes.DYNAMIC) SystemLook.colors(this) else null), active, desc)
         }
     }
@@ -1650,10 +1672,10 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         val live = offers.live
         when (live.size) {
             0 -> v.setOffer(null, null)
-            1 -> v.setOffer(live[0].label, getString(R.string.context_offer_desc, live[0].typed, live[0].label))
+            1 -> v.setOffer(live[0].label, tx.get(R.string.context_offer_desc, live[0].typed, live[0].label))
             else -> v.setOffer(
-                getString(R.string.context_offers_many, live.size),
-                getString(R.string.context_offers_many_desc, live.joinToString(getString(R.string.context_offers_and)) { getString(R.string.context_offers_pair, it.typed, it.label) }),
+                tx.get(R.string.context_offers_many, live.size),
+                tx.get(R.string.context_offers_many_desc, live.joinToString(tx.get(R.string.context_offers_and)) { tx.get(R.string.context_offers_pair, it.typed, it.label) }),
             )
         }
     }
@@ -1671,7 +1693,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
     override fun onContextOffer() {
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(ContextOffers.WINDOW, 0)?.toString() ?: ""
-        val label = offers.live.joinToString(getString(R.string.context_offers_and)) { it.label }.ifEmpty { null }
+        val label = offers.live.joinToString(tx.get(R.string.context_offers_and)) { it.label }.ifEmpty { null }
         val outs = offers.take(before, whole = before.length < ContextOffers.WINDOW) // r13h (MO3): every live offer, one edit
         view?.setOffer(null, null)
         if (outs == null) { refreshContext(); return } // stale: nothing to do (ST2)
@@ -1686,7 +1708,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         // r13h (MO4): a same-length swap (caza → casa) moves no selection, so the editor sends no update: the bar is
         // refreshed here (it now leads with the ↶)
         refreshContext()
-        if (label != null) view?.announceForAccessibility(getString(R.string.context_offer_done, label))
+        if (label != null) view?.announceForAccessibility(tx.get(R.string.context_offer_done, label))
     }
 
     /** r13h (MO4): the bar's ↶ after a tap on the chip — every replaced word back while the text is unchanged. */
@@ -1705,7 +1727,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         touchTrail.reset()
         feedback(null)
         refreshContext() // the same-length swap back: no selection update either
-        if (words != null) view?.announceForAccessibility(getString(R.string.context_offers_undone, words.joinToString(", ")))
+        if (words != null) view?.announceForAccessibility(tx.get(R.string.context_offers_undone, words.joinToString(", ")))
     }
 
     // ── r10: text editing (bet 5) ───────────────────────────────────────

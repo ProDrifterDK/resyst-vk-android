@@ -349,8 +349,8 @@ object Updater {
         val dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         File(dir, DL_NAME).delete() // DownloadManager would otherwise write "-1" next to a stale file
         val req = DownloadManager.Request(Uri.parse(release.url))
-            .setTitle(app.getString(com.resyst.vk.R.string.u_notif_title, release.version))
-            .setDescription(app.getString(com.resyst.vk.R.string.u_notif_desc))
+            .setTitle(com.resyst.vk.ime.ResLocale.wrap(app).getString(com.resyst.vk.R.string.u_notif_title, release.version))
+            .setDescription(com.resyst.vk.ime.ResLocale.wrap(app).getString(com.resyst.vk.R.string.u_notif_desc))
             .setMimeType(APK_MIME)
             .addRequestHeader("User-Agent", USER_AGENT)
             // progress while running only: a "completed" notification would let a tap open the

@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * r14b (TR2, TR3, TR4): every Spanish resource has its English twin and the other way round, with the same
  * placeholders; every id the data stores has a name in both languages; English reads as English.
- * `-Dvk.resDir=<res dir>` points the checks at another tree (used to prove they bite on 0.14.0).
+ * `VK_I18N_RES=<res dir>` (or -Dvk.resDir) points the checks at another tree (used to prove they bite on 0.14.0).
  */
 class TranslationParityTest {
     private val es = Res.parse(File(Res.resDir(), "values"))
