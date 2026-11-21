@@ -1180,7 +1180,7 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
         view?.let { v ->
             v.emojiPanel.tones = tones()
             if (v.emojiOpen) v.emojiPanel.relayout()
-            v.updateEmojiRecents(emptyList()) // re-lays out the recents tab, redraws when open
+            v.wipeEmojiRecents() // re-lays out the recents tab, redraws when open (ER3)
         }
     }
 
@@ -1215,11 +1215,11 @@ class ResystImeService : InputMethodService(), KeyboardView.Listener,
                 learner.reset()
                 engine.endProvisional() // r12 (PS4)
                 feedback(null)
-                // incognito fields leave no trace, not even in the recents
+                // incognito fields leave no trace, not even in the recents. r15 (ER1/ER2): recorded and persisted at once,
+                // but the open panel keeps the order it opened with; the new order shows at the next open
                 if (!policy.incognito && recents().push(text)) {
                     val enc = recents().encode()
                     clipIo.execute { runCatching { emojiFile.writeText(enc) } }
-                    view?.updateEmojiRecents(recents().items())
                 }
             }
             EmojiPanel.Act.SPACE -> { ic.commitText(" ", 1); feedback(null) }

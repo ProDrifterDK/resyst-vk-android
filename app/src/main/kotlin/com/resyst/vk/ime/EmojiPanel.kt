@@ -12,6 +12,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.resyst.vk.core.EmojiCatalog
 import com.resyst.vk.core.EmojiTones
+import com.resyst.vk.core.RecentsRow
 import com.resyst.vk.core.Palette
 import com.resyst.vk.core.Drawn
 import com.resyst.vk.core.Ink
@@ -62,7 +63,9 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
     /** 0 = recents, 1.. = [EmojiCatalog.groups]. */
     var tab = 1
         private set
-    private var recents: List<String> = emptyList()
+    /** r15 (ER1): the recents in the order the panel opened with; a pick does not reorder them until the next open. */
+    private val row = RecentsRow()
+    private val recents: List<String> get() = row.shown
     private var scroll = 0f
     /** The cell whose tones are open (null = closed). */
     var tonesOf: EmojiCatalog.Cell? = null
@@ -177,7 +180,7 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
 
     /** Opens on recents when there are any, else on the first category. */
     fun open(recents: List<String>) {
-        this.recents = recents
+        row.open(recents)
         tonesOf = null
         tab = if (recents.any(::drawable)) 0 else 1
         if (tab in 1..catalog.groups.size) wanted = tab
@@ -185,7 +188,8 @@ class EmojiPanel(private val dp: Float, private val tx: Txt) {
         relayout()
     }
 
-    fun setRecents(r: List<String>) { recents = r; if (tab == 0) relayout() }
+    /** r15 (ER3): «Borrar lo aprendido» while open empties the row at once (the only change the open row takes). */
+    fun wipeRecents() { row.wipe(); if (tab == 0) relayout() }
 
     fun selectTab(i: Int) {
         val t0 = System.nanoTime()

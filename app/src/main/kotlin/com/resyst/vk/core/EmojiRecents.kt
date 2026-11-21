@@ -42,3 +42,20 @@ class EmojiRecents(initial: List<String> = emptyList()) {
         fun decode(s: String?): EmojiRecents = EmojiRecents(s?.split(SEP)?.filter { it.isNotEmpty() } ?: emptyList())
     }
 }
+
+/**
+ * r15 (ER1–ER4, docs/failure-modes.md): what the emoji panel's «Recientes» row shows while the panel is open. The order is
+ * taken when the panel opens and kept until it opens again: a pick is recorded (and persisted) at once in [EmojiRecents],
+ * but the row does not move under the finger, so the same emoji can be tapped again in place. A wipe («Borrar lo
+ * aprendido») is not a reorder: it empties the row at once.
+ */
+class RecentsRow {
+    var shown: List<String> = emptyList()
+        private set
+
+    /** The panel opens: the row takes the stored order. */
+    fun open(stored: List<String>) { shown = stored.toList() }
+
+    /** What was learned was wiped while the panel is open: nothing of it stays on screen. */
+    fun wipe() { shown = emptyList() }
+}

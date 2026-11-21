@@ -345,8 +345,9 @@ class KeyboardView(context: Context) : View(context) {
         invalidate(); a11y.invalidateRoot()
     }
 
-    fun updateEmojiRecents(recents: List<String>) {
-        emojiPanel.setRecents(recents)
+    /** r15 (ER3): the recents were wiped: the open row empties at once (a pick never reorders it while open, ER1). */
+    fun wipeEmojiRecents() {
+        emojiPanel.wipeRecents()
         if (emojiOpen) { invalidate(); a11y.invalidateRoot() }
     }
 
