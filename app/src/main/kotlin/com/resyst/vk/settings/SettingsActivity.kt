@@ -1241,7 +1241,7 @@ class SettingsActivity : Activity() {
                 contentDescription = getString(R.string.home_customize_desc)
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = px(8f) })
             actions.addView(dayNightButton(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            card.addView(actions, lp(top = 8f))
+            card.addView(actions, lp(top = 8f, bottom = 6f))
             ctl(Ctl.FOLLOW_SYSTEM)
         } finally {
             into = prev
@@ -1254,7 +1254,7 @@ class SettingsActivity : Activity() {
         val s = shownSettings()
         val dark = Themes.byId(s.theme).dark
         val toLabel = Themes.byId(DayNight.toggle(s).theme).label
-        return label(if (dark) "☀  $toLabel" else "☾  $toLabel", 14f, t.text, 600).apply {
+        return label(if (dark) "☀  Modo día" else "☾  Modo noche", 14f, t.text, 600).apply {
             gravity = Gravity.CENTER
             minHeight = px(46f)
             maxLines = 1
