@@ -796,12 +796,12 @@ class KeyboardView(context: Context) : View(context) {
         if (width == 0) return
         val h = stripH
         esQuery?.let { q ->
-            // r15 (ES): ← · the search box · ✕ (when there is something to clear); nothing else while searching
+            // r15 (ES): ← · the search box, its ✕ inside its right end (when there is something to clear); nothing else
             val back = 48 * dp
-            val clear = if (q.isNotEmpty()) 48 * dp else 0f
+            val right = width - 8 * dp
             stripItems += StripItem(StripKind.ES_BACK, "", RectF(0f, 0f, back, h))
-            if (clear > 0f) stripItems += StripItem(StripKind.ES_CLEAR, "", RectF(width - clear, 0f, width.toFloat(), h))
-            stripItems += StripItem(StripKind.ES_FIELD, q, RectF(back, 5 * dp, width - max(clear, 8 * dp), h - 5 * dp))
+            if (q.isNotEmpty()) stripItems += StripItem(StripKind.ES_CLEAR, "", RectF(right - 44 * dp, 0f, right, h))
+            stripItems += StripItem(StripKind.ES_FIELD, q, RectF(back, 5 * dp, right, h - 5 * dp))
             gearDot = false
             return
         }
@@ -1642,6 +1642,7 @@ class KeyboardView(context: Context) : View(context) {
         }
         fill.color = t.edge
         c.drawRect(0f, bh - 1, width.toFloat(), bh, fill)
+        c.drawRect(0f, 0f, width.toFloat(), 1f, fill) // the band's top edge: it reads as the keyboard's, not the app's
     }
 
     /** 1 while held; after the release it fades out (≤ 110 ms) so the key reads as coming back up. */
@@ -1751,17 +1752,7 @@ class KeyboardView(context: Context) : View(context) {
                     KeyIcons.draw(c, Icon.ARROW_LEFT, r.centerX(), r.centerY(), 18 * dp,
                         if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT_MOD), stroke, fill)
                 }
-                StripKind.ES_CLEAR -> {
-                    val pressed = s in pressedStrip
-                    if (pressed) { fill.color = Drawn.surface(palette, Surface.PRESSED); c.drawCircle(r.centerX(), r.centerY(), 15 * dp, fill) }
-                    stroke.color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT_MOD) else Drawn.ink(palette, Surface.BACKGROUND, Ink.TEXT_MOD)
-                    stroke.strokeWidth = 1.7f * dp
-                    stroke.strokeCap = Paint.Cap.ROUND
-                    val k = 5f * dp
-                    c.drawLine(r.centerX() - k, r.centerY() - k, r.centerX() + k, r.centerY() + k, stroke)
-                    c.drawLine(r.centerX() + k, r.centerY() - k, r.centerX() - k, r.centerY() + k, stroke)
-                    stroke.strokeCap = Paint.Cap.BUTT
-                }
+                StripKind.ES_CLEAR -> Unit // drawn after the loop: on top of its box
                 StripKind.ES_FIELD -> {
                     // r15 (ES): the box the keys type into (not the app's field): a magnifier, the query and its caret
                     fill.color = Drawn.surface(palette, Surface.PLAIN)
@@ -1775,7 +1766,7 @@ class KeyboardView(context: Context) : View(context) {
                     val empty = s.text.isEmpty()
                     text.color = if (empty) Drawn.ink(palette, Surface.PLAIN, Ink.MUTED) else Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
                     text.typeface = typeface(if (empty) 450 else 550)
-                    val room = r.width() - 48 * dp
+                    val room = r.width() - 48 * dp - (if (s.text.isNotEmpty()) 36 * dp else 0f)
                     // the end of a long query stays visible (the caret is there)
                     var label = if (empty) tx.get(R.string.emoji_search_placeholder) else s.text
                     if (!empty && text.measureText(label) > room) {
@@ -1833,6 +1824,20 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
         }
+        stripItems.firstOrNull { it.kind == StripKind.ES_CLEAR }?.let { drawSearchClear(c, it, it in pressedStrip) }
+    }
+
+    /** r15 (ES): the search box's ✕, inside its right end (the box's key colour under it, the pressed colour while held). */
+    private fun drawSearchClear(c: Canvas, s: StripItem, pressed: Boolean) {
+        val r = s.rect
+        if (pressed) { fill.color = Drawn.surface(palette, Surface.PRESSED); c.drawCircle(r.centerX(), r.centerY(), 14 * dp, fill) }
+        stroke.color = if (pressed) Drawn.ink(palette, Surface.PRESSED, Ink.TEXT) else Drawn.ink(palette, Surface.PLAIN, Ink.TEXT)
+        stroke.strokeWidth = 1.7f * dp
+        stroke.strokeCap = Paint.Cap.ROUND
+        val k = 5f * dp
+        c.drawLine(r.centerX() - k, r.centerY() - k, r.centerX() + k, r.centerY() + k, stroke)
+        c.drawLine(r.centerX() + k, r.centerY() - k, r.centerX() - k, r.centerY() + k, stroke)
+        stroke.strokeCap = Paint.Cap.BUTT
     }
 
     /**
@@ -2077,8 +2082,11 @@ class KeyboardView(context: Context) : View(context) {
             }
             KeyType.ENTER -> {
                 val g = enterGlyph
-                if (g != null) { // r15 (ES10): the top match, inserted by Enter
-                    text.textSize = iconSize(face.width()) * 1.2f
+                if (g != null) { // r15 (ES10): the top match, inserted by Enter, on a neutral plate (a colour glyph on the accent reads muddy)
+                    val sz = iconSize(face.width()) * 1.15f
+                    fill.color = Drawn.surface(palette, Surface.CARD)
+                    c.drawCircle(cx, cy, min(sz * 0.78f, min(face.width(), face.height()) * 0.46f), fill)
+                    text.textSize = sz
                     text.typeface = Typeface.DEFAULT
                     drawCentered(c, g, cx, cy)
                 } else KeyIcons.draw(c, enterIcon, cx, cy, iconSize(face.width()), ink, stroke, fill)
@@ -2488,6 +2496,6 @@ class KeyboardView(context: Context) : View(context) {
         /** r15 (ES11): the emoji search's results band: its height, a result's cell, the row's side padding (dp). */
         const val BAND_DP = 54f
         const val BAND_CELL_DP = 50f
-        const val BAND_PAD_DP = 6f
+        const val BAND_PAD_DP = 2.5f
     }
 }

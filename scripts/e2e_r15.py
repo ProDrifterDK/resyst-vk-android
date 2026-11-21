@@ -556,6 +556,54 @@ def section_m(apk):
     check('M', 'heap read', res['heap_typing'] is not None, res)
 
 
+# ── U: 0.14.0 → 0.15.0 in place keeps every setting ─────────────────────
+def prefs_map(xml):
+    import xml.etree.ElementTree as ET
+    out = {}
+    try:
+        for e in ET.fromstring(xml.strip()):
+            out[(e.tag, e.get('name'))] = e.get('value') if e.get('value') is not None else (e.text or '')
+    except ET.ParseError:
+        pass
+    return out
+
+
+def section_u(before_apk, apk):
+    e2e.adb('install', '-r', '-d', before_apk)
+    sh(f'pm clear {PKG}', check=False)
+    e2e.ensure_ime()
+    r14.night(True)
+    font('1.0')
+    r14.write_prefs(store('juego', 1.2, t__juego__accent='#e06c9f', t__noche__name='Mi noche', t__dia__font='HUMAN',
+                          phone__soundPack='THOCK', phone__longPressMs='300', phone__hapticStrength='HIGH'))
+    write_recents(RECENTS)
+    host('text')
+    r14.type_seq('hola ', None)
+    ver0 = re.search(r'versionName=(\S+)', sh(f'dumpsys package {PKG}')).group(1)
+    shot('U-0140-keyboard', f'{ver0} with a customised store, recents and a typed word')
+    files0 = r14.run_as('cd files && find . -type f | sort | xargs md5sum 2>/dev/null')
+    p0 = r14.run_as(f'cat {r14.PROFILES}')
+    rec0 = stored_recents()
+    e2e.adb('install', '-r', apk)  # in place: data kept
+    e2e.ensure_ime()
+    host('text')
+    ver1 = re.search(r'versionName=(\S+)', sh(f'dumpsys package {PKG}')).group(1)
+    shot('U-0150-keyboard', f'{ver1} after the in-place update')
+    gear()
+    shot('U-0150-quick', 'the quick panel after the update: the same temas, «Juego» in use')
+    tap_desc(T('quick_back_desc'), wait=0.5)
+    p1 = r14.run_as(f'cat {r14.PROFILES}')
+    m0, m1 = prefs_map(p0), prefs_map(p1)
+    lost = {k: v for k, v in m0.items() if m1.get(k) != v}
+    check('U', f'{ver0} → {ver1}: every stored setting keeps its value', bool(m0) and not lost and ver0.startswith('0.14.0') and ver1.startswith('0.15.0'),
+          f'{len(m0)} keys before, {len(m1)} after, changed/lost: {lost}')
+    check('U', 'the emoji recents survive the update in order', stored_recents() == rec0 == RECENTS, stored_recents())
+    files1 = r14.run_as('cd files && find . -type f | sort | xargs md5sum 2>/dev/null')
+    same = [l for l in files0.splitlines() if l in files1.splitlines()]
+    check('U', 'the personal files survive the update', len(same) == len(files0.splitlines()) > 0, f'{len(same)}/{len(files0.splitlines())} files identical')
+    metrics.setdefault('U', {})['versions'] = [ver0, ver1]
+
+
 # ── main ─────────────────────────────────────────────────────────────────
 def main():
     global LABEL, BASE
@@ -563,6 +611,7 @@ def main():
     ap.add_argument('--serial', required=True)
     ap.add_argument('--label', choices=['before', 'after'], required=True)
     ap.add_argument('--apk')
+    ap.add_argument('--before-apk', help='section U: the 0.14.0 debug build installed first')
     ap.add_argument('--no-install', action='store_true')
     ap.add_argument('--only', default='A,Q,R,S,P,M')
     ap.add_argument('--langs', default='es,en')
@@ -609,6 +658,8 @@ def main():
                 section_p()
             if 'M' in only and lang == 'es':
                 section_m(apk)
+            if 'U' in only and lang == 'es' and LABEL == 'after' and a.before_apk:
+                section_u(a.before_apk, apk)
             if 'A' in only:
                 section_a(final=True)
     finally:
