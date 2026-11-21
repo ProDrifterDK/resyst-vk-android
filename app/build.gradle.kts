@@ -13,7 +13,7 @@ android {
         targetSdk = 36
         // -Pvk.versionCode=N / -Pvk.versionName=X: local test builds only (updater E2E), never published.
         versionCode = (findProperty("vk.versionCode") as String?)?.toInt() ?: 18
-        versionName = (findProperty("vk.versionName") as String?) ?: "0.14.1"
+        versionName = (findProperty("vk.versionName") as String?) ?: "0.15.0"
         // r11b (GK1–GK3): the KLIPY API key is read at build time from keystore/klipy.key
         // (gitignored, like the signing secrets). No file, or anything but a plain token, means
         // an empty key: the build still succeeds and the GIF search is hidden entirely.

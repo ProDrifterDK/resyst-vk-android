@@ -67,10 +67,13 @@ object WhatsNew {
 
     fun dismissDescription(t: Txt, version: String): String = t.get(R.string.wn_dismiss, display(version))
 
+    /** r15 (SW1): the site's English address — the same page, its language picked by the address before it paints. */
+    const val URL_EN = "$URL?lang=en"
+
     /**
-     * Where "Novedades" and the links to the site open (TR9). The site is one page with both languages in it (the
-     * language is the visitor's saved toggle) and has no English address, so both languages open the same page.
-     * When the site publishes one (`/en/novedades/`), this is the only line to change.
+     * Where "Novedades" and the links to the site open (TR9). The site is one page with both languages in it; r15 (SW1):
+     * `?lang=en` makes it open (and stay) in English, so English phones get [URL_EN]; Spanish ones the plain address
+     * (the site's default language, and a visitor's own toggle is not overridden).
      */
-    fun url(t: Txt): String = URL
+    fun url(t: Txt): String = if (t.lang == "en") URL_EN else URL
 }

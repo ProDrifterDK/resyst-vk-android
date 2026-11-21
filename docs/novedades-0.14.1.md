@@ -1,5 +1,7 @@
 # Novedades de la 0.14.1 (texto para kv.resyst.cl/novedades)
 
+> 0.14.1 was never published. Its change ships in 0.15.0, and the site entry to use is docs/novedades-0.15.0.md.
+
 The "Novedades de la 0.14.1" chip in the keyboard opens the website (r13c WN1-WN8); the app carries no per-version
 text. This is the entry for the site, in the site's language (Spanish first, then English: the site keeps both in one
 page).

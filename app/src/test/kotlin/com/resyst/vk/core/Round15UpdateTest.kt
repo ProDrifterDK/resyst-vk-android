@@ -70,6 +70,14 @@ class Round15UpdateTest {
         assertEquals("No había versiones nuevas cuando revisé.", UpdateNotice.upToDate(TestTxt.ES, 0L, now))
     }
 
+    // ── SW1: English phones open the site in English ──────────────────────
+    @Test fun sw1EnglishPhonesOpenTheEnglishAddress() {
+        assertEquals("https://kv.resyst.cl/novedades/?lang=en", WhatsNew.url(TestTxt.EN))
+        assertEquals("https://kv.resyst.cl/novedades/", WhatsNew.url(TestTxt.ES))
+        val ime = File("src/main/kotlin/com/resyst/vk/ime/ResystImeService.kt").readText()
+        assertTrue("the chip opens WhatsNew.url(tx)", ime.contains("Uri.parse(WhatsNew.url(tx))"))
+    }
+
     @Test fun uc2ThePresentTenseClaimIsGone() {
         for (dir in listOf("values", "values-en")) {
             val xml = File("src/main/res/$dir").listFiles()!!.filter { it.extension == "xml" }.joinToString("\n") { it.readText() }
