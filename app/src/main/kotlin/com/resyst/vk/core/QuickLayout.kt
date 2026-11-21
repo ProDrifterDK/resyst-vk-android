@@ -25,6 +25,8 @@ object QuickLayout {
     const val CHIP_ROW = 44f
     const val CHIP_H = 40f
     const val CHIP_GAP = 8f
+    /** When the row fits, each chip takes an equal share of the spare width, up to this (dp): the row spans the grid's width. */
+    const val CHIP_GROW = 28f
     const val UPDATE = 36f
     /** Space between the header and an update line or the chip row (the header's own text already breathes). */
     const val AFTER_HEADER = 0f
@@ -111,12 +113,15 @@ object QuickLayout {
             val pw = if (icon) i.personalizeIconW else i.personalizeW
             // it follows the chips when all fit (no hole before it); pinned at the end when the chips must scroll
             val fits = chipsW + cg + pw <= row.w
-            val pl = if (fits) row.l + chipsW + cg else row.r - pw
+            // fitting: the chips share the spare width (capped) so the row reaches the grid's right edge like the tiles
+            val grow = if (fits && i.chipW.isNotEmpty()) minOf((row.w - chipsW - cg - pw) / i.chipW.size, CHIP_GROW * dp) else 0f
+            val wide = chipsW + grow * i.chipW.size
+            val pl = if (fits) row.l + wide + cg else row.r - pw
             personalize = Box(pl, ct, pl + pw, cb)
             val vp = Box(row.l, row.t, personalize.l - cg, row.b)
             viewport = vp
             var x = vp.l
-            for (w in i.chipW) { chips += Box(x, ct, x + w, cb); x += w + cg }
+            for (w in i.chipW) { chips += Box(x, ct, x + w + grow, cb); x += w + grow + cg }
             maxScroll = if (fits) 0f else maxOf(0f, chipsW - vp.w)
             chips.getOrNull(i.activeChip)?.let { a -> if (a.r > vp.r) toActive = minOf(maxScroll, a.r - vp.r + cg) }
         }

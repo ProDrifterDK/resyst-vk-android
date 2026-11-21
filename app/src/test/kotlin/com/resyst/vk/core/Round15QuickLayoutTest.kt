@@ -82,12 +82,18 @@ class Round15QuickLayoutTest {
                     assertTrue(where, r.place != QuickLayout.Place.NONE)
                     val row = r.row!!
                     val vp = r.viewport!!
-                    for ((k, b) in r.chips.withIndex()) assertTrue(where, near(b.w, i.chipW[k]))
+                    // whole names: never narrower than the name needs; at most a capped share of the spare width wider
+                    for ((k, b) in r.chips.withIndex()) assertTrue(where, b.w >= i.chipW[k] - 0.5f && b.w <= i.chipW[k] + QuickLayout.CHIP_GROW * dp + 0.5f)
                     for (k in 1 until r.chips.size) assertTrue(where, near(r.chips[k].l - r.chips[k - 1].r, QuickLayout.CHIP_GAP * dp))
                     // «Personalizar» right after the chips when nothing scrolls (no hole), pinned at the row's end when they scroll
                     val p = r.personalize!!
                     assertTrue(where, p.l >= vp.r && p.r <= row.r + 0.5f && p.w >= 48 * dp - 0.5f)
-                    if (r.maxScroll > 0f) assertTrue(where, near(p.r, row.r)) else assertTrue(where, near(p.l - r.chips.last().r, QuickLayout.CHIP_GAP * dp))
+                    if (r.maxScroll > 0f) assertTrue(where, near(p.r, row.r)) else {
+                        assertTrue(where, near(p.l - r.chips.last().r, QuickLayout.CHIP_GAP * dp))
+                        // the spare width went to the chips: the row ends on the grid's edge unless every chip took its cap
+                        val capped = r.chips.withIndex().all { (k, b) -> near(b.w, i.chipW[k] + QuickLayout.CHIP_GROW * dp) }
+                        if (!capped) assertTrue(where, near(p.r, row.r))
+                    }
                     assertTrue(where, r.chips.last().r - r.maxScroll <= vp.r + 0.5f)
                     if (r.maxScroll <= 0f) assertTrue(where, r.chips.last().r <= vp.r + 0.5f)
                 }

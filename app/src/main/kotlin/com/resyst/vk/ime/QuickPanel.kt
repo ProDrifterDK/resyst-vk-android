@@ -356,7 +356,7 @@ class QuickPanel(private val dp: Float, private val tx: Txt) {
         stroke.color = p.accentGlow
         stroke.strokeWidth = dp
         c.drawRoundRect(r, rr, rr, stroke)
-        KeyIcons.draw(c, Icon.PALETTE, if (iconOnly) r.centerX() else r.left + 20 * dp, r.centerY(), 16 * dp,
+        KeyIcons.draw(c, Icon.BRUSH, if (iconOnly) r.centerX() else r.left + 20 * dp, r.centerY(), 16 * dp,
             if (down) Drawn.ink(p, Surface.PRESSED, Ink.ACCENT) else Drawn.ink(p, Surface.PLAIN, Ink.ACCENT), stroke, fill)
         if (iconOnly) return
         text.textAlign = Paint.Align.LEFT
@@ -438,9 +438,10 @@ class QuickPanel(private val dp: Float, private val tx: Txt) {
         stroke.color = if (chip.active) Drawn.ink(tp, Surface.CARD, Ink.ACCENT) else tp.theme.edgeHi
         stroke.strokeWidth = if (chip.active) 2 * dp else dp
         c.drawRoundRect(r, rad, rad, stroke)
-        // r15: the swatch — a key of the tema (its key colour, edged) with its accent set on its corner
+        // r15: the swatch — a key of the tema (its key colour, edged) with its accent set on its corner; the swatch and
+        // the name are centred as a group when the chip took a share of the row's spare width
         val k = 15 * dp
-        val x0 = r.left + CHIP_PAD * dp
+        val x0 = r.left + CHIP_PAD * dp + max(0f, (r.width() - chipWidth(chip)) / 2)
         val y0 = r.centerY() - k / 2 - 1.5f * dp
         fill.color = Drawn.surface(tp, Surface.PLAIN)
         mini.set(x0, y0, x0 + k, y0 + k)

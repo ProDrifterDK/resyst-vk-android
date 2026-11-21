@@ -23,6 +23,8 @@ enum class Icon {
     ARROW_UP, ARROW_DOWN,
     // r13f (offers, CH2): the context offer chip (⇄: this word for that one)
     SWAP,
+    // r15 (QP6): «Personalizar» as a button (the «Tema» tile keeps the palette: switching is not customising)
+    BRUSH,
 }
 
 object KeyIcons {
@@ -173,6 +175,15 @@ object KeyIcons {
                 c.drawCircle(cx - h * 0.4f, cy - h * 0.05f, h * 0.13f, fill)
                 c.drawCircle(cx - h * 0.08f, cy - h * 0.45f, h * 0.13f, fill)
                 c.drawCircle(cx + h * 0.34f, cy - h * 0.3f, h * 0.13f, fill)
+            }
+            Icon.BRUSH -> {
+                // a paint brush: the handle and the loaded tip (customise the look)
+                c.drawLine(cx + h * 0.82f, cy - h * 0.82f, cx - h * 0.02f, cy + h * 0.02f, stroke)
+                path.moveTo(cx + h * 0.14f, cy + h * 0.1f)
+                path.cubicTo(cx + h * 0.06f, cy + h * 0.55f, cx - h * 0.4f, cy + h * 0.95f, cx - h * 0.92f, cy + h * 0.9f)
+                path.cubicTo(cx - h * 0.9f, cy + h * 0.45f, cx - h * 0.55f, cy - h * 0.04f, cx - h * 0.1f, cy - h * 0.14f)
+                path.close()
+                c.drawPath(path, fill)
             }
             Icon.MODE -> {
                 // two sliders: a mode is a fixed, named set of switches
