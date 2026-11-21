@@ -703,8 +703,9 @@ def main():
         path = os.path.join(BASE, f'r15-{LABEL}.json')
         if os.path.exists(path) and set(a.only.split(',')) != set('A,Q,R,S,P,M,U'.split(',')):
             old = json.load(open(path, encoding='utf-8'))
-            names = {(r['section'], r['lang'], r['check']) for r in rows}
-            out['rows'] = [r for r in old.get('rows', []) if (r['section'], r['lang'], r['check']) not in names] + rows
+            # a re-run section replaces that section's old rows for that language (renamed checks do not linger)
+            redone = {(r['section'], r['lang']) for r in rows}
+            out['rows'] = [r for r in old.get('rows', []) if (r['section'], r['lang']) not in redone] + rows
             got = {(s['scene'], s['lang']) for s in scenes}
             out['scenes'] = [s for s in old.get('scenes', []) if (s['scene'], s['lang']) not in got] + scenes
             mm = old.get('metrics', {})
