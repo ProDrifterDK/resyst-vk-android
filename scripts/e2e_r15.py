@@ -263,6 +263,10 @@ def status_lines():
 
 
 def section_a(final=False):
+    """[final]: the same process a minute later (the answer is kept in memory, as in 0.14): its age has moved."""
+    if final:
+        sh('input keyevent KEYCODE_HOME', check=False)
+        time.sleep(65)
     open_about()
     if not final:
         if not r14b.tap_text(T('s_check'), wait=4.0) and not r14b.tap_text(T('s_check_again'), wait=4.0):
@@ -281,13 +285,15 @@ def section_a(final=False):
         if hit:
             break
         r14.scroll_down(0.5)
-    name = 'A-status-end' if final else 'A-status'
-    shot(name, 'Acerca de: the update status line' + (' at the end of the run' if final else ' right after a check'))
+    name = 'A-status-1min' if final else 'A-status'
+    shot(name, 'Acerca de: the update status line' + (' a minute later, same process' if final else ' right after a check'))
     line = hit[0] if hit else ''
     metrics.setdefault('A', {})[f'{LANG}-{"end" if final else "start"}'] = line
     if LABEL == 'after':
         pat = r'^No había versiones nuevas cuando revisé, (hace \d+ (min|h|días)|hace un momento)$' if LANG == 'es' else r'^No newer version when checked, (\d+ (min|h|days) ago|a moment ago)$'
-        check('A', 'the up-to-date line states the result with its age' + (' (end)' if final else ''), bool(re.match(pat, line)), line)
+        if final:
+            pat = r'^No había versiones nuevas cuando revisé, hace 1 min$' if LANG == 'es' else r'^No newer version when checked, 1 min ago$'
+        check('A', 'the up-to-date line states the result with its age' + (': a minute later it says 1 min' if final else ''), bool(re.match(pat, line)), line)
         check('A', 'no present-tense claim', not any('última versión' in t or 'latest version' in t for t in r14.texts()), line)
         inst = next((t for t in r14.texts() if t.startswith(T('s_installed', '').strip())), '')
         check('A', 'Settings shows 0.15.0', '0.15.0' in inst, inst)
@@ -628,7 +634,7 @@ def main():
     ap.add_argument('--apk')
     ap.add_argument('--before-apk', help='section U: the 0.14.0 debug build installed first')
     ap.add_argument('--no-install', action='store_true')
-    ap.add_argument('--only', default='A,Q,R,S,P,M')
+    ap.add_argument('--only', default='A,Q,R,S,P,M,U')
     ap.add_argument('--langs', default='es,en')
     a = ap.parse_args()
     if a.serial in FORBIDDEN:
@@ -661,6 +667,7 @@ def main():
             set_lang(lang)
             if 'A' in only:
                 section_a()
+                section_a(final=True)
             if 'Q' in only:
                 section_q()
             if 'R' in only:
@@ -675,8 +682,6 @@ def main():
                 section_m(apk)
             if 'U' in only and lang == 'es' and LABEL == 'after' and a.before_apk:
                 section_u(a.before_apk, apk)
-            if 'A' in only:
-                section_a(final=True)
     finally:
         font(keep['font'] if re.match(r'^[0-9.]+$', keep['font']) else '1.0')
         sh(f"cmd uimode night {keep['night'] if keep['night'] in ('yes', 'no', 'auto') else 'auto'}", check=False)
@@ -691,7 +696,7 @@ def main():
         out = {'label': LABEL, 'rows': rows, 'scenes': scenes, 'metrics': metrics, 'restored': restored, 'kept': keep,
                'seconds': round(time.time() - t0)}
         path = os.path.join(BASE, f'r15-{LABEL}.json')
-        if os.path.exists(path) and set(a.only.split(',')) != set('A,Q,R,S,P,M'.split(',')):
+        if os.path.exists(path) and set(a.only.split(',')) != set('A,Q,R,S,P,M,U'.split(',')):
             old = json.load(open(path, encoding='utf-8'))
             names = {(r['section'], r['lang'], r['check']) for r in rows}
             out['rows'] = [r for r in old.get('rows', []) if (r['section'], r['lang'], r['check']) not in names] + rows
