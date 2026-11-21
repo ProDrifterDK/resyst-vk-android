@@ -87,10 +87,10 @@ class Round14FixTest {
     private fun report(palettes: Int, configs: Long, pairs: Long, gateNs: Long, worst: Map<Drawn.Decl, Pair<Double, String>>, fails: List<String>) {
         val sb = StringBuilder()
         sb.append("{\n  \"palettes\": $palettes,\n  \"configurations\": $configs,\n  \"pairs_checked\": $pairs,\n")
-        sb.append("  \"gate_us_per_palette\": ${"%.1f".format(gateNs / 1000.0 / palettes)},\n  \"failures\": ${fails.size},\n  \"worst\": [\n")
+        sb.append("  \"gate_us_per_palette\": ${java.util.Locale.ROOT.let { l -> "%.1f".format(l, gateNs / 1000.0 / palettes) }},\n  \"failures\": ${fails.size},\n  \"worst\": [\n")
         worst.entries.sortedBy { it.value.first / it.key.min }.forEachIndexed { i, (d, w) ->
             val kinds = if (d.surface.key) d.kinds.joinToString("/") else ""
-            sb.append("    {\"ink\": \"${d.ink}\", \"surface\": \"${d.surface}\", \"kinds\": \"$kinds\", \"min\": ${d.min}, \"worst\": ${"%.3f".format(w.first)}, \"at\": \"${w.second}\", \"where\": \"${d.where.replace("\"", "'")}\"}")
+            sb.append("    {\"ink\": \"${d.ink}\", \"surface\": \"${d.surface}\", \"kinds\": \"$kinds\", \"min\": ${d.min}, \"worst\": ${"%.3f".format(java.util.Locale.ROOT, w.first)}, \"at\": \"${w.second}\", \"where\": \"${d.where.replace("\"", "'")}\"}")
             sb.append(if (i < worst.size - 1) ",\n" else "\n")
         }
         sb.append("  ]\n}\n")
